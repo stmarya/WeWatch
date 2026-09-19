@@ -1,24 +1,62 @@
-# Ultimate Watcher (Super Face & Body Analysis V2.0)
+# 🛡️ The Ultimate Watcher V3
+**An AI-Powered Personal Security & Productivity Dashboard**
 
-Sebuah aplikasi Desktop AI terpadu menggunakan Computer Vision, MediaPipe, dan Face Recognition.
+The Ultimate Watcher V3 adalah sistem AI berbasis *Computer Vision* yang dibangun untuk memonitor produktivitas, mengawasi postur tubuh, mengamankan area meja kerja, dan menyediakan antarmuka interaktif ganda (Desktop & Web). 
 
-## Fitur Utama:
-1. **Pendeteksi Kantuk**: Alarm visual di layar jika mata tertutup lebih dari 1.5 detik.
-2. **Kacamata AR**: Filter *Augmented Reality* yang melacak koordinat iris mata dan menempelkan kacamata 3D/2D secara *real-time*.
-3. **Virtual Mouse**: Mengontrol kursor mouse menggunakan hidung, dan melakukan klik kiri melalui kedipan mata yang disengaja.
-4. **Identitas Wajah**: Mengenali wajah Anda (Pemilik) dari file `wajah_saya.jpg`.
-5. **Hand Gestures**: Melacak kerangka tangan. Acungkan jempol (Thumbs Up) untuk mengambil *Screenshot* layar secara otomatis!
-6. **Background Blur**: Mengaburkan latar belakang di belakang Anda secara *real-time* seperti fitur kamera Zoom.
-7. **Analisis Postur**: Melacak postur tulang belakang dan bahu Anda. Memunculkan peringatan jika Anda duduk terlalu membungkuk di depan layar.
-8. **Mode Keamanan (Smart Recording)**: Jika mode ini diaktifkan dan wajah tidak dikenal (Penyusup) terdeteksi, AI secara otomatis merekam video `.avi` secara rahasia di latar belakang.
+## 🚀 Fitur Unggulan
 
-## Persyaratan
-- Python 3.9+
-- `pip install -r requirements.txt`
-- Letakkan foto wajah Anda sendiri di folder yang sama dan beri nama `wajah_saya.jpg`.
+### 💼 Productivity Tracker (Bos Virtual)
+- **Deteksi Main HP**: Menggunakan *Object Detection* (COCO Dataset) untuk memergoki jika Anda diam-diam bermain *smartphone* di jam kerja! Jika ketahuan, sistem akan mengirim *Screenshot* otomatis ke Telegram Anda sebagai barang bukti.
+- **Deteksi Kehadiran**: AI akan melacak apakah Anda sedang *At Desk* (Di depan layar) atau *Away* (Meninggalkan meja).
+- **Status Pekerja**: Kalkulasi otomatis dari postur, tingkat kantuk, dan penggunaan HP untuk menyimpulkan apakah Anda "Fokus Bekerja" atau "Main-main".
 
-## Cara Menjalankan
+### 📸 Manajemen Identitas Instan (FaceID)
+- Daftarkan wajah Anda (dan teman Anda) langsung dari Web Dashboard maupun Desktop App hanya dengan satu klik! 
+- Sistem akan otomatis mendeteksi wajah Anda, melacaknya dengan kotak hijau, dan memberikan peringatan suara/Telegram jika ada "Penyusup" di depan layar.
+
+### 🧘 AI Trainer & Kesehatan
+- **Kalkulasi Postur**: Mengingatkan Anda untuk duduk tegak jika punggung terlalu membungkuk.
+- **Reps Counter**: Ingin berolahraga kecil di meja? AI akan menghitung repetisi gerakan lengan Anda secara presisi!
+- **Deteksi Kantuk**: Memonitor kedipan dan lamanya mata tertutup, lalu membunyikan alarm dan peringatan Telegram jika Anda tertidur.
+
+### 🎮 Kontrol Gestur (Hand Tracking)
+- **Boss Key**: Cukup angkat jari membentuk pose "Peace/V-Sign", dan sistem akan otomatis menyembunyikan semua jendela (*Show Desktop*).
+- **Screenshot Cepat**: Acungkan Jempol ke kamera, dan AI akan mendokumentasikan momen tersebut ke galeri.
+- **Pendeteksi Bahasa Isyarat**: Mendeteksi gestur *"I Love You"*, *"Hello"*, dan *"OK"*.
+
+### 🌐 Dual-Mode Architecture (Desktop & Web)
+Semua fitur ini dapat dikontrol melalui:
+1. **Web Dashboard**: Antarmuka *Glassmorphism* modern dengan panel *Telemetry* yang responsif. Anda bisa memantaunya dari HP (di jaringan yang sama).
+2. **Desktop App**: Panel *Sidebar* ringkas bergaya *Dark Mode* menggunakan CustomTkinter, lengkap dengan indikator status *live*.
+
+---
+
+## 🛠️ Persyaratan Sistem
+- Python 3.9 - 3.14
+- Kamera Web (Webcam)
+- Koneksi Internet (Untuk Bot Telegram)
+
+## 📦 Cara Memulai
+
+### 1. Instalasi
+Jalankan perintah ini di terminal:
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Konfigurasi
+Buat sebuah file `.env` di direktori utama, lalu isikan Token Bot Telegram Anda:
+```env
+TELEGRAM_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+CHAT_ID=987654321
+```
+
+### 3. Menjalankan Aplikasi
+Eksekusi file utama, dan biarkan "Sang Pengawas" bekerja:
 ```bash
 python main.py
 ```
-Gunakan panel kontrol di sebelah kanan layar (GUI) untuk menyalakan atau mematikan modul AI.
+Akses **http://localhost:5000** di *browser* Anda untuk membuka Web Dashboard, atau gunakan Desktop App yang langsung muncul di layar Anda.
+
+---
+*Dibangun dengan ❤️ menggunakan MediaPipe, OpenCV, Flask, dan CustomTkinter.*
