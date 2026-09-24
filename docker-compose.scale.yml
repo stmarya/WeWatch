@@ -1,0 +1,31 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+  livekit:
+    image: livekit/livekit-server:v1.8
+    command: ["--config", "/etc/livekit.yaml"]
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - "7880:7880/tcp"
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+    volumes:
+      - ./infra/livekit.yaml:/etc/livekit.yaml:ro
+
+  coturn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    command: ["-c", "/etc/coturn/turnserver.conf", "--no-cli"]
+    volumes:
+      - ./infra/turnserver.conf:/etc/coturn/turnserver.conf:ro
+
+volumes:
+  redis-data:

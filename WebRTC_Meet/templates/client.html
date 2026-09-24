@@ -608,6 +608,8 @@
             socket.emit('join', { 
                 role: 'client', 
                 name: clientName, 
+                identity: clientName,
+                join_token: new URLSearchParams(window.location.search).get('join_token') || '',
                 mic: isMicOn, 
                 cam: isCamOn 
             });

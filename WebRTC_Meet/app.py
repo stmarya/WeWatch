@@ -2,9 +2,20 @@ import os
 import threading
 import subprocess
 import ctypes
+import logging
+import sys
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
+try:
+    from services.room_auth import issue_room_token, verify_room_token
+except ModuleNotFoundError:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+    from services.room_auth import issue_room_token, verify_room_token
+try:
+    from shared_state import SharedParticipants
+except ModuleNotFoundError:
+    from WebRTC_Meet.shared_state import SharedParticipants
 
 try:
     import pyautogui
@@ -16,11 +27,12 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex())
 socketio = SocketIO(
     app,
+    message_queue=os.getenv('REDIS_URL') or None,
     cors_allowed_origins=os.getenv('WEBRTC_ALLOWED_ORIGINS', 'http://localhost:5001'),
 )
 
 # In-memory store for connected users: { sid: { id, name, role, mic, cam, hand, joined_at } }
-participants = {}
+participants = SharedParticipants(os.getenv('REDIS_URL'))
 meeting_locked = False
 whiteboard_history = []
 active_poll = None
@@ -31,6 +43,37 @@ host_permissions = {
     'video': True
 }
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
+REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 'true'
+ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
+
+
+@app.get('/healthz')
+def healthz():
+    return jsonify(status='ok', service='webrtc-signaling')
+
+
+@app.get('/readyz')
+def readyz():
+    if REQUIRE_JOIN_TOKEN and len(os.getenv('WEBRTC_SECRET_KEY', '')) < 32:
+        return jsonify(status='not_ready', reason='WEBRTC_SECRET_KEY is missing'), 503
+    return jsonify(status='ready')
+
+
+@app.post('/api/room-token')
+def room_token():
+    if request.headers.get('X-Admin-Token', '') != ADMIN_TOKEN or not ADMIN_TOKEN:
+        return jsonify(error='admin authentication required'), 401
+    data = request.get_json(silent=True) or {}
+    identity = str(data.get('identity', '')).strip()
+    role = str(data.get('role', 'client')).strip()
+    room = str(data.get('room', ROOM_NAME)).strip() or ROOM_NAME
+    if not identity or role not in {'admin', 'client'}:
+        return jsonify(error='identity and valid role are required'), 400
+    try:
+        token = issue_room_token(room, identity, role, int(data.get('ttl', 3600)))
+    except (ValueError, RuntimeError) as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(token=token, room=room, identity=identity, role=role)
 
 
 def is_admin(sid):
@@ -80,13 +123,22 @@ def handle_join(data):
             emit('join_rejected', {'reason': 'Admin token required.'})
             return
     role = 'admin' if requested_role == 'admin' else 'client'
+    identity = str(data.get('identity', request.sid[:12])).strip()[:128]
+    if REQUIRE_JOIN_TOKEN and role != 'admin':
+        try:
+            claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
+            if claims['role'] != 'client':
+                raise ValueError('role mismatch')
+        except ValueError:
+            emit('join_rejected', {'reason': 'Valid room token required.'})
+            return
     
     if meeting_locked and role == 'client':
         emit('join_rejected', {'reason': 'This meeting has been locked by the host.'})
         return
 
     name = data.get('name', 'Admin (Host)' if role == 'admin' else f'Participant {request.sid[:4]}')
-    room = 'gmeet_room'
+    room = ROOM_NAME
     join_room(room)
     
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -147,12 +199,12 @@ def handle_chat_message(data):
         'text': str(data.get('text', ''))[:2000],
         'time': datetime.now().strftime('%I:%M %p')
     }
-    emit('chat_message', message_payload, to='gmeet_room')
+    emit('chat_message', message_payload, to=ROOM_NAME)
 
 @socketio.on('live_caption')
 def handle_live_caption(data):
     # Broadcast live speech transcript to everyone in call
-    emit('caption_broadcast', data, to='gmeet_room')
+    emit('caption_broadcast', data, to=ROOM_NAME)
 
 @socketio.on('update_host_permission')
 def handle_update_host_permission(data):
@@ -163,7 +215,7 @@ def handle_update_host_permission(data):
     if perm in host_permissions:
         host_permissions[perm] = allowed
         print(f"[SECURITY] Host permission '{perm}' set to: {allowed}")
-        emit('host_permissions_update', host_permissions, to='gmeet_room')
+        emit('host_permissions_update', host_permissions, to=ROOM_NAME)
 
 @socketio.on('toggle_media')
 def handle_toggle_media(data):
@@ -177,7 +229,7 @@ def handle_toggle_media(data):
             'id': request.sid,
             'type': media_type,
             'enabled': enabled
-        }, to='gmeet_room')
+        }, to=ROOM_NAME)
 
 @socketio.on('raise_hand')
 def handle_raise_hand(data):
@@ -188,20 +240,20 @@ def handle_raise_hand(data):
             'id': request.sid,
             'name': participants[request.sid]['name'],
             'raised': raised
-        }, to='gmeet_room')
+        }, to=ROOM_NAME)
 
 @socketio.on('reaction_emoji')
 def handle_reaction(data):
     emit('reaction_emoji', {
         'senderId': request.sid,
         'emoji': data.get('emoji', '👍')
-    }, to='gmeet_room')
+    }, to=ROOM_NAME)
 
 @socketio.on('recording_state')
 def handle_recording_state(data):
     emit('recording_state', {
         'isRecording': data.get('isRecording', False)
-    }, to='gmeet_room')
+    }, to=ROOM_NAME)
 
 # Host-specific moderation events
 @socketio.on('admin_mute_client')
@@ -212,7 +264,7 @@ def handle_mute_client(data):
     if target_id in participants:
         participants[target_id]['mic'] = False
         emit('force_mute', {}, to=target_id)
-        emit('user_media_toggled', {'id': target_id, 'type': 'mic', 'enabled': False}, to='gmeet_room')
+        emit('user_media_toggled', {'id': target_id, 'type': 'mic', 'enabled': False}, to=ROOM_NAME)
 
 @socketio.on('admin_mute_all')
 def handle_mute_all():
@@ -222,7 +274,7 @@ def handle_mute_all():
         if u['role'] == 'client':
             u['mic'] = False
             emit('force_mute', {}, to=sid)
-            emit('user_media_toggled', {'id': sid, 'type': 'mic', 'enabled': False}, to='gmeet_room')
+            emit('user_media_toggled', {'id': sid, 'type': 'mic', 'enabled': False}, to=ROOM_NAME)
 
 @socketio.on('admin_kick_client')
 def handle_kick_client(data):
@@ -236,7 +288,7 @@ def handle_kick_client(data):
 def handle_end_all():
     if not require_admin():
         return
-    emit('meeting_ended_by_host', {'reason': 'The meeting was ended for everyone by the host.'}, to='gmeet_room')
+    emit('meeting_ended_by_host', {'reason': 'The meeting was ended for everyone by the host.'}, to=ROOM_NAME)
 
 # Meeting Lock Security
 @socketio.on('toggle_meeting_lock')
@@ -246,7 +298,7 @@ def handle_toggle_meeting_lock(data):
     global meeting_locked
     meeting_locked = data.get('locked', False)
     print(f"[SECURITY] Meeting locked state: {meeting_locked}")
-    emit('meeting_lock_changed', {'locked': meeting_locked}, to='gmeet_room')
+    emit('meeting_lock_changed', {'locked': meeting_locked}, to=ROOM_NAME)
 
 # Collaborative Whiteboard Events
 @socketio.on('whiteboard_draw')
@@ -254,13 +306,13 @@ def handle_whiteboard_draw(data):
     if len(whiteboard_history) > 2000:
         whiteboard_history.pop(0)
     whiteboard_history.append(data)
-    emit('whiteboard_draw', data, to='gmeet_room', include_self=False)
+    emit('whiteboard_draw', data, to=ROOM_NAME, include_self=False)
 
 @socketio.on('whiteboard_clear')
 def handle_whiteboard_clear():
     global whiteboard_history
     whiteboard_history = []
-    emit('whiteboard_clear', {}, to='gmeet_room')
+    emit('whiteboard_clear', {}, to=ROOM_NAME)
 
 @socketio.on('whiteboard_request_sync')
 def handle_whiteboard_sync():
@@ -287,7 +339,7 @@ def handle_create_poll(data):
         'creator': participants.get(request.sid, {}).get('name', 'Host')
     }
     print(f"[POLL] Created: {question} with {len(options)} options")
-    emit('poll_created', active_poll, to='gmeet_room')
+    emit('poll_created', active_poll, to=ROOM_NAME)
 
 @socketio.on('submit_vote')
 def handle_submit_vote(data):
@@ -317,7 +369,7 @@ def handle_submit_vote(data):
         'id': active_poll['id'],
         'options': active_poll['options'],
         'totalVotes': len(active_poll['voters'])
-    }, to='gmeet_room')
+    }, to=ROOM_NAME)
 
 @socketio.on('end_poll')
 def handle_end_poll(data):
@@ -326,7 +378,7 @@ def handle_end_poll(data):
     global active_poll
     if active_poll:
         active_poll['active'] = False
-        emit('poll_ended', {'id': active_poll['id']}, to='gmeet_room')
+        emit('poll_ended', {'id': active_poll['id']}, to=ROOM_NAME)
 
 # =========================================================================
 # HOST REMOTE CONTROL & PROCTORING EVENTS
@@ -341,7 +393,7 @@ def handle_remote_command(data):
     payload = data.get('payload', {})
     print(f"[REMOTE CONTROL] Command '{command}' to {target_id}")
     if target_id == 'all':
-        emit('remote_command_received', {'command': command, 'payload': payload, 'from': request.sid}, to='gmeet_room')
+        emit('remote_command_received', {'command': command, 'payload': payload, 'from': request.sid}, to=ROOM_NAME)
     elif target_id in participants:
         emit('remote_command_received', {'command': command, 'payload': payload, 'from': request.sid}, to=target_id)
 
@@ -351,7 +403,7 @@ def handle_remote_pointer(data):
         return
     target_id = data.get('target')
     if target_id == 'all':
-        emit('remote_pointer_moved', data, to='gmeet_room', include_self=False)
+        emit('remote_pointer_moved', data, to=ROOM_NAME, include_self=False)
     elif target_id in participants:
         emit('remote_pointer_moved', data, to=target_id)
 
@@ -361,7 +413,7 @@ def handle_remote_annotate(data):
         return
     target_id = data.get('target')
     if target_id == 'all':
-        emit('remote_annotation_received', data, to='gmeet_room', include_self=False)
+        emit('remote_annotation_received', data, to=ROOM_NAME, include_self=False)
     elif target_id in participants:
         emit('remote_annotation_received', data, to=target_id)
 
@@ -373,7 +425,7 @@ def handle_proctor_alert(data):
         'name': user.get('name', 'Participant'),
         'event': data.get('event'),
         'time': datetime.now().strftime('%H:%M:%S')
-    }, to='gmeet_room')
+    }, to=ROOM_NAME)
 
 # =========================================================================
 # OS-LEVEL REMOTE DESKTOP CONTROL (HR & MANAGER TAKEOVER)
@@ -594,9 +646,9 @@ def handle_disconnect():
     if request.sid in participants:
         user = participants.pop(request.sid)
         print(f"[{user['role'].upper()}] disconnected: {user['name']} ({request.sid})")
-        emit('user_left', {'id': request.sid, 'role': user['role'], 'name': user['name']}, to='gmeet_room')
+        emit('user_left', {'id': request.sid, 'role': user['role'], 'name': user['name']}, to=ROOM_NAME)
         if user['role'] == 'client':
-            emit('client_left', {'id': request.sid}, to='gmeet_room')
+            emit('client_left', {'id': request.sid}, to=ROOM_NAME)
 
 if __name__ == '__main__':
     print("Starting Google Meet WebRTC Signaling Server on port 5001...")
