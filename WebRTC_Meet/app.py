@@ -57,6 +57,7 @@ DESKTOP_AGENT_TOKEN = os.getenv('DESKTOP_AGENT_TOKEN', '').strip()
 REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 'true'
 REQUIRE_SHARED_STATE = os.getenv('WEBRTC_REQUIRE_SHARED_STATE', 'false').lower() == 'true'
 ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
+LIVEKIT_URL = os.getenv('LIVEKIT_URL', 'ws://localhost:7880').strip()
 ENABLE_SERVER_DESKTOP_CONTROL = os.getenv(
     'ENABLE_SERVER_DESKTOP_CONTROL', 'false'
 ).lower() == 'true'
@@ -71,6 +72,7 @@ room_store = RoomStore(os.getenv('REDIS_URL'), ROOM_NAME)
 DEFAULT_HOST_PERMISSIONS = {'screen': True, 'chat': True, 'mic': True, 'video': True}
 join_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
 room_token_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
+livekit_token_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
 socket_event_limiters = {
     'chat': SlidingWindowRateLimiter(max_events=30, window_seconds=10),
     'caption': SlidingWindowRateLimiter(max_events=30, window_seconds=10),
@@ -155,6 +157,36 @@ def room_token():
         room=room,
         identity=identity,
         role=role,
+    )
+
+
+@app.post('/api/livekit-token')
+def livekit_token():
+    """Exchange a short-lived room token for a LiveKit media token.
+
+    The room token binds the identity and room before LiveKit credentials are
+    issued, so browsers never need the admin secret or LiveKit API secret.
+    """
+    if not livekit_token_limiter.allow(request.remote_addr or 'unknown'):
+        return jsonify(error='too many token requests'), 429
+    data = _as_dict(request.get_json(silent=True))
+    room_token_value = str(data.get('join_token', '')).strip()
+    if not room_token_value:
+        return jsonify(error='join_token is required'), 401
+    try:
+        claims = verify_room_token(room_token_value, ROOM_NAME)
+        if claims.get('role') not in {'admin', 'client'}:
+            raise ValueError('unsupported media role')
+        ttl = int(data.get('ttl', 3600))
+        token = issue_livekit_token(ROOM_NAME, claims['identity'], ttl)
+    except (ValueError, RuntimeError, KeyError) as exc:
+        return jsonify(error=str(exc)), 401
+    return jsonify(
+        livekit_token=token,
+        livekit_url=LIVEKIT_URL,
+        room=ROOM_NAME,
+        identity=claims['identity'],
+        role=claims['role'],
     )
 
 

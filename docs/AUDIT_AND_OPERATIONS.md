@@ -121,9 +121,15 @@ Endpoint penting:
 - Client meeting: `http://localhost:5001/`
 - Health check signaling: `http://localhost:5001/healthz`
 - Readiness check signaling: `http://localhost:5001/readyz`
+- LiveKit token exchange: `POST http://localhost:5001/api/livekit-token`
 
 Dashboard admin memakai session login dan CSRF protection. Jangan memakai
 query-string token sebagai mekanisme login dashboard baru.
+
+Untuk tahap migrasi LiveKit, browser mengirim short-lived `join_token` ke
+`/api/livekit-token`. Endpoint ini mengembalikan `livekit_token` dan
+`livekit_url`; browser tidak pernah menerima `WEBRTC_ADMIN_TOKEN` atau
+`LIVEKIT_API_SECRET`.
 
 Untuk deployment multi-worker atau multi-instance, aktifkan
 `WEBRTC_REQUIRE_SHARED_STATE=true`. Dengan opsi ini `/readyz` akan gagal jika
