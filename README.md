@@ -63,7 +63,9 @@ Akses **http://localhost:5000** di *browser* Anda untuk membuka Web Dashboard, a
 Sebelum membuka port WebRTC, isi `WEBRTC_ADMIN_TOKEN` dan `WEBRTC_SECRET_KEY`
 dengan nilai acak yang panjang. Buka halaman admin memakai
 `/admin?token=<WEBRTC_ADMIN_TOKEN>`. Tanpa token, koneksi admin ditolak dan
-kontrol desktop tidak aktif.
+kontrol desktop tidak aktif. Jika client berada di host lain, atur
+`WEBRTC_ALLOWED_ORIGINS` sesuai origin yang diizinkan; default hanya
+`http://localhost:5001`.
 
 ### 5. Catatan performa
 - Pipeline kamera memakai buffer frame terbaru dan encoding maksimum 30 FPS

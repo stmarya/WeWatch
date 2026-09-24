@@ -14,7 +14,10 @@ except Exception:
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex())
-socketio = SocketIO(app, cors_allowed_origins=os.getenv('WEBRTC_ALLOWED_ORIGINS', '*'))
+socketio = SocketIO(
+    app,
+    cors_allowed_origins=os.getenv('WEBRTC_ALLOWED_ORIGINS', 'http://localhost:5001'),
+)
 
 # In-memory store for connected users: { sid: { id, name, role, mic, cam, hand, joined_at } }
 participants = {}
