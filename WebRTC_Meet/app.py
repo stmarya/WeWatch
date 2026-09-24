@@ -50,6 +50,10 @@ socketio = SocketIO(
     app,
     message_queue=os.getenv('REDIS_URL') or None,
     cors_allowed_origins=ALLOWED_ORIGINS,
+    ping_interval=25,
+    ping_timeout=60,
+    # Remote screenshots can be several megabytes after base64 encoding.
+    max_http_buffer_size=10_000_000,
 )
 
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
@@ -58,6 +62,13 @@ REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 
 REQUIRE_SHARED_STATE = os.getenv('WEBRTC_REQUIRE_SHARED_STATE', 'false').lower() == 'true'
 ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
 LIVEKIT_URL = os.getenv('LIVEKIT_URL', 'ws://localhost:7880').strip()
+ALLOW_UNSAFE_WERKZEUG = os.getenv(
+    'WEBRTC_ALLOW_UNSAFE_WERKZEUG', 'true'
+).lower() == 'true'
+try:
+    MAX_PARTICIPANTS = max(1, int(os.getenv('WEBRTC_MAX_PARTICIPANTS', '600')))
+except ValueError:
+    MAX_PARTICIPANTS = 600
 ENABLE_SERVER_DESKTOP_CONTROL = os.getenv(
     'ENABLE_SERVER_DESKTOP_CONTROL', 'false'
 ).lower() == 'true'
@@ -364,6 +375,17 @@ def handle_join(data):
     if is_meeting_locked() and role == 'client':
         emit('join_rejected', {'reason': 'This meeting has been locked by the host.'})
         return
+    if role == 'client':
+        connected_clients = sum(
+            1 for participant in participants.values()
+            if participant.get('role') == 'client'
+        )
+        if connected_clients >= MAX_PARTICIPANTS:
+            emit(
+                'join_rejected',
+                {'reason': f'Meeting capacity reached ({MAX_PARTICIPANTS} participants).'},
+            )
+            return
 
     name = data.get('name', 'Admin (Host)' if role == 'admin' else f'Participant {request.sid[:4]}')
     room = ROOM_NAME
@@ -1070,4 +1092,10 @@ def handle_disconnect():
 
 if __name__ == '__main__':
     print("Starting Google Meet WebRTC Signaling Server on port 5001...")
-    socketio.run(app, debug=False, host='0.0.0.0', port=5001)
+    socketio.run(
+        app,
+        debug=False,
+        host='0.0.0.0',
+        port=5001,
+        allow_unsafe_werkzeug=ALLOW_UNSAFE_WERKZEUG,
+    )

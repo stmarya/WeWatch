@@ -170,6 +170,42 @@ class SignalingContractTests(unittest.TestCase):
         admin.disconnect()
         locked.disconnect()
 
+    def test_participant_capacity_is_enforced(self):
+        previous = signaling.MAX_PARTICIPANTS
+        signaling.MAX_PARTICIPANTS = 1
+        try:
+            http = signaling.app.test_client()
+            first = signaling.socketio.test_client(signaling.app, flask_test_client=http)
+            first.emit(
+                "join",
+                {
+                    "role": "client",
+                    "identity": "capacity-1",
+                    "name": "Capacity 1",
+                    "join_token": self._ticket("capacity-1", "client"),
+                },
+            )
+            self.assertFalse(
+                any(event["name"] == "join_rejected" for event in first.get_received())
+            )
+            second = signaling.socketio.test_client(signaling.app, flask_test_client=http)
+            second.emit(
+                "join",
+                {
+                    "role": "client",
+                    "identity": "capacity-2",
+                    "name": "Capacity 2",
+                    "join_token": self._ticket("capacity-2", "client"),
+                },
+            )
+            self.assertTrue(
+                any(event["name"] == "join_rejected" for event in second.get_received())
+            )
+            first.disconnect()
+            second.disconnect()
+        finally:
+            signaling.MAX_PARTICIPANTS = previous
+
     def test_desktop_command_expiry_and_replay_protection(self):
         with _seen_command_lock:
             _seen_command_ids.clear()

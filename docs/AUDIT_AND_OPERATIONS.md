@@ -86,6 +86,8 @@ WEBRTC_ADMIN_TOKEN=<random-admin-token>
 WEBRTC_SECRET_KEY=<random-secret-minimal-32-karakter>
 WEBRTC_ALLOWED_ORIGINS=http://localhost:5000,http://localhost:5001
 WEBRTC_ROOM_NAME=gmeet_room
+WEBRTC_MAX_PARTICIPANTS=600
+WEBRTC_ALLOW_UNSAFE_WERKZEUG=true
 WEBRTC_REQUIRE_JOIN_TOKEN=false
 WEBRTC_REQUIRE_SHARED_STATE=false
 ```
@@ -121,6 +123,10 @@ Jalankan signaling server pada terminal terpisah:
 ```bash
 python WebRTC_Meet/app.py
 ```
+
+`WEBRTC_ALLOW_UNSAFE_WERKZEUG=true` hanya untuk development dan load test
+lokal. Production harus menjalankan signaling di server WSGI/Socket.IO yang
+sesuai di belakang TLS dan reverse proxy.
 
 Endpoint penting:
 
@@ -208,6 +214,23 @@ python tools/load_test_signaling.py \
   --workers 25 \
   --join-token "<CLIENT_JOIN_TOKEN>"
 ```
+
+Untuk load test batch dengan token enforcement aktif, gunakan admin token
+agar tool membuat token unik untuk setiap identity:
+
+```bash
+WEBRTC_ADMIN_TOKEN="<ADMIN_TOKEN>" \
+python tools/load_test_signaling.py \
+  --url http://localhost:5001 \
+  --count 500 \
+  --workers 100 \
+  --admin-token "$WEBRTC_ADMIN_TOKEN" \
+  --min-success-rate 0.99 \
+  --json-out /tmp/wewatch-signaling-500.json
+```
+
+Test ini hanya memvalidasi signaling join. Test 500 audio/video track tetap
+memerlukan LiveKit/Coturn yang berjalan dan media load harness.
 
 ## 7. Deployment skala besar
 

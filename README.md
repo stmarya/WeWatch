@@ -98,6 +98,19 @@ ketika menjalankan smoke test:
 python tools/load_test_signaling.py --count 25 --join-token "<CLIENT_JOIN_TOKEN>"
 ```
 
+Untuk menguji 500 signaling participant dengan token unik per identity:
+
+```bash
+WEBRTC_ADMIN_TOKEN="<ADMIN_TOKEN>" \
+python tools/load_test_signaling.py \
+  --count 500 --workers 100 \
+  --admin-token "$WEBRTC_ADMIN_TOKEN" \
+  --min-success-rate 0.99 \
+  --json-out /tmp/wewatch-signaling-500.json
+```
+
+Smoke test ini belum menggantikan media load test LiveKit untuk audio/video.
+
 ### 7. Native Desktop Agent (opsional)
 Untuk remote mouse, keyboard, screenshot, volume, dan workflow desktop,
 jalankan `desktop_agent.py` pada komputer client. Agent hanya menerima command
