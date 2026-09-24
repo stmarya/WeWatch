@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Google Meet | Admin Monitoring Dashboard</title>
     <link rel="icon" type="image/x-icon" href="https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-24dp/logo_meet_2020q4_color_2x_web_24dp.png">
     <link rel="manifest" href="/manifest.json">
@@ -2124,7 +2125,7 @@
             showToast(`${name} ${state ? 'diaktifkan' : 'dinonaktifkan'}`);
             fetch('/toggle', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content },
                 body: JSON.stringify({ feature: feature, state: state })
             }).catch(err => {
                 showToast(`Gagal mengubah status ${name}`);
@@ -2158,7 +2159,7 @@
             }
             fetch('/snap_face', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content },
                 body: JSON.stringify({ name: name })
             }).then(res => res.json()).then(data => {
                 if (data.success) {
@@ -2190,7 +2191,7 @@
         // Instant Snapshot Capture
         function takeSnapshot() {
             showToast("Mengambil foto dari kamera AI...");
-            fetch('/take_snapshot', { method: 'POST' })
+            fetch('/take_snapshot', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content } })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {

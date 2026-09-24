@@ -5,6 +5,7 @@ import time
 import logging
 import uuid
 import hmac
+import secrets
 from pathlib import Path
 from flask import Flask, render_template, Response, request, jsonify, redirect, session, url_for
 from dotenv import load_dotenv
@@ -51,6 +52,11 @@ def require_admin_session():
     public_static = request.path.startswith('/static/') and not request.path.startswith('/static/gallery/')
     if request.endpoint in allowed or public_static:
         return None
+    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.endpoint not in {'auth_login', 'auth_logout'}:
+        expected = session.get('csrf_token', '')
+        supplied = request.headers.get('X-CSRF-Token', '')
+        if not expected or not hmac.compare_digest(supplied, expected):
+            return jsonify(error='invalid csrf token'), 403
     if not session.get('admin_authenticated'):
         if request.path == '/':
             return redirect(url_for('auth_login'))
@@ -65,6 +71,7 @@ def auth_login():
         if ADMIN_TOKEN and hmac.compare_digest(supplied, ADMIN_TOKEN):
             session.clear()
             session['admin_authenticated'] = True
+            session['csrf_token'] = secrets.token_urlsafe(32)
             session.permanent = True
             return redirect(url_for('index'))
         error = 'Token admin tidak valid atau belum dikonfigurasi.'
@@ -85,6 +92,7 @@ def index():
     return render_template(
         'index.html',
         webrtc_admin_ticket=join_ticket,
+        csrf_token=session.get('csrf_token', ''),
     )
 
 @app.route('/manifest.json')
