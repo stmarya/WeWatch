@@ -981,7 +981,7 @@
 
         // 2. Connect to WebRTC Signaling Server running on Port 5001
         // Allows Admin (localhost:5000) to connect directly to the Client room (localhost:5001)!
-        const SIGNALING_URL = 'http://' + window.location.hostname + ':5001';
+        const SIGNALING_URL = `${window.location.protocol}//${window.location.hostname}:5001`;
         let socket = null;
 
         try {

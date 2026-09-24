@@ -62,12 +62,14 @@ python main.py
 Akses **http://localhost:5000** di *browser* Anda untuk membuka Web Dashboard, atau gunakan Desktop App yang langsung muncul di layar Anda.
 
 ### 4. WebRTC Meet (opsional)
-Sebelum membuka port WebRTC, isi `WEBRTC_ADMIN_TOKEN` dan `WEBRTC_SECRET_KEY`
-dengan nilai acak yang panjang. Buka halaman admin memakai
-`/admin?token=<WEBRTC_ADMIN_TOKEN>`. Tanpa token, koneksi admin ditolak dan
-kontrol desktop tidak aktif. Jika client berada di host lain, atur
-`WEBRTC_ALLOWED_ORIGINS` sesuai origin yang diizinkan; default hanya
-`http://localhost:5001`.
+Sebelum membuka port WebRTC, isi `WEBRTC_ADMIN_TOKEN` dan
+`WEBRTC_SECRET_KEY` dengan nilai acak yang panjang. Buka dashboard admin di
+`http://localhost:5000/` dan halaman client/signaling di
+`http://localhost:5001/`. Dashboard akan meminta admin token; tanpa token,
+koneksi admin ditolak dan kontrol desktop tidak aktif. Jika client berada di
+host lain, atur `WEBRTC_ALLOWED_ORIGINS` sebagai daftar origin yang dipisahkan
+koma. Default development mencakup port 5000 dan 5001 pada `localhost` serta
+`127.0.0.1`.
 
 ### 5. Catatan performa
 - Pipeline kamera memakai buffer frame terbaru dan encoding maksimum 30 FPS
@@ -84,6 +86,13 @@ dan Coturn. State participant, lock meeting, poll, dan whiteboard akan memakai
 shared room state saat `REDIS_URL` aktif. Jalankan `tools/load_test_signaling.py`
 sebelum membuka room untuk pengguna dan tetapkan release gate minimal 600
 koneksi berhasil.
+
+Jika `WEBRTC_REQUIRE_JOIN_TOKEN=true`, sertakan token client berumur pendek
+ketika menjalankan smoke test:
+
+```bash
+python tools/load_test_signaling.py --count 25 --join-token "<CLIENT_JOIN_TOKEN>"
+```
 
 ### 7. Native Desktop Agent (opsional)
 Untuk remote mouse, keyboard, screenshot, volume, dan workflow desktop,

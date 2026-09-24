@@ -64,11 +64,14 @@ class AIModelManager:
         if legacy_face.exists() and "wajah_saya" not in self.known_face_names:
             try:
                 img_ref = face_recognition.load_image_file(legacy_face)
-                self.known_face_encodings.append(face_recognition.face_encodings(img_ref)[0])
+                encodings = face_recognition.face_encodings(img_ref)
+                if not encodings:
+                    raise ValueError("no face found")
+                self.known_face_encodings.append(encodings[0])
                 self.known_face_names.append("Altar (Legacy)")
                 logging.info("Face Identity 'wajah_saya.jpg' loaded.")
             except Exception as e:
-                pass
+                logging.warning("Could not load legacy face %s: %s", legacy_face, e)
                 
         # Asset Kacamata, Kumis, Topi
         try: self.kacamata_img = cv2.imread(str(self.base_dir / 'kacamata.png'), cv2.IMREAD_UNCHANGED)

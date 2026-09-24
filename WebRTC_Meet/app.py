@@ -34,10 +34,20 @@ except Exception:
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex())
+_configured_origins = os.getenv(
+    'WEBRTC_ALLOWED_ORIGINS',
+    'http://localhost:5000,http://localhost:5001,'
+    'http://127.0.0.1:5000,http://127.0.0.1:5001',
+)
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in _configured_origins.split(',')
+    if origin.strip()
+]
 socketio = SocketIO(
     app,
     message_queue=os.getenv('REDIS_URL') or None,
-    cors_allowed_origins=os.getenv('WEBRTC_ALLOWED_ORIGINS', 'http://localhost:5001'),
+    cors_allowed_origins=ALLOWED_ORIGINS,
 )
 
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
@@ -207,6 +217,7 @@ def manifest():
 
 @socketio.on('join')
 def handle_join(data):
+    data = data if isinstance(data, dict) else {}
     requested_role = data.get('role', 'client')
     identity = str(data.get('identity', request.sid[:12])).strip()[:128]
     if requested_role == 'agent':
@@ -348,7 +359,11 @@ def handle_chat_message(data):
 def handle_live_caption(data):
     # Broadcast live speech transcript to everyone in call
     if isinstance(data, dict):
-        payload = {'text': str(data.get('text', ''))[:2000]}
+        user = participants.get(request.sid, {})
+        payload = {
+            'name': str(user.get('name') or data.get('name') or 'Participant')[:128],
+            'text': str(data.get('text', ''))[:2000],
+        }
         emit('caption_broadcast', payload, to=ROOM_NAME)
 
 @socketio.on('update_host_permission')
