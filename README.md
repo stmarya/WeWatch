@@ -55,6 +55,8 @@ Dashboard utama sekarang meminta login admin dan tidak lagi menaruh admin
 secret di HTML. Isi `WEBWATCH_SESSION_SECRET` dengan random secret yang panjang.
 Dokumentasi audit, operasional, dan release readiness tersedia di
 [`docs/AUDIT_AND_OPERATIONS.md`](docs/AUDIT_AND_OPERATIONS.md).
+Setiap push dan pull request ke `main` juga menjalankan workflow CI untuk unit
+test, compile check, validasi JavaScript template, dan whitespace check.
 
 ### 3. Menjalankan Aplikasi
 Eksekusi file utama, dan biarkan "Sang Pengawas" bekerja:

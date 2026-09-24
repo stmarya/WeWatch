@@ -7,6 +7,7 @@ import sys
 import json
 import uuid
 import hmac
+import time
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -25,6 +26,7 @@ try:
     from room_store import RoomStore
 except ModuleNotFoundError:
     from WebRTC_Meet.room_store import RoomStore
+from utils.security import SlidingWindowRateLimiter
 
 try:
     import pyautogui
@@ -53,6 +55,7 @@ socketio = SocketIO(
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
 DESKTOP_AGENT_TOKEN = os.getenv('DESKTOP_AGENT_TOKEN', '').strip()
 REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 'true'
+REQUIRE_SHARED_STATE = os.getenv('WEBRTC_REQUIRE_SHARED_STATE', 'false').lower() == 'true'
 ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
 ENABLE_SERVER_DESKTOP_CONTROL = os.getenv(
     'ENABLE_SERVER_DESKTOP_CONTROL', 'false'
@@ -66,6 +69,28 @@ ALLOWED_REMOTE_COMMANDS = {
 participants = SharedParticipants(os.getenv('REDIS_URL'))
 room_store = RoomStore(os.getenv('REDIS_URL'), ROOM_NAME)
 DEFAULT_HOST_PERMISSIONS = {'screen': True, 'chat': True, 'mic': True, 'video': True}
+join_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
+room_token_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
+socket_event_limiters = {
+    'chat': SlidingWindowRateLimiter(max_events=30, window_seconds=10),
+    'caption': SlidingWindowRateLimiter(max_events=30, window_seconds=10),
+    'whiteboard': SlidingWindowRateLimiter(max_events=120, window_seconds=10),
+    # Mouse move events can be high frequency; keep this limit high enough
+    # to avoid making remote pointer control visibly choppy.
+    'desktop': SlidingWindowRateLimiter(max_events=600, window_seconds=10),
+}
+
+
+def _as_dict(data):
+    return data if isinstance(data, dict) else {}
+
+
+def allow_socket_event(name):
+    limiter = socket_event_limiters[name]
+    if limiter.allow(f'{name}:{request.sid}'):
+        return True
+    emit('rate_limited', {'event': name, 'retry_after': 10}, to=request.sid)
+    return False
 
 
 @app.get('/healthz')
@@ -73,15 +98,40 @@ def healthz():
     return jsonify(status='ok', service='webrtc-signaling')
 
 
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault(
+        'Permissions-Policy',
+        'camera=(self), microphone=(self), geolocation=(), payment=()',
+    )
+    if request.is_secure:
+        response.headers.setdefault(
+            'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
+        )
+    return response
+
+
 @app.get('/readyz')
 def readyz():
     if REQUIRE_JOIN_TOKEN and len(os.getenv('WEBRTC_SECRET_KEY', '')) < 32:
         return jsonify(status='not_ready', reason='WEBRTC_SECRET_KEY is missing'), 503
+    if REQUIRE_SHARED_STATE and (
+        not participants.shared
+        or not room_store.shared
+        or not participants.healthy()
+        or not room_store.healthy()
+    ):
+        return jsonify(status='not_ready', reason='Shared Redis state is unavailable'), 503
     return jsonify(status='ready')
 
 
 @app.post('/api/room-token')
 def room_token():
+    if not room_token_limiter.allow(request.remote_addr or 'unknown'):
+        return jsonify(error='too many token requests'), 429
     if request.headers.get('X-Admin-Token', '') != ADMIN_TOKEN or not ADMIN_TOKEN:
         return jsonify(error='admin authentication required'), 401
     data = request.get_json(silent=True) or {}
@@ -173,10 +223,13 @@ def dispatch_to_agent(target, command, payload=None):
     if not agent_sid:
         emit_remote_error('No paired desktop agent is connected for this client.')
         return True
+    request_id = uuid.uuid4().hex
     emit(
         'desktop_command',
         {
-            'request_id': uuid.uuid4().hex,
+            'request_id': request_id,
+            'issued_at': time.time(),
+            'expires_at': time.time() + 30,
             'command': command,
             'payload': payload or {},
             'reply_to': request.sid,
@@ -218,6 +271,9 @@ def manifest():
 @socketio.on('join')
 def handle_join(data):
     data = data if isinstance(data, dict) else {}
+    if not join_limiter.allow(request.remote_addr or 'unknown'):
+        emit('join_rejected', {'reason': 'Too many join attempts. Try again later.'})
+        return
     requested_role = data.get('role', 'client')
     identity = str(data.get('identity', request.sid[:12])).strip()[:128]
     if requested_role == 'agent':
@@ -310,6 +366,9 @@ def handle_agent_action_result(data):
     if agent.get('role') != 'agent' or not isinstance(data, dict):
         return
     reply_to = data.get('reply_to')
+    request_id = data.get('request_id')
+    if not isinstance(request_id, str) or len(request_id) > 64:
+        return
     if not isinstance(reply_to, str) or participants.get(reply_to, {}).get('role') != 'admin':
         return
     result = {
@@ -323,24 +382,30 @@ def handle_agent_action_result(data):
 
 @socketio.on('webrtc_offer')
 def handle_offer(data):
+    data = _as_dict(data)
     target = data.get('target')
     if target in participants:
         emit('webrtc_offer', data, to=target)
 
 @socketio.on('webrtc_answer')
 def handle_answer(data):
+    data = _as_dict(data)
     target = data.get('target')
     if target in participants:
         emit('webrtc_answer', data, to=target)
 
 @socketio.on('webrtc_ice_candidate')
 def handle_ice(data):
+    data = _as_dict(data)
     target = data.get('target')
     if target in participants:
         emit('webrtc_ice_candidate', data, to=target)
 
 @socketio.on('chat_message')
 def handle_chat_message(data):
+    data = _as_dict(data)
+    if not allow_socket_event('chat'):
+        return
     user = participants.get(request.sid, {})
     if user.get('role') == 'client' and not get_host_permissions().get('chat', True):
         emit('chat_rejected', {'reason': 'Chat has been disabled by the meeting host.'})
@@ -358,7 +423,7 @@ def handle_chat_message(data):
 @socketio.on('live_caption')
 def handle_live_caption(data):
     # Broadcast live speech transcript to everyone in call
-    if isinstance(data, dict):
+    if isinstance(data, dict) and allow_socket_event('caption'):
         user = participants.get(request.sid, {})
         payload = {
             'name': str(user.get('name') or data.get('name') or 'Participant')[:128],
@@ -368,6 +433,7 @@ def handle_live_caption(data):
 
 @socketio.on('update_host_permission')
 def handle_update_host_permission(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     perm = data.get('perm')
@@ -381,6 +447,7 @@ def handle_update_host_permission(data):
 
 @socketio.on('toggle_media')
 def handle_toggle_media(data):
+    data = _as_dict(data)
     if request.sid in participants:
         media_type = data.get('type') # 'mic' or 'cam'
         if media_type not in ('mic', 'cam', 'screen'):
@@ -395,6 +462,7 @@ def handle_toggle_media(data):
 
 @socketio.on('raise_hand')
 def handle_raise_hand(data):
+    data = _as_dict(data)
     if request.sid in participants:
         raised = data.get('raised', False)
         participants[request.sid]['hand'] = raised
@@ -406,6 +474,7 @@ def handle_raise_hand(data):
 
 @socketio.on('reaction_emoji')
 def handle_reaction(data):
+    data = _as_dict(data)
     allowed = {'👍', '👏', '❤️', '😂', '😮', '😢', '🎉'}
     emoji = data.get('emoji', '👍')
     emit('reaction_emoji', {
@@ -415,6 +484,7 @@ def handle_reaction(data):
 
 @socketio.on('recording_state')
 def handle_recording_state(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     emit('recording_state', {
@@ -424,6 +494,7 @@ def handle_recording_state(data):
 # Host-specific moderation events
 @socketio.on('admin_mute_client')
 def handle_mute_client(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     target_id = data.get('target')
@@ -444,6 +515,7 @@ def handle_mute_all():
 
 @socketio.on('admin_kick_client')
 def handle_kick_client(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     target_id = data.get('target')
@@ -459,6 +531,7 @@ def handle_end_all():
 # Meeting Lock Security
 @socketio.on('toggle_meeting_lock')
 def handle_toggle_meeting_lock(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     locked = bool(data.get('locked', False))
@@ -469,6 +542,8 @@ def handle_toggle_meeting_lock(data):
 # Collaborative Whiteboard Events
 @socketio.on('whiteboard_draw')
 def handle_whiteboard_draw(data):
+    if not allow_socket_event('whiteboard'):
+        return
     if not isinstance(data, dict) or len(json.dumps(data)) > 10000:
         return
     history = get_whiteboard_history()
@@ -490,6 +565,7 @@ def handle_whiteboard_sync():
 # In-Meeting Live Polls Events
 @socketio.on('create_poll')
 def handle_create_poll(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     question = str(data.get('question', '')).strip()[:500]
@@ -517,6 +593,7 @@ def handle_create_poll(data):
 
 @socketio.on('submit_vote')
 def handle_submit_vote(data):
+    data = _as_dict(data)
     active_poll = get_active_poll()
     if not active_poll or not active_poll.get('active'):
         return
@@ -548,6 +625,7 @@ def handle_submit_vote(data):
 
 @socketio.on('end_poll')
 def handle_end_poll(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     active_poll = get_active_poll()
@@ -583,7 +661,10 @@ def handle_proctor_event(data):
 
 @socketio.on('desktop_mouse_move')
 def handle_desktop_mouse_move(data):
+    data = _as_dict(data)
     if not require_admin():
+        return
+    if not allow_socket_event('desktop'):
         return
     if data.get('target'):
         dispatch_to_agent(data.get('target'), 'mouse_move', {
@@ -608,7 +689,10 @@ def handle_desktop_mouse_move(data):
 
 @socketio.on('desktop_mouse_click')
 def handle_desktop_mouse_click(data):
+    data = _as_dict(data)
     if not require_admin():
+        return
+    if not allow_socket_event('desktop'):
         return
     if data.get('target'):
         dispatch_to_agent(data.get('target'), 'mouse_click', {
@@ -646,7 +730,10 @@ def handle_desktop_mouse_click(data):
 
 @socketio.on('desktop_mouse_scroll')
 def handle_desktop_mouse_scroll(data):
+    data = _as_dict(data)
     if not require_admin():
+        return
+    if not allow_socket_event('desktop'):
         return
     if data.get('target'):
         dispatch_to_agent(data.get('target'), 'mouse_scroll', {
@@ -667,7 +754,10 @@ def handle_desktop_mouse_scroll(data):
 
 @socketio.on('desktop_key_input')
 def handle_desktop_key_input(data):
+    data = _as_dict(data)
     if not require_admin():
+        return
+    if not allow_socket_event('desktop'):
         return
     if data.get('target'):
         dispatch_to_agent(data.get('target'), 'key_input', {
@@ -705,7 +795,10 @@ def handle_desktop_key_input(data):
 
 @socketio.on('desktop_quick_action')
 def handle_desktop_quick_action(data):
+    data = _as_dict(data)
     if not require_admin():
+        return
+    if not allow_socket_event('desktop'):
         return
     if data.get('target'):
         dispatch_to_agent(data.get('target'), 'quick_action', dict(data))
@@ -820,6 +913,7 @@ def handle_desktop_quick_action(data):
 # Forwarding remote laser, annotation, and in-app executive commands
 @socketio.on('admin_remote_pointer')
 def handle_admin_remote_pointer(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     target = data.get('target')
@@ -839,6 +933,7 @@ def handle_admin_remote_pointer(data):
 
 @socketio.on('admin_remote_annotate')
 def handle_admin_remote_annotate(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     target = data.get('target')
@@ -879,6 +974,7 @@ def handle_admin_remote_annotate(data):
 
 @socketio.on('admin_remote_command')
 def handle_admin_remote_command(data):
+    data = _as_dict(data)
     if not require_admin():
         return
     target = data.get('target')

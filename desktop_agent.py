@@ -19,8 +19,10 @@ import os
 import platform
 import subprocess
 import threading
+import time
 import uuid
 import webbrowser
+from collections import deque
 
 try:
     import socketio
@@ -203,6 +205,26 @@ def execute_command(command, payload):
 
 
 sio = socketio.Client(reconnection=True, logger=False, engineio_logger=False)
+_seen_command_ids = deque(maxlen=512)
+_seen_command_lock = threading.Lock()
+
+
+def _claim_command(data):
+    """Accept only fresh, non-replayed commands from the signaling server."""
+    request_id = data.get("request_id")
+    if not isinstance(request_id, str) or not request_id or len(request_id) > 64:
+        raise ValueError("Invalid command request id")
+    try:
+        expires_at = float(data.get("expires_at", 0))
+    except (TypeError, ValueError):
+        raise ValueError("Invalid command expiry")
+    if expires_at <= time.time():
+        raise ValueError("Command expired")
+    with _seen_command_lock:
+        if request_id in _seen_command_ids:
+            raise ValueError("Duplicate command request")
+        _seen_command_ids.append(request_id)
+    return request_id
 
 
 @sio.event
@@ -226,8 +248,9 @@ def disconnect():
 def on_desktop_command(data):
     if not isinstance(data, dict):
         return
-    request_id = data.get("request_id", uuid.uuid4().hex)
+    request_id = data.get("request_id", "")
     try:
+        request_id = _claim_command(data)
         result = execute_command(data.get("command", ""), data.get("payload", {}))
     except Exception as exc:
         logging.exception("Desktop command failed: %s", exc)

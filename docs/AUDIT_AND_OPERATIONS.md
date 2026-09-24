@@ -26,7 +26,7 @@ WeWatch terdiri dari beberapa proses:
 
 ## 2. Perbaikan audit terakhir
 
-Perbaikan terbaru sudah dipush pada commit:
+Perbaikan baseline sebelumnya sudah dipush pada commit:
 
 `1721e56 — fix: harden signaling and audit production blockers`
 
@@ -43,6 +43,20 @@ Perubahan utama:
 6. Payload event `join` yang bukan object tidak lagi langsung menyebabkan
    error akses `.get()`.
 7. Dokumentasi konfigurasi origin, token, dan smoke test diperjelas.
+
+Hardening lanjutan pada batch berikutnya menambahkan:
+
+1. Security headers untuk dashboard dan signaling.
+2. Rate limit untuk login, token issuance, join, chat, caption, whiteboard,
+   dan desktop control.
+3. Validasi payload realtime agar event malformed tidak menyebabkan akses
+   `.get()` pada data non-object.
+4. Expiry 30 detik dan anti-replay lokal untuk command desktop agent.
+5. Readiness guard opsional yang menolak instance ketika Redis wajib tetapi
+   tidak tersedia.
+6. Workflow GitHub Actions untuk test Python, compile, JavaScript template,
+   dan whitespace.
+7. Notifikasi UI ketika event terkena rate limit.
 
 ## 3. Konfigurasi minimum
 
@@ -66,6 +80,7 @@ WEBRTC_SECRET_KEY=<random-secret-minimal-32-karakter>
 WEBRTC_ALLOWED_ORIGINS=http://localhost:5000,http://localhost:5001
 WEBRTC_ROOM_NAME=gmeet_room
 WEBRTC_REQUIRE_JOIN_TOKEN=false
+WEBRTC_REQUIRE_SHARED_STATE=false
 ```
 
 Untuk desktop agent:
@@ -110,6 +125,11 @@ Endpoint penting:
 Dashboard admin memakai session login dan CSRF protection. Jangan memakai
 query-string token sebagai mekanisme login dashboard baru.
 
+Untuk deployment multi-worker atau multi-instance, aktifkan
+`WEBRTC_REQUIRE_SHARED_STATE=true`. Dengan opsi ini `/readyz` akan gagal jika
+Redis tidak tersedia, sehingga instance tidak menerima traffic dengan state
+yang tidak konsisten. Development single-process dapat tetap memakai `false`.
+
 ## 5. Desktop agent
 
 Desktop agent wajib dijalankan di komputer yang memang ingin dikontrol, bukan
@@ -142,6 +162,7 @@ Jalankan semua pemeriksaan lokal berikut dari root repo:
 PYTHONPATH=. python -m unittest discover -s tests -v
 python -m compileall -q .
 python -m py_compile desktop_agent.py tools/load_test_signaling.py
+python tools/check_template_js.py
 ```
 
 Periksa sintaks JavaScript dengan mengekstrak script template dan menjalankan:
@@ -183,6 +204,7 @@ Sebelum production:
 - Gunakan TLS untuk dashboard, signaling, LiveKit, dan TURN.
 - Atur firewall serta rate limit.
 - Gunakan Redis yang persistent dan dipantau.
+- Aktifkan `WEBRTC_REQUIRE_SHARED_STATE=true` pada deployment multi-worker.
 - Gunakan secret LiveKit dan TURN yang berbeda dari token aplikasi.
 - Sediakan observability untuk CPU, memory, connection count, signaling
   latency, packet loss, reconnect, dan TURN relay usage.

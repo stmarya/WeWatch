@@ -21,7 +21,7 @@ from camera import AICamera, FEATURES, STATUS
 from services.jarvis import start_jarvis
 from services.database import init_db, init_attendance_db
 from services.room_auth import issue_room_token
-from utils.security import safe_face_name
+from utils.security import SlidingWindowRateLimiter, safe_face_name
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv(
@@ -42,6 +42,9 @@ init_attendance_db()
 
 # Initialize Camera with AI processing in background
 camera = AICamera(FEATURES, STATUS)
+login_limiter = SlidingWindowRateLimiter(max_events=8, window_seconds=60)
+face_limiter = SlidingWindowRateLimiter(max_events=6, window_seconds=60)
+snapshot_limiter = SlidingWindowRateLimiter(max_events=20, window_seconds=60)
 
 # Mulai pendengar Jarvis di background
 start_jarvis(camera)
@@ -63,10 +66,31 @@ def require_admin_session():
         return jsonify(error='authentication required'), 401
     return None
 
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault(
+        'Permissions-Policy',
+        'camera=(self), microphone=(self), geolocation=(), payment=()',
+    )
+    if request.is_secure:
+        response.headers.setdefault(
+            'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
+        )
+    return response
+
 @app.route('/auth/login', methods=['GET', 'POST'])
 def auth_login():
     error = None
     if request.method == 'POST':
+        if not login_limiter.allow(request.remote_addr or 'unknown'):
+            return render_template(
+                'login.html',
+                error='Terlalu banyak percobaan login. Coba lagi nanti.',
+            ), 429
         supplied = (request.form.get('token') or '').strip()
         if ADMIN_TOKEN and hmac.compare_digest(supplied, ADMIN_TOKEN):
             session.clear()
@@ -139,6 +163,8 @@ def toggle():
 
 @app.route('/snap_face', methods=['POST'])
 def snap_face():
+    if not face_limiter.allow(request.remote_addr or 'unknown'):
+        return jsonify(success=False, message='Terlalu banyak percobaan registrasi wajah.'), 429
     data = request.get_json(silent=True) or {}
     name = safe_face_name(data.get('name', 'user_default'))
     success, message = camera.register_face(name)
@@ -146,6 +172,8 @@ def snap_face():
 
 @app.route('/take_snapshot', methods=['POST'])
 def take_snapshot():
+    if not snapshot_limiter.allow(request.remote_addr or 'unknown'):
+        return jsonify(success=False, message='Terlalu banyak permintaan snapshot.'), 429
     if camera.frame_rgb is not None:
         try:
             import cv2

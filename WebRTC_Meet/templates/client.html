@@ -1335,6 +1335,10 @@
             lobby.style.opacity = '1';
         });
 
+        socket.on('rate_limited', (data) => {
+            showToast(`⚠️ Too many ${data.event || 'requests'}; please slow down.`);
+        });
+
         // Host Permissions Enforcement (Screen, Chat, Mic, Video)
         socket.on('host_permissions_update', (perms) => {
             if (!perms) return;

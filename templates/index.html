@@ -1009,6 +1009,10 @@
                 showToast(`⚠️ Admin join rejected: ${data.reason || 'authentication failed'}`);
             });
 
+            socket.on('rate_limited', (data) => {
+                showToast(`⚠️ Too many ${data.event || 'requests'}; please slow down.`);
+            });
+
             socket.on('action_rejected', (data) => {
                 showToast(`⚠️ Remote action rejected: ${data.reason || 'not authorized'}`);
             });

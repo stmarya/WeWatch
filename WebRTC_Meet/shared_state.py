@@ -22,6 +22,18 @@ class SharedParticipants(MutableMapping):
             except Exception as exc:
                 logging.warning("Redis unavailable; using local participant state: %s", exc)
 
+    @property
+    def shared(self):
+        return self._redis is not None
+
+    def healthy(self):
+        if not self._redis:
+            return False
+        try:
+            return bool(self._redis.ping())
+        except Exception:
+            return False
+
     def _key(self, key):
         return f"{self._prefix}{key}"
 

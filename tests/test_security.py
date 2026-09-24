@@ -1,6 +1,6 @@
 import unittest
 
-from utils.security import MajorityVote, safe_face_name
+from utils.security import MajorityVote, SlidingWindowRateLimiter, safe_face_name
 
 
 class SecurityUtilityTests(unittest.TestCase):
@@ -16,6 +16,15 @@ class SecurityUtilityTests(unittest.TestCase):
         self.assertEqual(vote.add("Unknown"), "Alice")
         vote.add("Unknown")
         self.assertEqual(vote.add("Unknown"), "Unknown")
+
+    def test_rate_limiter_rejects_burst_and_recovers(self):
+        limiter = SlidingWindowRateLimiter(max_events=2, window_seconds=0.02)
+        self.assertTrue(limiter.allow("client-1"))
+        self.assertTrue(limiter.allow("client-1"))
+        self.assertFalse(limiter.allow("client-1"))
+        import time
+        time.sleep(0.03)
+        self.assertTrue(limiter.allow("client-1"))
 
 
 if __name__ == "__main__":
