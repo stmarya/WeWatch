@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Watcher</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+</head>
+<body>
+    <header>
+        <h2>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            Admin Dashboard
+        </h2>
+        <div style="display: flex; gap: 20px; align-items: center;">
+            <div class="status-badge" id="configStatus">
+                <div class="status-dot"></div>
+                System Active
+            </div>
+            <button id="toggleAdminCam" class="btn">Start Camera</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Grid for client streams -->
+        <div id="videoGrid" class="grid-container"></div>
+    </div>
+    
+    <!-- Floating Admin Video -->
+    <div id="adminLocalWrapper" style="display:none;">
+        <video id="adminLocalVideo" autoplay muted playsinline></video>
+        <div class="video-label" style="bottom: 10px; left: 10px; font-size: 0.8rem;">Admin (You)</div>
+    </div>
+
+    <script>
+        const socket = io();
+        let peerConnections = {};
+        let adminStream = null;
+        const config = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] };
+        const videoGrid = document.getElementById('videoGrid');
+
+        // ==== 1. Config Persistence ====
+        let adminConfig = JSON.parse(localStorage.getItem('adminConfig')) || { cameraOn: false };
+        
+        function applyConfig() {
+            if (adminConfig.cameraOn) {
+                startAdminCamera();
+            }
+        }
+
+        function saveConfig() {
+            localStorage.setItem('adminConfig', JSON.stringify(adminConfig));
+        }
+
+        // ==== 2. Admin Camera Control ====
+        const toggleBtn = document.getElementById('toggleAdminCam');
+        toggleBtn.onclick = () => {
+            if (adminStream) {
+                adminStream.getTracks().forEach(track => track.stop());
+                adminStream = null;
+                document.getElementById('adminLocalWrapper').style.display = 'none';
+                toggleBtn.innerText = "Start Camera";
+                toggleBtn.classList.remove("danger");
+                adminConfig.cameraOn = false;
+            } else {
+                startAdminCamera();
+            }
+            saveConfig();
+        };
+
+        function startAdminCamera() {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then(stream => {
+                    adminStream = stream;
+                    const videoEl = document.getElementById('adminLocalVideo');
+                    videoEl.srcObject = stream;
+                    document.getElementById('adminLocalWrapper').style.display = 'block';
+                    toggleBtn.innerText = "Stop Camera";
+                    toggleBtn.classList.add("danger");
+                    adminConfig.cameraOn = true;
+                    saveConfig();
+                }).catch(err => {
+                    console.error("Failed to access camera", err);
+                    alert("Please allow camera access.");
+                });
+        }
+
+        // ==== 3. WebRTC Signaling ====
+        socket.emit('join', { role: 'admin' });
+
+        socket.on('client_joined', async (data) => {
+            const clientId = data.id;
+            const pc = new RTCPeerConnection(config);
+            peerConnections[clientId] = pc;
+
+            // Create DOM elements
+            const wrapper = document.createElement('div');
+            wrapper.className = 'video-wrapper';
+            wrapper.id = `wrapper-${clientId}`;
+            
+            const videoEl = document.createElement('video');
+            videoEl.id = `video-${clientId}`;
+            videoEl.autoplay = true;
+            videoEl.playsinline = true;
+            videoEl.className = 'video-box';
+            
+            const label = document.createElement('div');
+            label.className = 'video-label';
+            label.innerText = `Client: ${clientId.substring(0,6)}`;
+
+            wrapper.appendChild(videoEl);
+            wrapper.appendChild(label);
+            videoGrid.appendChild(wrapper);
+
+            pc.ontrack = event => {
+                videoEl.srcObject = event.streams[0];
+            };
+
+            pc.onicecandidate = event => {
+                if (event.candidate) {
+                    socket.emit('webrtc_ice_candidate', { target: clientId, candidate: event.candidate, sender: socket.id });
+                }
+            };
+
+            pc.addTransceiver('video', { direction: 'recvonly' });
+            pc.addTransceiver('audio', { direction: 'recvonly' });
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit('webrtc_offer', { target: clientId, offer: offer, sender: socket.id });
+        });
+
+        socket.on('webrtc_answer', async (data) => {
+            if (peerConnections[data.sender]) {
+                await peerConnections[data.sender].setRemoteDescription(new RTCSessionDescription(data.answer));
+            }
+        });
+
+        socket.on('webrtc_ice_candidate', async (data) => {
+            if (peerConnections[data.sender]) {
+                await peerConnections[data.sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        socket.on('client_left', (data) => {
+            const clientId = data.id;
+            if (peerConnections[clientId]) {
+                peerConnections[clientId].close();
+                delete peerConnections[clientId];
+            }
+            const wrapperEl = document.getElementById(`wrapper-${clientId}`);
+            if (wrapperEl) wrapperEl.remove();
+        });
+
+        applyConfig();
+    </script>
+</body>
+</html>

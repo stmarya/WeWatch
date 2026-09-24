@@ -1,0 +1,2066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Meet | client-room</title>
+    <link rel="icon" type="image/x-icon" href="https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-24dp/logo_meet_2020q4_color_2x_web_24dp.png">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/static/gmeet.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+</head>
+<body>
+
+    <!-- 1. GOOGLE MEET LOBBY / PRE-JOIN GREEN ROOM -->
+    <div class="lobby-screen" id="lobbyScreen">
+        <div class="lobby-container">
+            <!-- Left: Video Preview & Hardware Controls -->
+            <div class="lobby-preview-wrapper">
+                <video id="lobbyPreviewVideo" autoplay muted playsinline></video>
+                <div class="avatar-placeholder" id="lobbyAvatar" style="display:none;">
+                    <div class="avatar-circle" id="lobbyAvatarCircle">C</div>
+                </div>
+                
+                <div class="lobby-controls-bar">
+                    <button class="lobby-control-btn" id="lobbyBtnMic" onclick="toggleLobbyMic()" title="Toggle microphone">
+                        <span class="material-symbols-outlined" id="lobbyIconMic">mic</span>
+                    </button>
+                    <button class="lobby-control-btn" id="lobbyBtnCam" onclick="toggleLobbyCam()" title="Toggle camera">
+                        <span class="material-symbols-outlined" id="lobbyIconCam">videocam</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Ready to Join Panel -->
+            <div class="lobby-join-panel">
+                <h1>Ready to join?</h1>
+                <p id="lobbyStatusText">Admin (Host) is monitoring this room.</p>
+                <div class="lock-banner" id="lobbyLockBanner">
+                    <span class="material-symbols-outlined" style="font-size:16px;">lock</span>
+                    <span>This meeting is locked by the host</span>
+                </div>
+                <input type="text" class="lobby-input-field" id="lobbyNameInput" placeholder="Enter your name" value="Client Participant">
+                <button class="lobby-btn-join" id="lobbyJoinBtn" onclick="joinMeetingFromLobby()">Join now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. IN-MEETING MAIN STAGE -->
+    <div class="meet-app">
+        <!-- Main Video Stage -->
+        <div class="stage-container" id="clientStageContainer">
+            <canvas class="remote-annotation-canvas" id="clientRemoteAnnotCanvas"></canvas>
+            <div id="videoGrid" class="video-grid grid-1">
+                <!-- Client Local Video Tile -->
+                <div class="video-tile" id="localTile">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    
+                    <!-- Avatar Fallback when Cam is Off -->
+                    <div class="avatar-placeholder" id="localAvatar">
+                        <div class="avatar-circle" id="localAvatarCircle">C</div>
+                    </div>
+
+                    <!-- Raised Hand Badge -->
+                    <div class="hand-badge" id="localHandBadge" style="display:none;">
+                        <span class="material-symbols-outlined">back_hand</span>
+                    </div>
+
+                    <!-- Tile Action Controls (Top Right Hover) -->
+                    <div class="tile-actions">
+                        <button class="tile-action-btn" title="Pin to screen" onclick="togglePin('localTile')">
+                            <span class="material-symbols-outlined">push_pin</span>
+                        </button>
+                    </div>
+
+                    <!-- Floating Name Tag -->
+                    <div class="tile-name-tag">
+                        <div class="audio-status" id="localMicStatus">
+                            <span class="material-symbols-outlined" id="localMicIcon">mic</span>
+                        </div>
+                        <span id="tileNameLabel">You</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Captions Bar -->
+            <div class="captions-bar" id="captionsBar">
+                <span id="captionText">Listening to conversation...</span>
+            </div>
+        </div>
+
+        <!-- Floating Side Drawer (People, Chat, Info) -->
+        <div class="side-drawer" id="sideDrawer">
+            <div class="drawer-header">
+                <h3 id="drawerTitle">In-call messages</h3>
+                <button class="drawer-close-btn" onclick="closeDrawer()">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <!-- Drawer Content: People -->
+            <div class="drawer-content" id="drawerPeople" style="display:none;">
+                <div class="people-search-box">
+                    <span class="material-symbols-outlined search-icon">search</span>
+                    <input type="text" id="peopleSearchInput" placeholder="Search for people" oninput="filterPeople()">
+                </div>
+                <div class="people-section-title">In call (<span id="peopleCountBadge">1</span>)</div>
+                <div id="peopleList">
+                    <div class="participant-item">
+                        <div class="participant-avatar" style="background:#188038;">C</div>
+                        <div class="participant-info">
+                            <div class="participant-name" id="drawerYouName">You</div>
+                            <div class="participant-sub">Client (Monitored)</div>
+                        </div>
+                        <div class="participant-icons">
+                            <span class="material-symbols-outlined" style="font-size:18px;">mic</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drawer Content: Chat -->
+            <div class="drawer-content" id="drawerChat" style="display:none;">
+                <div class="chat-disclaimer">
+                    Messages can only be seen by people in the call and are deleted when the call ends.
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="chat-msg">
+                        <div class="chat-msg-header">
+                            <span class="chat-msg-author">Google Meet</span>
+                            <span class="chat-msg-time" id="chatWelcomeTime">--:--</span>
+                        </div>
+                        <div class="chat-msg-body" style="color:var(--gmeet-text-muted);">
+                            Welcome to the meeting room. Your camera stream is connected securely to the Admin.
+                        </div>
+                    </div>
+                </div>
+                <form class="chat-input-wrapper" onsubmit="sendChatMessage(event)">
+                    <input type="text" id="chatInput" placeholder="Send a message to everyone" autocomplete="off">
+                    <button type="submit" class="chat-send-btn" id="chatSendBtn">
+                        <span class="material-symbols-outlined">send</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Drawer Content: Activities (Polls & Whiteboard) -->
+            <div class="drawer-content" id="drawerActivities" style="display:none;">
+                <!-- Whiteboard Card -->
+                <div class="activity-card" style="margin-bottom:12px; border-color:rgba(253, 214, 99, 0.3);">
+                    <div class="activity-header">
+                        <div class="icon-box" style="background:rgba(253, 214, 99, 0.15); color:#fdd663;">
+                            <span class="material-symbols-outlined">draw</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div class="activity-title">Collaborative Whiteboard</div>
+                            <div style="font-size:12px; color:var(--gmeet-text-muted);">Draw together in real-time</div>
+                        </div>
+                    </div>
+                    <button class="btn-gmeet btn-gmeet-primary" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="openWhiteboard()">
+                        <span class="material-symbols-outlined" style="font-size:18px;">brush</span> Open Whiteboard
+                    </button>
+                </div>
+
+                <!-- Live Polls Card -->
+                <div class="activity-card" style="margin-bottom:12px; border-color:rgba(138, 180, 248, 0.3);">
+                    <div class="activity-header">
+                        <div class="icon-box" style="background:rgba(138, 180, 248, 0.15); color:var(--gmeet-primary);">
+                            <span class="material-symbols-outlined">poll</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div class="activity-title">In-Meeting Polls</div>
+                            <div style="font-size:12px; color:var(--gmeet-text-muted);">Vote on live host questions</div>
+                        </div>
+                    </div>
+                    <div id="clientPollContainer" style="margin-top:10px;">
+                        <div id="activePollDisplay">
+                            <div style="font-size:12px; color:var(--gmeet-text-muted); text-align:center; padding:12px;">No active poll right now.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drawer Content: Details -->
+            <div class="drawer-content" id="drawerDetails" style="display:none;">
+                <div class="people-section-title">Joining info</div>
+                <div style="font-size:14px; margin-bottom:12px; color:var(--gmeet-text);">
+                    http://localhost:5001/
+                </div>
+                <button class="btn-gmeet btn-gmeet-outline" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="copyJoinInfo()">
+                    <span class="material-symbols-outlined">content_copy</span> Copy joining info
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Controls Bar -->
+    <div class="bottom-bar">
+        <!-- Left: Time & Code -->
+        <div class="bar-left">
+            <div class="bar-time" id="liveClock">10:00 AM</div>
+            <div class="bar-divider">|</div>
+            <div class="bar-meeting-code" onclick="copyJoinInfo()" data-tooltip="Copy meeting code">
+                <span>wtc-meet-client</span>
+                <span class="material-symbols-outlined" style="font-size:16px;">content_copy</span>
+            </div>
+        </div>
+
+        <!-- Center: Action Controls -->
+        <div class="bar-center">
+            <!-- Mic Button -->
+            <button class="control-btn" id="btnMic" onclick="toggleMic()" data-tooltip="Turn off microphone (Ctrl + d)">
+                <span class="material-symbols-outlined" id="iconMic">mic</span>
+            </button>
+
+            <!-- Camera Button -->
+            <button class="control-btn" id="btnCam" onclick="toggleCam()" data-tooltip="Turn off camera (Ctrl + e)">
+                <span class="material-symbols-outlined" id="iconCam">videocam</span>
+            </button>
+
+            <!-- Captions Button -->
+            <button class="control-btn" id="btnCaptions" onclick="toggleCaptions()" data-tooltip="Turn on captions (c)">
+                <span class="material-symbols-outlined">closed_caption</span>
+            </button>
+
+            <!-- Raise Hand Button -->
+            <button class="control-btn" id="btnHand" onclick="toggleRaiseHand()" data-tooltip="Raise hand (Ctrl + h)">
+                <span class="material-symbols-outlined" id="iconHand">back_hand</span>
+            </button>
+
+            <!-- Reaction Button -->
+            <button class="control-btn" id="btnReaction" onclick="toggleReactionTray()" data-tooltip="Send a reaction">
+                <span class="material-symbols-outlined">add_reaction</span>
+            </button>
+
+            <!-- Whiteboard Button -->
+            <button class="control-btn" id="btnWhiteboard" onclick="openWhiteboard()" data-tooltip="Collaborative Whiteboard">
+                <span class="material-symbols-outlined" style="color:#fdd663;">draw</span>
+            </button>
+
+            <!-- Present Screen Button -->
+            <button class="control-btn" id="btnScreen" onclick="toggleScreenShare()" data-tooltip="Present now">
+                <span class="material-symbols-outlined" id="iconScreen">present_to_all</span>
+            </button>
+
+            <!-- More Options Button -->
+            <button class="control-btn" id="btnMore" onclick="showMoreOptions()" data-tooltip="More options">
+                <span class="material-symbols-outlined">more_vert</span>
+            </button>
+
+            <!-- Leave Call Button (Red Pill) -->
+            <button class="control-btn btn-hangup" id="btnLeave" onclick="leaveCall()" data-tooltip="Leave call">
+                <span class="material-symbols-outlined">call_end</span>
+            </button>
+        </div>
+
+        <!-- Right: Info, People, Chat, Activities -->
+        <div class="bar-right">
+            <button class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Meeting details">
+                <span class="material-symbols-outlined">info</span>
+            </button>
+
+            <button class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Show everyone">
+                <span class="material-symbols-outlined">group</span>
+                <span class="badge-count" id="badgePeopleCount">1</span>
+            </button>
+
+            <button class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Chat with everyone">
+                <span class="material-symbols-outlined">chat</span>
+                <span class="badge-count" id="badgeChatUnread" style="display:none;">0</span>
+            </button>
+
+            <button class="icon-toggle-btn" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Activities & Polls">
+                <span class="material-symbols-outlined">shapes</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Live Recording Badge -->
+    <div class="rec-badge" id="recBadge">
+        <div class="rec-dot"></div>
+        <span>REC</span>
+    </div>
+
+    <!-- Reaction Tray Popover -->
+    <div class="reaction-tray" id="reactionTray">
+        <button class="reaction-btn" onclick="sendReaction('💖')">💖</button>
+        <button class="reaction-btn" onclick="sendReaction('👍')">👍</button>
+        <button class="reaction-btn" onclick="sendReaction('🎉')">🎉</button>
+        <button class="reaction-btn" onclick="sendReaction('👏')">👏</button>
+        <button class="reaction-btn" onclick="sendReaction('😂')">😂</button>
+        <button class="reaction-btn" onclick="sendReaction('😮')">😮</button>
+    </div>
+
+    <!-- More Options Popover Menu -->
+    <div class="gmeet-menu-popover" id="moreMenuPopover">
+        <button class="gmeet-menu-item" onclick="openLayoutModal()">
+            <span class="material-symbols-outlined">dashboard</span>
+            <span>Change layout</span>
+        </button>
+        <button class="gmeet-menu-item" onclick="toggleFullscreen()">
+            <span class="material-symbols-outlined">fullscreen</span>
+            <span>Full screen</span>
+        </button>
+        <button class="gmeet-menu-item" onclick="openSettingsModal()">
+            <span class="material-symbols-outlined">settings</span>
+            <span>Settings</span>
+        </button>
+        <button class="gmeet-menu-item" onclick="togglePip()">
+            <span class="material-symbols-outlined">picture_in_picture_alt</span>
+            <span>Picture-in-picture</span>
+        </button>
+        <div class="gmeet-menu-divider"></div>
+        <button class="gmeet-menu-item" id="btnInstallApp" onclick="triggerPwaInstall()">
+            <span class="material-symbols-outlined">install_desktop</span>
+            <span>Install Google Meet App</span>
+        </button>
+    </div>
+
+    <!-- Google Meet Change Layout Modal -->
+    <div class="gmeet-modal-backdrop" id="layoutModal" style="display:none;">
+        <div class="gmeet-modal-card" style="max-width:500px;">
+            <h2>Change layout</h2>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin: 16px 0;">
+                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('auto')">
+                    <span class="material-symbols-outlined" style="font-size:28px;">auto_awesome</span>
+                    <span>Auto (Dynamic)</span>
+                </button>
+                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('tiled')">
+                    <span class="material-symbols-outlined" style="font-size:28px;">grid_view</span>
+                    <span>Tiled (Grid)</span>
+                </button>
+                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('spotlight')">
+                    <span class="material-symbols-outlined" style="font-size:28px;">crop_portrait</span>
+                    <span>Spotlight</span>
+                </button>
+                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('sidebar')">
+                    <span class="material-symbols-outlined" style="font-size:28px;">view_sidebar</span>
+                    <span>Sidebar</span>
+                </button>
+            </div>
+            <div class="gmeet-modal-actions">
+                <button class="btn-gmeet btn-gmeet-primary" onclick="closeLayoutModal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Meet Functional Settings Modal -->
+    <div class="gmeet-modal-backdrop" id="settingsModal" style="display:none;">
+        <div class="gmeet-modal-card" style="max-width:560px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h2 style="margin:0;">Settings</h2>
+                <button class="drawer-close-btn" onclick="closeSettingsModal()">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            
+            <!-- Audio Section -->
+            <div style="margin-bottom:18px;">
+                <div style="font-size:12px; font-weight:600; color:var(--gmeet-primary); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">mic</span> AUDIO HARDWARE
+                </div>
+                
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Microphone Input</label>
+                    <select id="settingsMicSelect" onchange="changeAudioInput(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                        <option value="default">Default - System Microphone</option>
+                    </select>
+                </div>
+
+                <!-- Live Mic Meter -->
+                <div style="display:flex; align-items:center; gap:10px; background:#202124; padding:8px 12px; border-radius:6px; border:1px solid var(--gmeet-border); margin-bottom:10px;">
+                    <span class="material-symbols-outlined" style="font-size:18px; color:var(--gmeet-primary);">graphic_eq</span>
+                    <span style="font-size:12px; color:var(--gmeet-text-muted); width:70px;">Mic Level:</span>
+                    <div style="flex:1; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden;">
+                        <div id="micVolumeMeter" style="width:0%; height:100%; background:var(--gmeet-green); border-radius:4px; transition:width 0.05s ease;"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Speakers / Audio Output</label>
+                    <div style="display:flex; gap:8px;">
+                        <select id="settingsSpeakerSelect" onchange="changeAudioOutput(this.value)" style="flex:1; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                            <option value="default">Default - System Speakers</option>
+                        </select>
+                        <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; display:flex; align-items:center; gap:4px;" onclick="testSpeakerSound()">
+                            <span class="material-symbols-outlined" style="font-size:16px;">volume_up</span> Test
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Section -->
+            <div style="margin-bottom:18px;">
+                <div style="font-size:12px; font-weight:600; color:var(--gmeet-primary); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;">videocam</span> VIDEO HARDWARE & RESOLUTION
+                </div>
+                
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Camera Device</label>
+                    <select id="settingsCameraSelect" onchange="changeVideoInput(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                        <option value="default">Default - HD Web Camera</option>
+                    </select>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Send Resolution</label>
+                        <select id="settingsSendRes" onchange="changeResolution(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                            <option value="720">High definition (720p)</option>
+                            <option value="360">Standard definition (360p)</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Receive Resolution</label>
+                        <select id="settingsRecvRes" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                            <option value="720">High definition (720p)</option>
+                            <option value="360">Standard definition (360p)</option>
+                            <option value="audio">Audio only</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audio Enhancements -->
+            <div style="margin-bottom:20px; background:#202124; padding:12px; border-radius:8px; border:1px solid var(--gmeet-border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div>
+                        <div style="font-size:13px; font-weight:500;">Noise Cancellation</div>
+                        <div style="font-size:11px; color:var(--gmeet-text-muted);">Filter out background noise that isn't speech</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="settingsNoiseCancel" checked onchange="toggleNoiseCancellation(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-size:13px; font-weight:500;">Echo Cancellation</div>
+                        <div style="font-size:11px; color:var(--gmeet-text-muted);">Prevent feedback when using speakers</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="settingsEchoCancel" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="gmeet-modal-actions">
+                <button class="btn-gmeet btn-gmeet-primary" onclick="closeSettingsModal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call Ended Screen Overlay -->
+    <div class="call-ended-overlay" id="callEndedOverlay">
+        <h1>You've left the meeting</h1>
+        <p>Your camera and microphone have been stopped.</p>
+        <div class="ended-buttons">
+            <button class="btn-gmeet btn-gmeet-primary" onclick="rejoinMeeting()">Rejoin</button>
+            <button class="btn-gmeet btn-gmeet-outline" onclick="window.location.reload()">Return to home</button>
+        </div>
+    </div>
+
+    <!-- Client Logic & WebRTC Script -->
+    <script>
+        // Web Audio Chime Synthesizer
+        let audioCtx = null;
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function playChime(type) {
+            try {
+                const ctx = getAudioContext();
+                const now = ctx.currentTime;
+                if (type === 'join') {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.frequency.setValueAtTime(698.46, now);
+                    osc.frequency.setValueAtTime(880, now + 0.12);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                    osc.start(now); osc.stop(now + 0.4);
+                } else if (type === 'message') {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.frequency.setValueAtTime(800, now);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    osc.start(now); osc.stop(now + 0.12);
+                } else if (type === 'hand') {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.1);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                    osc.start(now); osc.stop(now + 0.35);
+                }
+            } catch(e){}
+        }
+
+        // Clock Update
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('liveClock').innerText = timeStr;
+            const welcomeEl = document.getElementById('chatWelcomeTime');
+            if (welcomeEl && welcomeEl.innerText === '--:--') welcomeEl.innerText = timeStr;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // State variables
+        let localStream = null;
+        let screenStream = null;
+        let isMicOn = true;
+        let isCamOn = true;
+        let isHandRaised = false;
+        let isCaptionsOn = false;
+        let isScreenSharing = false;
+        let unreadChatCount = 0;
+        let activeDrawer = null;
+        let peerConnections = {}; 
+        let clientName = 'Client Participant';
+        let inMeeting = false;
+
+        const config = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] };
+        const socket = io();
+
+        // 1. Lobby Media Preview (Tests Camera & Mic before entering)
+        async function initLobbyPreview() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
+                    audio: true 
+                });
+                document.getElementById('lobbyPreviewVideo').srcObject = localStream;
+            } catch (err) {
+                console.warn("Hardware camera in use or not found. Using Virtual Fallback Stream:", err.message);
+                localStream = createVirtualStream("Client Participant");
+                document.getElementById('lobbyPreviewVideo').srcObject = localStream;
+                showToast("Using Virtual Video Stream (Webcam in use by Watcher)");
+            }
+        }
+        initLobbyPreview();
+
+        // Lobby Toggle Functions
+        function toggleLobbyMic() {
+            isMicOn = !isMicOn;
+            if (localStream) {
+                localStream.getAudioTracks().forEach(t => t.enabled = isMicOn);
+            }
+            const btn = document.getElementById('lobbyBtnMic');
+            const icon = document.getElementById('lobbyIconMic');
+            btn.classList.toggle('off', !isMicOn);
+            icon.innerText = isMicOn ? 'mic' : 'mic_off';
+        }
+
+        function toggleLobbyCam() {
+            isCamOn = !isCamOn;
+            if (localStream) {
+                localStream.getVideoTracks().forEach(t => t.enabled = isCamOn);
+            }
+            const btn = document.getElementById('lobbyBtnCam');
+            const icon = document.getElementById('lobbyIconCam');
+            const preview = document.getElementById('lobbyPreviewVideo');
+            const avatar = document.getElementById('lobbyAvatar');
+
+            btn.classList.toggle('off', !isCamOn);
+            icon.innerText = isCamOn ? 'videocam' : 'videocam_off';
+            preview.style.display = isCamOn ? 'block' : 'none';
+            avatar.style.display = isCamOn ? 'none' : 'flex';
+        }
+
+        // Join Meeting from Lobby
+        function joinMeetingFromLobby() {
+            const nameInput = document.getElementById('lobbyNameInput').value.trim();
+            if (nameInput) clientName = nameInput;
+
+            document.getElementById('tileNameLabel').innerText = clientName + ' (You)';
+            document.getElementById('drawerYouName').innerText = clientName;
+            document.getElementById('localAvatarCircle').innerText = clientName.charAt(0).toUpperCase();
+
+            // Transfer stream to in-call element
+            document.getElementById('localVideo').srcObject = localStream;
+            updateCamUI();
+            updateMicUI();
+
+            // Hide Lobby with smooth fade
+            const lobby = document.getElementById('lobbyScreen');
+            lobby.style.transition = 'opacity 0.3s ease';
+            lobby.style.opacity = '0';
+            setTimeout(() => lobby.style.display = 'none', 300);
+
+            inMeeting = true;
+            playChime('join');
+
+            // Join signaling room
+            socket.emit('join', { 
+                role: 'client', 
+                name: clientName, 
+                mic: isMicOn, 
+                cam: isCamOn 
+            });
+
+            showToast("Connected to Google Meet room");
+        }
+
+        // Virtual Stream Fallback (so video streaming never breaks even if webcam is locked by OpenCV)
+        function createVirtualStream(name) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 360;
+            const ctx = canvas.getContext('2d');
+            let frame = 0;
+
+            function draw() {
+                frame++;
+                ctx.fillStyle = '#202124';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Animated pulsing circle
+                const pulse = Math.sin(frame * 0.05) * 6;
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2, canvas.height / 2, 60 + pulse, 0, Math.PI * 2);
+                ctx.fillStyle = '#188038';
+                ctx.fill();
+
+                // Initial
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 44px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(name.charAt(0).toUpperCase(), canvas.width / 2, canvas.height / 2);
+
+                // Badge
+                ctx.font = '14px sans-serif';
+                ctx.fillText("CLIENT LIVE STREAM", canvas.width / 2, canvas.height / 2 + 85);
+
+                requestAnimationFrame(draw);
+            }
+            draw();
+
+            const stream = canvas.captureStream(30);
+            
+            // Add silent audio track
+            const audioCtx = getAudioContext();
+            const dest = audioCtx.createMediaStreamDestination();
+            const audioTrack = dest.stream.getAudioTracks()[0];
+            if (audioTrack) stream.addTrack(audioTrack);
+
+            return stream;
+        }
+
+        // 2. In-Call Microphone Toggle
+        function toggleMic() {
+            if (!localStream) return;
+            isMicOn = !isMicOn;
+            localStream.getAudioTracks().forEach(t => t.enabled = isMicOn);
+            updateMicUI();
+            socket.emit('toggle_media', { type: 'mic', enabled: isMicOn });
+            showToast(isMicOn ? "Microphone turned on." : "Microphone turned off.");
+        }
+
+        function updateMicUI() {
+            const btn = document.getElementById('btnMic');
+            const icon = document.getElementById('iconMic');
+            const tileMicStatus = document.getElementById('localMicStatus');
+            const tileMicIcon = document.getElementById('localMicIcon');
+
+            if (isMicOn) {
+                btn.classList.remove('btn-off');
+                icon.innerText = 'mic';
+                btn.setAttribute('data-tooltip', 'Turn off microphone (Ctrl + d)');
+                tileMicStatus.classList.remove('muted');
+                tileMicIcon.innerText = 'mic';
+            } else {
+                btn.classList.add('btn-off');
+                icon.innerText = 'mic_off';
+                btn.setAttribute('data-tooltip', 'Turn on microphone (Ctrl + d)');
+                tileMicStatus.classList.add('muted');
+                tileMicIcon.innerText = 'mic_off';
+            }
+        }
+
+        // 3. In-Call Camera Toggle
+        function toggleCam() {
+            if (!localStream) return;
+            isCamOn = !isCamOn;
+            localStream.getVideoTracks().forEach(t => t.enabled = isCamOn);
+            updateCamUI();
+            socket.emit('toggle_media', { type: 'cam', enabled: isCamOn });
+            showToast(isCamOn ? "Camera turned on." : "Camera turned off.");
+        }
+
+        function updateCamUI() {
+            const btn = document.getElementById('btnCam');
+            const icon = document.getElementById('iconCam');
+            const tile = document.getElementById('localTile');
+
+            if (isCamOn) {
+                btn.classList.remove('btn-off');
+                icon.innerText = 'videocam';
+                tile.classList.remove('cam-off');
+                btn.setAttribute('data-tooltip', 'Turn off camera (Ctrl + e)');
+            } else {
+                btn.classList.add('btn-off');
+                icon.innerText = 'videocam_off';
+                tile.classList.add('cam-off');
+                btn.setAttribute('data-tooltip', 'Turn on camera (Ctrl + e)');
+            }
+        }
+
+        // 4. Raise Hand Toggle
+        function toggleRaiseHand() {
+            isHandRaised = !isHandRaised;
+            const btn = document.getElementById('btnHand');
+            const badge = document.getElementById('localHandBadge');
+
+            if (isHandRaised) {
+                btn.classList.add('btn-active');
+                badge.style.display = 'flex';
+                playChime('hand');
+                showToast("You raised your hand.");
+            } else {
+                btn.classList.remove('btn-active');
+                badge.style.display = 'none';
+                showToast("Hand lowered.");
+            }
+
+            socket.emit('raise_hand', { raised: isHandRaised });
+        }
+
+        // 5. Screen Sharing
+        async function toggleScreenShare() {
+            const btn = document.getElementById('btnScreen');
+            const videoEl = document.getElementById('localVideo');
+
+            if (!isScreenSharing) {
+                try {
+                    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                    const screenTrack = screenStream.getVideoTracks()[0];
+                    
+                    for (const pc of Object.values(peerConnections)) {
+                        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                        if (sender) sender.replaceTrack(screenTrack);
+                    }
+
+                    videoEl.srcObject = screenStream;
+                    document.getElementById('localTile').classList.add('unmirrored');
+                    btn.classList.add('btn-active');
+                    isScreenSharing = true;
+                    showToast("You are presenting your screen.");
+
+                    screenTrack.onended = () => {
+                        stopScreenShare();
+                    };
+                } catch (err) {
+                    console.log("Screen share cancelled", err);
+                }
+            } else {
+                stopScreenShare();
+            }
+        }
+
+        function stopScreenShare() {
+            if (screenStream) {
+                screenStream.getTracks().forEach(t => t.stop());
+                screenStream = null;
+            }
+            if (localStream) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                for (const pc of Object.values(peerConnections)) {
+                    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (sender) sender.replaceTrack(videoTrack);
+                }
+                document.getElementById('localVideo').srcObject = localStream;
+            }
+            document.getElementById('localTile').classList.remove('unmirrored');
+            document.getElementById('btnScreen').classList.remove('btn-active');
+            isScreenSharing = false;
+            showToast("Screen presentation stopped.");
+        }
+
+        // 6. Live Speech-to-Text Closed Captions
+        let speechRecognition = null;
+        let captionTimeout = null;
+
+        function initSpeechRecognition() {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) {
+                console.warn("Web Speech API not supported in this browser");
+                return null;
+            }
+            const rec = new SpeechRec();
+            rec.continuous = true;
+            rec.interimResults = true;
+            rec.lang = 'id-ID';
+
+            rec.onresult = (e) => {
+                let text = '';
+                for (let i = e.resultIndex; i < e.results.length; ++i) {
+                    text += e.results[i][0].transcript;
+                }
+                if (text.trim()) {
+                    displayLiveCaption(clientName || 'You', text);
+                    if (socket) {
+                        socket.emit('live_caption', { name: clientName || 'Participant', text: text });
+                    }
+                }
+            };
+            rec.onerror = (e) => {
+                console.warn("Speech recognition error:", e.error);
+            };
+            rec.onend = () => {
+                if (isCaptionsOn) {
+                    try { rec.start(); } catch(e){}
+                }
+            };
+            return rec;
+        }
+
+        function displayLiveCaption(speaker, text) {
+            const bar = document.getElementById('captionsBar');
+            if (!bar || !isCaptionsOn) return;
+            bar.style.display = 'block';
+            bar.innerHTML = `<span style="font-weight:700; color:var(--gmeet-primary);">${escapeHtml(speaker)}:</span> <span>${escapeHtml(text)}</span>`;
+            
+            clearTimeout(captionTimeout);
+            captionTimeout = setTimeout(() => {
+                if (bar && isCaptionsOn) {
+                    bar.innerHTML = `<span style="color:var(--gmeet-text-muted);">Listening to meeting audio...</span>`;
+                }
+            }, 6000);
+        }
+
+        function toggleCaptions() {
+            isCaptionsOn = !isCaptionsOn;
+            const btn = document.getElementById('btnCaptions');
+            const bar = document.getElementById('captionsBar');
+            if (isCaptionsOn) {
+                btn.classList.add('btn-active');
+                bar.style.display = 'block';
+                bar.innerHTML = `<span style="color:var(--gmeet-text-muted);">Captions turned on. Listening to speech...</span>`;
+                
+                if (!speechRecognition) {
+                    speechRecognition = initSpeechRecognition();
+                }
+                if (speechRecognition) {
+                    try { speechRecognition.start(); } catch(e){}
+                }
+                showToast("Live speech captions enabled.");
+            } else {
+                btn.classList.remove('btn-active');
+                bar.style.display = 'none';
+                if (speechRecognition) {
+                    try { speechRecognition.stop(); } catch(e){}
+                }
+                showToast("Live captions disabled.");
+            }
+        }
+
+        // More Options Popover Menu
+        function showMoreOptions() {
+            const popover = document.getElementById('moreMenuPopover');
+            if (popover.style.display === 'flex') {
+                popover.style.display = 'none';
+            } else {
+                popover.style.display = 'flex';
+            }
+        }
+
+        // Change Layout Modal
+        function openLayoutModal() {
+            document.getElementById('moreMenuPopover').style.display = 'none';
+            document.getElementById('layoutModal').style.display = 'flex';
+        }
+
+        function closeLayoutModal() {
+            document.getElementById('layoutModal').style.display = 'none';
+        }
+
+        function applyLayout(mode) {
+            const grid = document.getElementById('videoGrid');
+            closeLayoutModal();
+            if (mode === 'spotlight') {
+                grid.className = 'video-grid grid-1';
+                showToast("Layout changed to Spotlight");
+            } else if (mode === 'sidebar') {
+                grid.className = 'video-grid grid-2';
+                showToast("Layout changed to Sidebar");
+            } else {
+                updateGridClass();
+                showToast("Layout changed to Tiled / Auto");
+            }
+        }
+
+        // Fullscreen Toggle
+        function toggleFullscreen() {
+            document.getElementById('moreMenuPopover').style.display = 'none';
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {});
+            } else {
+                document.exitFullscreen().catch(err => {});
+            }
+        }
+
+        // Functional Settings Modal
+        let localMicAudioStream = null;
+        let micAudioCtx = null;
+        let micAnalyser = null;
+        let micAnimFrame = null;
+
+        async function openSettingsModal() {
+            document.getElementById('moreMenuPopover').style.display = 'none';
+            document.getElementById('settingsModal').style.display = 'flex';
+            await initSettingsDevices();
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').style.display = 'none';
+            if (micAnimFrame) {
+                cancelAnimationFrame(micAnimFrame);
+                micAnimFrame = null;
+            }
+        }
+
+        async function initSettingsDevices() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const micSel = document.getElementById('settingsMicSelect');
+                const camSel = document.getElementById('settingsCameraSelect');
+                const spkSel = document.getElementById('settingsSpeakerSelect');
+
+                if (micSel) micSel.innerHTML = '';
+                if (camSel) camSel.innerHTML = '';
+                if (spkSel) spkSel.innerHTML = '';
+
+                let micCount = 0, camCount = 0, spkCount = 0;
+
+                devices.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.deviceId;
+                    if (d.kind === 'audioinput') {
+                        micCount++;
+                        opt.text = d.label || `Microphone ${micCount}`;
+                        if (micSel) micSel.appendChild(opt);
+                    } else if (d.kind === 'videoinput') {
+                        camCount++;
+                        opt.text = d.label || `Camera ${camCount}`;
+                        if (camSel) camSel.appendChild(opt);
+                    } else if (d.kind === 'audiooutput') {
+                        spkCount++;
+                        opt.text = d.label || `Speaker / Headphone ${spkCount}`;
+                        if (spkSel) spkSel.appendChild(opt);
+                    }
+                });
+
+                if (micCount === 0 && micSel) micSel.innerHTML = '<option value="default">Default System Microphone</option>';
+                if (camCount === 0 && camSel) camSel.innerHTML = '<option value="default">Default Camera</option>';
+                if (spkCount === 0 && spkSel) spkSel.innerHTML = '<option value="default">Default System Speakers</option>';
+
+                startMicLevelMeter();
+            } catch (err) {
+                console.warn("Device enumeration error:", err);
+            }
+        }
+
+        async function startMicLevelMeter() {
+            try {
+                if (!localMicAudioStream) {
+                    localMicAudioStream = localStream ? localStream : await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                }
+                if (!micAudioCtx) {
+                    micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (micAudioCtx.state === 'suspended') {
+                    micAudioCtx.resume();
+                }
+                const source = micAudioCtx.createMediaStreamSource(localMicAudioStream);
+                micAnalyser = micAudioCtx.createAnalyser();
+                micAnalyser.fftSize = 64;
+                source.connect(micAnalyser);
+
+                const dataArray = new Uint8Array(micAnalyser.frequencyBinCount);
+                const meter = document.getElementById('micVolumeMeter');
+
+                function updateMeter() {
+                    if (!micAnalyser) return;
+                    micAnalyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        sum += dataArray[i];
+                    }
+                    let avg = sum / dataArray.length;
+                    let pct = Math.min(100, Math.round((avg / 128) * 100));
+                    if (meter) meter.style.width = pct + '%';
+                    micAnimFrame = requestAnimationFrame(updateMeter);
+                }
+                updateMeter();
+            } catch (err) {
+                console.log("Mic meter not active:", err);
+            }
+        }
+
+        function testSpeakerSound() {
+            playChime('join');
+            showToast("Playing test sound through speakers...");
+        }
+
+        function changeResolution(res) {
+            showToast(`Send resolution set to ${res}p`);
+        }
+
+        function toggleNoiseCancellation(enabled) {
+            showToast(enabled ? "Noise cancellation enabled" : "Noise cancellation disabled");
+        }
+
+        function changeAudioInput(devId) {
+            showToast("Microphone input switched");
+        }
+
+        function changeVideoInput(devId) {
+            showToast("Camera device switched");
+        }
+
+        function changeAudioOutput(devId) {
+            showToast("Audio output switched");
+        }
+
+        // Picture-in-Picture
+        async function togglePip() {
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                    showToast("Exited Picture-in-Picture");
+                } else {
+                    const videoEl = document.getElementById('localVideo');
+                    if (videoEl && videoEl.readyState >= 2) {
+                        await videoEl.requestPictureInPicture();
+                        showToast("Entered Picture-in-Picture");
+                    } else {
+                        showToast("No active video feed for Picture-in-Picture.");
+                    }
+                }
+            } catch (err) {
+                console.warn("PiP error:", err);
+                showToast("Picture-in-Picture not supported on this browser.");
+            }
+        }
+
+        // PWA Install Prompt Handler
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const btn = document.getElementById('btnInstallApp');
+            if (btn) btn.style.display = 'flex';
+        });
+
+        function triggerPwaInstall() {
+            document.getElementById('moreMenuPopover').style.display = 'none';
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choice) => {
+                    if (choice.outcome === 'accepted') {
+                        showToast("App installed successfully!");
+                    }
+                    deferredPrompt = null;
+                });
+            } else {
+                showToast("To install: Click the Install icon in your browser address bar.");
+            }
+        }
+
+        function leaveCall() {
+            if (localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+            }
+            if (screenStream) {
+                screenStream.getTracks().forEach(t => t.stop());
+            }
+            socket.disconnect();
+            document.getElementById('callEndedOverlay').style.display = 'flex';
+        }
+
+        function rejoinMeeting() {
+            window.location.reload();
+        }
+
+        // Side Drawer
+        function toggleDrawer(name) {
+            const drawer = document.getElementById('sideDrawer');
+            const drawerTitle = document.getElementById('drawerTitle');
+            const panelPeople = document.getElementById('drawerPeople');
+            const panelChat = document.getElementById('drawerChat');
+            const panelDetails = document.getElementById('drawerDetails');
+            const panelActivities = document.getElementById('drawerActivities');
+
+            const btnPeople = document.getElementById('btnPeopleDrawer');
+            const btnChat = document.getElementById('btnChatDrawer');
+            const btnDetails = document.getElementById('btnInfoDrawer');
+            const btnActivities = document.getElementById('btnActivitiesDrawer');
+
+            if (activeDrawer === name && drawer.classList.contains('open')) {
+                closeDrawer();
+                return;
+            }
+
+            panelPeople.style.display = 'none';
+            panelChat.style.display = 'none';
+            panelDetails.style.display = 'none';
+            panelActivities.style.display = 'none';
+
+            btnPeople.classList.remove('active');
+            btnChat.classList.remove('active');
+            btnDetails.classList.remove('active');
+            btnActivities.classList.remove('active');
+
+            if (name === 'people') {
+                drawerTitle.innerText = 'People';
+                panelPeople.style.display = 'flex';
+                btnPeople.classList.add('active');
+            } else if (name === 'chat') {
+                drawerTitle.innerText = 'In-call messages';
+                panelChat.style.display = 'flex';
+                btnChat.classList.add('active');
+                unreadChatCount = 0;
+                const unreadBadge = document.getElementById('badgeChatUnread');
+                unreadBadge.style.display = 'none';
+                unreadBadge.innerText = '0';
+            } else if (name === 'details') {
+                drawerTitle.innerText = 'Meeting details';
+                panelDetails.style.display = 'flex';
+                btnDetails.classList.add('active');
+            } else if (name === 'activities') {
+                drawerTitle.innerText = 'Activities';
+                panelActivities.style.display = 'flex';
+                btnActivities.classList.add('active');
+            }
+
+            drawer.classList.add('open');
+            activeDrawer = name;
+        }
+
+        function closeDrawer() {
+            const drawer = document.getElementById('sideDrawer');
+            drawer.classList.remove('open');
+            activeDrawer = null;
+            document.getElementById('btnPeopleDrawer').classList.remove('active');
+            document.getElementById('btnChatDrawer').classList.remove('active');
+            document.getElementById('btnInfoDrawer').classList.remove('active');
+            document.getElementById('btnActivitiesDrawer').classList.remove('active');
+        }
+
+        // Chat
+        function sendChatMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            socket.emit('chat_message', {
+                name: clientName,
+                text: text
+            });
+
+            input.value = '';
+        }
+
+        socket.on('chat_message', (data) => {
+            const chatBox = document.getElementById('chatMessages');
+            const msgEl = document.createElement('div');
+            msgEl.className = 'chat-msg';
+            
+            const isMe = data.senderId === socket.id;
+            const authorName = isMe ? 'You' : data.senderName;
+
+            msgEl.innerHTML = `
+                <div class="chat-msg-header">
+                    <span class="chat-msg-author">${authorName}</span>
+                    <span class="chat-msg-time">${data.time}</span>
+                </div>
+                <div class="chat-msg-body">${escapeHtml(data.text)}</div>
+            `;
+            chatBox.appendChild(msgEl);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            if (inMeeting) playChime('message');
+
+            if (activeDrawer !== 'chat') {
+                unreadChatCount++;
+                const badge = document.getElementById('badgeChatUnread');
+                badge.style.display = 'flex';
+                badge.innerText = unreadChatCount;
+                showToast(`New message from ${authorName}`);
+            }
+        });
+
+        // Participants
+        socket.on('participants_update', (list) => {
+            renderParticipants(list);
+        });
+
+        socket.on('user_joined', (user) => {
+            showToast(`${user.name} joined the meeting`);
+            if (inMeeting) playChime('join');
+        });
+
+        socket.on('user_left', (user) => {
+            showToast(`${user.name} left the meeting`);
+        });
+
+        function renderParticipants(list) {
+            const container = document.getElementById('peopleList');
+            const badge = document.getElementById('peopleCountBadge');
+            const bottomBadge = document.getElementById('badgePeopleCount');
+            badge.innerText = list.length;
+            bottomBadge.innerText = list.length;
+
+            container.innerHTML = '';
+            list.forEach(u => {
+                const isMe = u.id === socket.id;
+                const initial = (u.name || 'U').charAt(0).toUpperCase();
+                const color = u.role === 'admin' ? '#1a73e8' : '#188038';
+                
+                const item = document.createElement('div');
+                item.className = 'participant-item';
+                item.innerHTML = `
+                    <div class="participant-avatar" style="background:${color};">${initial}</div>
+                    <div class="participant-info">
+                        <div class="participant-name">${u.name} ${isMe ? '(You)' : ''}</div>
+                        <div class="participant-sub">${u.role === 'admin' ? 'Host / Admin' : 'Client Participant'}</div>
+                    </div>
+                    <div class="participant-icons">
+                        <span class="material-symbols-outlined" style="font-size:18px;">${u.mic ? 'mic' : 'mic_off'}</span>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // WebRTC Signaling
+        socket.on('webrtc_offer', async (data) => {
+            const adminId = data.sender;
+            const pc = new RTCPeerConnection(config);
+            peerConnections[adminId] = pc;
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            }
+
+            pc.onicecandidate = event => {
+                if (event.candidate) {
+                    socket.emit('webrtc_ice_candidate', { target: adminId, candidate: event.candidate, sender: socket.id });
+                }
+            };
+
+            await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            socket.emit('webrtc_answer', { target: adminId, answer: answer, sender: socket.id });
+        });
+
+        socket.on('webrtc_ice_candidate', async (data) => {
+            if (peerConnections[data.sender]) {
+                await peerConnections[data.sender].addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        // Host Moderation Actions Received from Admin
+        socket.on('force_mute', () => {
+            if (isMicOn) {
+                toggleMic();
+                showToast("The host has muted your microphone.");
+            }
+        });
+
+        socket.on('force_disconnect', (data) => {
+            leaveCall();
+            document.querySelector('#callEndedOverlay h1').innerText = "Removed from meeting";
+            document.querySelector('#callEndedOverlay p').innerText = data.reason || "The host removed you from the meeting.";
+        });
+
+        socket.on('meeting_ended_by_host', (data) => {
+            leaveCall();
+            document.querySelector('#callEndedOverlay h1').innerText = "Meeting ended";
+            document.querySelector('#callEndedOverlay p').innerText = data.reason || "The host ended the meeting for everyone.";
+        });
+
+        // Reaction Emojis
+        socket.on('reaction_emoji', (data) => {
+            spawnFloatingEmoji(data.emoji);
+        });
+
+        // Recording State Broadcast
+        socket.on('recording_state', (data) => {
+            const badge = document.getElementById('recBadge');
+            if (badge) badge.style.display = data.isRecording ? 'flex' : 'none';
+            if (data.isRecording) {
+                showToast("Host has started recording the meeting.");
+            } else {
+                showToast("Host stopped recording.");
+            }
+        });
+
+        // Meeting Lock Security Events
+        let isMeetingLocked = false;
+        socket.on('meeting_lock_changed', (data) => {
+            isMeetingLocked = data.locked;
+            const lockBanner = document.getElementById('lobbyLockBanner');
+            if (lockBanner) lockBanner.style.display = data.locked ? 'flex' : 'none';
+        });
+
+        socket.on('join_rejected', (data) => {
+            showToast(data.reason || "Unable to join: meeting is locked by the host.");
+            const lobby = document.getElementById('lobbyScreen');
+            lobby.style.display = 'flex';
+            lobby.style.opacity = '1';
+        });
+
+        // Host Permissions Enforcement (Screen, Chat, Mic, Video)
+        socket.on('host_permissions_update', (perms) => {
+            if (!perms) return;
+
+            // 1. Chat permission
+            const chatInput = document.getElementById('chatInput');
+            const chatBtn = document.getElementById('chatSendBtn');
+            if (chatInput && chatBtn) {
+                if (!perms.chat) {
+                    chatInput.disabled = true;
+                    chatBtn.disabled = true;
+                    chatInput.placeholder = "Chat disabled by the meeting host";
+                    showToast("The host has disabled in-call chat.");
+                } else {
+                    chatInput.disabled = false;
+                    chatBtn.disabled = false;
+                    chatInput.placeholder = "Send a message to everyone";
+                }
+            }
+
+            // 2. Screen share permission
+            const btnScreen = document.getElementById('btnScreen');
+            if (btnScreen) {
+                if (!perms.screen) {
+                    btnScreen.disabled = true;
+                    btnScreen.style.opacity = '0.4';
+                    btnScreen.setAttribute('data-tooltip', 'Screen sharing disabled by host');
+                    if (isScreenSharing) {
+                        stopScreenShare();
+                        showToast("Screen sharing was disabled by the host.");
+                    }
+                } else {
+                    btnScreen.disabled = false;
+                    btnScreen.style.opacity = '1';
+                    btnScreen.setAttribute('data-tooltip', 'Present now');
+                }
+            }
+
+            // 3. Microphone permission
+            const btnMic = document.getElementById('btnMic');
+            if (btnMic) {
+                if (!perms.mic) {
+                    btnMic.disabled = true;
+                    btnMic.style.opacity = '0.4';
+                    btnMic.setAttribute('data-tooltip', 'Microphone disabled by host');
+                    if (isMicOn) {
+                        toggleMic();
+                        showToast("Host turned off microphone for participants.");
+                    }
+                } else {
+                    btnMic.disabled = false;
+                    btnMic.style.opacity = '1';
+                    btnMic.setAttribute('data-tooltip', 'Turn off microphone (Ctrl + d)');
+                }
+            }
+
+            // 4. Video permission
+            const btnCam = document.getElementById('btnCam');
+            if (btnCam) {
+                if (!perms.video) {
+                    btnCam.disabled = true;
+                    btnCam.style.opacity = '0.4';
+                    btnCam.setAttribute('data-tooltip', 'Camera disabled by host');
+                    if (isCamOn) {
+                        toggleCam();
+                        showToast("Host turned off camera for participants.");
+                    }
+                } else {
+                    btnCam.disabled = false;
+                    btnCam.style.opacity = '1';
+                    btnCam.setAttribute('data-tooltip', 'Turn off camera (Ctrl + e)');
+                }
+            }
+        });
+
+        // Live Caption Broadcast Listener
+        socket.on('caption_broadcast', (data) => {
+            if (isCaptionsOn && data && data.name !== (clientName || 'You')) {
+                displayLiveCaption(data.name || 'Participant', data.text || '');
+            }
+        });
+
+        socket.on('chat_rejected', (data) => {
+            showToast(data.reason || "Chat is disabled by the host.");
+        });
+
+        // Close menu popovers when clicking outside
+        window.addEventListener('click', (e) => {
+            const popover = document.getElementById('moreMenuPopover');
+            const btnMore = document.getElementById('btnMore');
+            if (popover && !popover.contains(e.target) && (!btnMore || !btnMore.contains(e.target))) {
+                popover.style.display = 'none';
+            }
+        });
+
+        // Collaborative Whiteboard Socket Listeners
+        socket.on('whiteboard_draw', (data) => {
+            drawRemoteStroke(data);
+        });
+
+        socket.on('whiteboard_clear', () => {
+            clearLocalWbCanvas();
+        });
+
+        socket.on('whiteboard_full_sync', (data) => {
+            if (data.strokes) {
+                data.strokes.forEach(s => drawRemoteStroke(s));
+            }
+        });
+
+        // Live In-Meeting Polls Socket Listeners
+        socket.on('poll_created', (poll) => {
+            currentPoll = poll;
+            userVotedOption = null;
+            renderPoll();
+            showToast("New poll launched by host!");
+            playChime('message');
+        });
+
+        socket.on('poll_updated', (data) => {
+            if (currentPoll && currentPoll.id === data.id) {
+                currentPoll.options = data.options;
+                currentPoll.totalVotes = data.totalVotes;
+                renderPoll();
+            }
+        });
+
+        socket.on('poll_ended', (data) => {
+            if (currentPoll && currentPoll.id === data.id) {
+                currentPoll.active = false;
+                renderPoll();
+                showToast("Poll ended");
+            }
+        });
+
+        // =========================================================================
+        // HOST REMOTE CONTROL RECEIVERS ON CLIENT
+        // =========================================================================
+
+        // 1. Remote Laser Pointer Tracker
+        socket.on('remote_pointer_moved', (data) => {
+            const laser = document.getElementById('remoteLaserPointer');
+            if (!laser) return;
+            if (!data.active) {
+                laser.style.display = 'none';
+                return;
+            }
+            laser.style.display = 'block';
+            laser.style.left = Math.round(data.x * window.innerWidth) + 'px';
+            laser.style.top = Math.round(data.y * window.innerHeight) + 'px';
+        });
+
+        // 2. Remote Annotation Canvas Receiver
+        socket.on('remote_annotation_received', (data) => {
+            const canvas = document.getElementById('clientRemoteAnnotCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (data.action === 'clear') {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+            const s = data.stroke;
+            if (s) {
+                ctx.beginPath();
+                ctx.strokeStyle = s.color || '#ff1744';
+                ctx.lineWidth = s.size || 4;
+                ctx.lineCap = 'round';
+                ctx.moveTo(s.x0 * canvas.width, s.y0 * canvas.height);
+                ctx.lineTo(s.x1 * canvas.width, s.y1 * canvas.height);
+                ctx.stroke();
+            }
+        });
+
+        // 3. Remote Commands (Ring Bell, TTS Jarvis, Fullscreen, Reload, HR Takeover Actions)
+        socket.on('remote_command_received', (data) => {
+            const cmd = data.command;
+            const payload = data.payload || {};
+
+            if (cmd === 'ring_bell') {
+                triggerAttentionSiren();
+            } else if (cmd === 'tts_speak') {
+                speakJarvisVoice(payload.text || "Perhatian, mohon kembali fokus.");
+            } else if (cmd === 'force_fullscreen') {
+                enforceFullscreenMode();
+            } else if (cmd === 'toggle_cam') {
+                toggleCam();
+            } else if (cmd === 'reload_page') {
+                showToast("Host requested page reload...");
+                setTimeout(() => window.location.reload(), 800);
+            } else if (cmd === 'hr_warning_banner') {
+                showHrComplianceBanner(payload.message || "Peringatan HR: Pelanggaran SOP terdeteksi.");
+            } else if (cmd === 'hr_session_lock') {
+                showHrSessionLockScreen(true);
+            } else if (cmd === 'hr_session_unlock') {
+                showHrSessionLockScreen(false);
+            } else if (cmd === 'open_url') {
+                if (payload.url) {
+                    showToast(`Host membuka tautan: ${payload.url}`);
+                    window.open(payload.url, '_blank');
+                }
+            }
+        });
+
+        // Socket aliases for remote takeover
+        socket.on('client_remote_pointer', (data) => {
+            const laser = document.getElementById('remoteLaserPointer');
+            if (!laser) return;
+            if (!data.active) {
+                laser.style.display = 'none';
+                return;
+            }
+            laser.style.display = 'block';
+            laser.style.left = Math.round(data.x * window.innerWidth) + 'px';
+            laser.style.top = Math.round(data.y * window.innerHeight) + 'px';
+        });
+
+        socket.on('client_remote_annotate', (data) => {
+            const canvas = document.getElementById('clientRemoteAnnotCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (data.action === 'clear') {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+            const s = data.stroke;
+            if (s) {
+                ctx.beginPath();
+                ctx.strokeStyle = s.color || '#ff1744';
+                ctx.lineWidth = s.size || 4;
+                ctx.lineCap = 'round';
+                ctx.moveTo(s.x0 * canvas.width, s.y0 * canvas.height);
+                ctx.lineTo(s.x1 * canvas.width, s.y1 * canvas.height);
+                ctx.stroke();
+            }
+        });
+
+        socket.on('client_remote_command', (data) => {
+            // Forward directly to remote_command_received logic
+            const evt = new CustomEvent('app_remote_command', { detail: data });
+            window.dispatchEvent(evt);
+            const cmd = data.command;
+            const payload = data.payload || {};
+            if (cmd === 'ring_bell') triggerAttentionSiren();
+            else if (cmd === 'tts_speak') speakJarvisVoice(payload.text || "Perhatian, mohon kembali fokus.");
+            else if (cmd === 'force_fullscreen') enforceFullscreenMode();
+            else if (cmd === 'toggle_cam') toggleCam();
+            else if (cmd === 'reload_page') { showToast("Host requested page reload..."); setTimeout(() => window.location.reload(), 800); }
+            else if (cmd === 'hr_warning_banner') showHrComplianceBanner(payload.message || "Peringatan HR: Pelanggaran SOP terdeteksi.");
+            else if (cmd === 'hr_session_lock') showHrSessionLockScreen(true);
+            else if (cmd === 'hr_session_unlock') showHrSessionLockScreen(false);
+            else if (cmd === 'open_url' && payload.url) { showToast(`Host membuka: ${payload.url}`); window.open(payload.url, '_blank'); }
+        });
+
+        function showHrComplianceBanner(msg) {
+            const existing = document.getElementById('hrComplianceBanner');
+            if (existing) existing.remove();
+            
+            const banner = document.createElement('div');
+            banner.id = 'hrComplianceBanner';
+            banner.className = 'hr-client-banner';
+            banner.innerHTML = `
+                <span class="material-symbols-outlined" style="font-size:32px;">warning</span>
+                <div style="flex:1;">
+                    <div style="font-weight:700; font-size:14px; letter-spacing:0.5px;">HR & EXECUTIVE COMPLIANCE ALERT</div>
+                    <div style="font-size:13px; margin-top:2px;">${escapeHtml(msg)}</div>
+                </div>
+                <button class="drawer-close-btn" style="background:rgba(0,0,0,0.2); color:#fff;" onclick="this.parentElement.remove()">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            `;
+            document.body.appendChild(banner);
+            playChime('hand');
+            triggerAttentionSiren();
+            setTimeout(() => { if (banner && banner.parentElement) banner.remove(); }, 12000);
+        }
+
+        function showHrSessionLockScreen(locked) {
+            let curtain = document.getElementById('hrSessionLockCurtain');
+            if (locked) {
+                if (!curtain) {
+                    curtain = document.createElement('div');
+                    curtain.id = 'hrSessionLockCurtain';
+                    curtain.className = 'hr-client-lock-curtain';
+                    curtain.innerHTML = `
+                        <div style="background:#ea4335; width:80px; height:80px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:20px; box-shadow:0 0 30px rgba(234,67,53,0.6);">
+                            <span class="material-symbols-outlined" style="font-size:44px;">lock</span>
+                        </div>
+                        <h1 style="font-size:26px; margin:0 0 10px 0; font-weight:700;">SESI DITANGGUHKAN OLEH HR & MANAGER</h1>
+                        <p style="font-size:14px; max-width:480px; color:#bdc1c6; line-height:1.6; margin:0 0 24px 0;">
+                            Aktivitas desktop dan sesi rapat Anda saat ini dikunci untuk proses review kepatuhan kerja / ujian. Harap menunggu hingga Manager atau Admin membuka kembali akses Anda.
+                        </p>
+                        <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.08); padding:8px 16px; border-radius:20px; font-size:12px; color:#8ab4f8;">
+                            <span class="material-symbols-outlined" style="font-size:16px;">admin_panel_settings</span>
+                            <span>Controlled remotely by Meeting Host (HR Department)</span>
+                        </div>
+                    `;
+                    document.body.appendChild(curtain);
+                }
+            } else {
+                if (curtain) curtain.remove();
+                showToast("Session unlocked by Host");
+            }
+        }
+
+        // Reaction Controls
+        function toggleReactionTray() {
+            const tray = document.getElementById('reactionTray');
+            tray.style.display = tray.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        function sendReaction(emoji) {
+            const tray = document.getElementById('reactionTray');
+            if (tray) tray.style.display = 'none';
+            if (socket) {
+                socket.emit('reaction_emoji', { emoji: emoji });
+            }
+            spawnFloatingEmoji(emoji);
+        }
+
+        function spawnFloatingEmoji(emoji) {
+            const el = document.createElement('div');
+            el.className = 'floating-emoji';
+            el.innerText = emoji;
+            const randomX = Math.floor(window.innerWidth * 0.35 + Math.random() * (window.innerWidth * 0.3));
+            el.style.left = randomX + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3200);
+        }
+
+        // Close tray when clicking outside
+        window.addEventListener('click', (e) => {
+            const tray = document.getElementById('reactionTray');
+            const btn = document.getElementById('btnReaction');
+            if (tray && !tray.contains(e.target) && (!btn || !btn.contains(e.target))) {
+                tray.style.display = 'none';
+            }
+        });
+
+        function copyJoinInfo() {
+            navigator.clipboard.writeText("http://localhost:5001/");
+            showToast("Meeting link copied to clipboard");
+        }
+
+        function showToast(text) {
+            const existing = document.querySelector('.gmeet-toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.className = 'gmeet-toast';
+            toast.innerHTML = `
+                <span class="material-symbols-outlined" style="font-size:20px; color:var(--gmeet-primary);">info</span>
+                <span>${text}</span>
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+                e.preventDefault();
+                toggleMic();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+                e.preventDefault();
+                toggleCam();
+            }
+        });
+
+        // =========================================================================
+        // CLIENT ENTERPRISE FEATURE IMPLEMENTATIONS
+        // =========================================================================
+
+        // 1. Picture-in-Picture
+        async function togglePip() {
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                    showToast("Exited Picture-in-Picture");
+                } else {
+                    const videoEl = document.getElementById('localVideo');
+                    if (videoEl && videoEl.readyState >= 2) {
+                        await videoEl.requestPictureInPicture();
+                        showToast("Entered Picture-in-Picture");
+                    }
+                }
+            } catch (err) {
+                console.warn("PiP error:", err);
+                showToast("Picture-in-Picture not available");
+            }
+        }
+
+        // 2. Collaborative Whiteboard Engine
+        let wbCanvas = null;
+        let wbCtx = null;
+        let wbTool = 'pen';
+        let wbColor = '#ffffff';
+        let wbSize = 3;
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        function initWhiteboard() {
+            wbCanvas = document.getElementById('wbCanvas');
+            if (!wbCanvas) return;
+            wbCtx = wbCanvas.getContext('2d');
+            resizeWbCanvas();
+            window.addEventListener('resize', resizeWbCanvas);
+
+            wbCanvas.addEventListener('mousedown', (e) => {
+                isDrawing = true;
+                const rect = wbCanvas.getBoundingClientRect();
+                lastX = (e.clientX - rect.left) / rect.width;
+                lastY = (e.clientY - rect.top) / rect.height;
+            });
+
+            wbCanvas.addEventListener('mousemove', (e) => {
+                if (!isDrawing) return;
+                const rect = wbCanvas.getBoundingClientRect();
+                const currX = (e.clientX - rect.left) / rect.width;
+                const currY = (e.clientY - rect.top) / rect.height;
+
+                const strokeData = {
+                    x0: lastX, y0: lastY,
+                    x1: currX, y1: currY,
+                    color: wbTool === 'eraser' ? '#121314' : wbColor,
+                    size: wbTool === 'eraser' ? 24 : wbSize,
+                    tool: wbTool
+                };
+
+                drawStrokeLocally(strokeData);
+                if (socket) socket.emit('whiteboard_draw', strokeData);
+
+                lastX = currX;
+                lastY = currY;
+            });
+
+            wbCanvas.addEventListener('mouseup', () => { isDrawing = false; });
+            wbCanvas.addEventListener('mouseleave', () => { isDrawing = false; });
+
+            // Touch support
+            wbCanvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDrawing = true;
+                    const rect = wbCanvas.getBoundingClientRect();
+                    lastX = (e.touches[0].clientX - rect.left) / rect.width;
+                    lastY = (e.touches[0].clientY - rect.top) / rect.height;
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            wbCanvas.addEventListener('touchmove', (e) => {
+                if (!isDrawing || e.touches.length !== 1) return;
+                const rect = wbCanvas.getBoundingClientRect();
+                const currX = (e.touches[0].clientX - rect.left) / rect.width;
+                const currY = (e.touches[0].clientY - rect.top) / rect.height;
+
+                const strokeData = {
+                    x0: lastX, y0: lastY,
+                    x1: currX, y1: currY,
+                    color: wbTool === 'eraser' ? '#121314' : wbColor,
+                    size: wbTool === 'eraser' ? 24 : wbSize,
+                    tool: wbTool
+                };
+
+                drawStrokeLocally(strokeData);
+                if (socket) socket.emit('whiteboard_draw', strokeData);
+
+                lastX = currX;
+                lastY = currY;
+                e.preventDefault();
+            }, { passive: false });
+
+            wbCanvas.addEventListener('touchend', () => { isDrawing = false; });
+        }
+
+        function resizeWbCanvas() {
+            if (!wbCanvas) return;
+            const container = document.getElementById('wbCanvasWrap');
+            if (!container) return;
+            wbCanvas.width = container.clientWidth;
+            wbCanvas.height = container.clientHeight;
+            if (socket) socket.emit('whiteboard_request_sync');
+        }
+
+        function drawStrokeLocally(s) {
+            if (!wbCtx || !wbCanvas) return;
+            wbCtx.beginPath();
+            wbCtx.strokeStyle = s.color;
+            wbCtx.lineWidth = s.size;
+            wbCtx.lineCap = 'round';
+            wbCtx.lineJoin = 'round';
+            wbCtx.moveTo(s.x0 * wbCanvas.width, s.y0 * wbCanvas.height);
+            wbCtx.lineTo(s.x1 * wbCanvas.width, s.y1 * wbCanvas.height);
+            wbCtx.stroke();
+        }
+
+        function drawRemoteStroke(s) {
+            drawStrokeLocally(s);
+        }
+
+        function clearLocalWbCanvas() {
+            if (!wbCtx || !wbCanvas) return;
+            wbCtx.clearRect(0, 0, wbCanvas.width, wbCanvas.height);
+        }
+
+        function openWhiteboard() {
+            const modal = document.getElementById('whiteboardModal');
+            modal.style.display = 'flex';
+            if (!wbCanvas) initWhiteboard();
+            setTimeout(resizeWbCanvas, 100);
+            if (socket) socket.emit('whiteboard_request_sync');
+        }
+
+        function closeWhiteboard() {
+            const modal = document.getElementById('whiteboardModal');
+            modal.style.display = 'none';
+        }
+
+        function setWbTool(tool) {
+            wbTool = tool;
+            document.getElementById('wbToolPen').classList.toggle('active', tool === 'pen');
+            document.getElementById('wbToolEraser').classList.toggle('active', tool === 'eraser');
+        }
+
+        function setWbColor(color, dotEl) {
+            wbColor = color;
+            setWbTool('pen');
+            document.querySelectorAll('.wb-color-dot').forEach(d => d.classList.remove('active'));
+            if (dotEl) dotEl.classList.add('active');
+        }
+
+        function clearWhiteboard() {
+            clearLocalWbCanvas();
+            if (socket) socket.emit('whiteboard_clear');
+            showToast("Whiteboard cleared");
+        }
+
+        function exportWhiteboardPNG() {
+            if (!wbCanvas) return;
+            const url = wbCanvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Whiteboard_${new Date().toISOString().substring(0, 10)}.png`;
+            a.click();
+            showToast("Whiteboard image saved");
+        }
+
+        // 3. In-Meeting Live Polls System (Client voting)
+        let currentPoll = null;
+        let userVotedOption = null;
+
+        function castVote(idx) {
+            if (!currentPoll || !currentPoll.active) return;
+            userVotedOption = idx;
+            if (socket) {
+                socket.emit('submit_vote', {
+                    pollId: currentPoll.id,
+                    optionIndex: idx
+                });
+            }
+            playChime('join');
+            renderPoll();
+            showToast("Your vote has been submitted!");
+        }
+
+        function renderPoll() {
+            const container = document.getElementById('activePollDisplay');
+            if (!container) return;
+            if (!currentPoll) {
+                container.innerHTML = '<div style="font-size:12px; color:var(--gmeet-text-muted); text-align:center; padding:12px;">No active poll right now.</div>';
+                return;
+            }
+
+            const total = currentPoll.options.reduce((sum, opt) => sum + (opt.votes || 0), 0);
+
+            let optionsHtml = '';
+            currentPoll.options.forEach((opt, idx) => {
+                const votes = opt.votes || 0;
+                const percent = total > 0 ? Math.round((votes / total) * 100) : 0;
+                const isSelected = userVotedOption === idx;
+
+                optionsHtml += `
+                    <div class="poll-opt-row ${isSelected ? 'selected' : ''}" onclick="castVote(${idx})">
+                        <div class="poll-opt-bar" style="width: ${percent}%;"></div>
+                        <span class="poll-opt-text">${isSelected ? '✓ ' : ''}${escapeHtml(opt.text)}</span>
+                        <span class="poll-opt-stats">${votes} (${percent}%)</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="poll-card">
+                    <div class="poll-card-header">
+                        <span class="poll-status-tag ${currentPoll.active ? 'live' : 'ended'}">${currentPoll.active ? '● LIVE' : 'ENDED'}</span>
+                    </div>
+                    <div class="poll-question">${escapeHtml(currentPoll.question)}</div>
+                    <div>${optionsHtml}</div>
+                    <div class="poll-creator-bar">
+                        <span>Total votes: ${total}</span>
+                        <span>By ${escapeHtml(currentPoll.creator || 'Host')}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // =========================================================================
+        // CLIENT REMOTE EXECUTION ENGINES
+        // =========================================================================
+
+        function syncClientAnnotCanvas() {
+            const canvas = document.getElementById('clientRemoteAnnotCanvas');
+            const stage = document.getElementById('clientStageContainer');
+            if (canvas && stage) {
+                canvas.width = stage.clientWidth;
+                canvas.height = stage.clientHeight;
+            }
+        }
+        window.addEventListener('resize', syncClientAnnotCanvas);
+        setTimeout(syncClientAnnotCanvas, 200);
+
+        function triggerAttentionSiren() {
+            const siren = document.getElementById('attentionSirenScreen');
+            if (siren) {
+                siren.style.display = 'block';
+                setTimeout(() => siren.style.display = 'none', 3500);
+            }
+            // Loud Attention Siren Beep via Web Audio
+            try {
+                const ctx = getAudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.4, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 1.2);
+            } catch(e){}
+            showToast("⚠️ ATTENTION: Meeting Host is requesting your immediate focus!");
+        }
+
+        function speakJarvisVoice(text) {
+            if (!('speechSynthesis' in window)) {
+                showToast(`[Announcement]: ${text}`);
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.lang = 'id-ID';
+            window.speechSynthesis.speak(utterance);
+            showToast(`📢 Host Announcement: "${text}"`);
+        }
+
+        function enforceFullscreenMode() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                showToast("Host has placed this meeting in Focused Fullscreen Mode.");
+            }
+        }
+
+        // Focus & Proctor Monitoring (Reports to Host if participant tabs out)
+        window.addEventListener('blur', () => {
+            if (inMeeting && socket) {
+                socket.emit('client_proctor_alert', { event: 'switched to another window or tab' });
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && inMeeting && socket) {
+                socket.emit('client_proctor_event', { event: 'minimized or switched tab' });
+            }
+        });
+    </script>
+
+    <!-- Collaborative Whiteboard Modal -->
+    <div class="wb-modal-overlay" id="whiteboardModal">
+        <div class="wb-modal-window">
+            <div class="wb-header">
+                <div class="wb-header-title">
+                    <span class="material-symbols-outlined">draw</span>
+                    <span>Google Meet Collaborative Whiteboard</span>
+                    <span style="font-size:12px; color:var(--gmeet-text-muted); margin-left:8px;">(Live Synced)</span>
+                </div>
+                <div class="wb-header-actions">
+                    <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;" onclick="exportWhiteboardPNG()">
+                        <span class="material-symbols-outlined" style="font-size:16px;">download</span> Save PNG
+                    </button>
+                    <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.3);" onclick="clearWhiteboard()">
+                        <span class="material-symbols-outlined" style="font-size:16px;">delete</span> Clear
+                    </button>
+                    <button class="drawer-close-btn" onclick="closeWhiteboard()">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+            </div>
+            <div class="wb-body">
+                <div class="wb-toolbar">
+                    <button class="wb-tool-btn active" id="wbToolPen" title="Pen Tool" onclick="setWbTool('pen')">
+                        <span class="material-symbols-outlined">edit</span>
+                    </button>
+                    <button class="wb-tool-btn" id="wbToolEraser" title="Eraser Tool" onclick="setWbTool('eraser')">
+                        <span class="material-symbols-outlined">ink_eraser</span>
+                    </button>
+                    <div class="wb-color-picker">
+                        <div class="wb-color-dot active" style="background:#ffffff;" onclick="setWbColor('#ffffff', this)" title="White"></div>
+                        <div class="wb-color-dot" style="background:#8ab4f8;" onclick="setWbColor('#8ab4f8', this)" title="Blue"></div>
+                        <div class="wb-color-dot" style="background:#81c995;" onclick="setWbColor('#81c995', this)" title="Green"></div>
+                        <div class="wb-color-dot" style="background:#fdd663;" onclick="setWbColor('#fdd663', this)" title="Yellow"></div>
+                        <div class="wb-color-dot" style="background:#ea4335;" onclick="setWbColor('#ea4335', this)" title="Red"></div>
+                        <div class="wb-color-dot" style="background:#ff79c6;" onclick="setWbColor('#ff79c6', this)" title="Pink"></div>
+                    </div>
+                </div>
+                <div class="wb-canvas-wrap" id="wbCanvasWrap">
+                    <canvas id="wbCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Remote Laser Pointer, Drawing Annotations & Attention Pulse Overlays -->
+    <canvas id="clientRemoteAnnotCanvas" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:999990;"></canvas>
+    <div class="remote-laser-pointer" id="remoteLaserPointer">
+        <div class="remote-laser-dot"></div>
+        <div class="remote-laser-tag">Host Pointer</div>
+    </div>
+    <div class="attention-pulse-screen" id="attentionSirenScreen"></div>
+</body>
+</html>

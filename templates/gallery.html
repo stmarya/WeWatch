@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galeri AI Security</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: #ffffff; }
+        .gallery-img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; border: 2px solid #333; transition: transform 0.2s;}
+        .gallery-img:hover { transform: scale(1.05); border-color: #00d2ff; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>📸 Galeri Bukti & Screenshot</h2>
+            <a href="/" class="btn btn-outline-light">Kembali ke Dashboard</a>
+        </div>
+        
+        {% if images %}
+        <div class="row g-4">
+            {% for img in images %}
+            <div class="col-md-3">
+                <div class="card bg-dark text-white shadow">
+                    <div class="card-body p-2 text-center">
+                        <img src="{{ url_for('static', filename='gallery/' + img) }}" class="gallery-img mb-2">
+                        <small class="text-muted">{{ img }}</small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info text-center mt-5">
+            Belum ada foto penyusup atau screenshot yang tersimpan. Coba berikan gestur "Thumbs Up" di depan kamera!
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
