@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WeWatch Admin Login</title>
+    <style>
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #202124; color: #fff; font-family: Arial, sans-serif; }
+        form { width: min(92vw, 360px); padding: 28px; border: 1px solid #3c4043; border-radius: 14px; background: #292a2d; box-sizing: border-box; }
+        input, button { width: 100%; box-sizing: border-box; padding: 12px; margin-top: 12px; border-radius: 8px; border: 1px solid #5f6368; }
+        input { background: #202124; color: #fff; }
+        button { background: #8ab4f8; border: 0; color: #202124; font-weight: 700; cursor: pointer; }
+        .error { margin-top: 14px; color: #f28b82; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <form method="post" autocomplete="off">
+        <h1>WeWatch Admin</h1>
+        <p>Masukkan admin token untuk melanjutkan.</p>
+        <input type="password" name="token" placeholder="Admin token" required autofocus>
+        <button type="submit">Masuk</button>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    </form>
+</body>
+</html>

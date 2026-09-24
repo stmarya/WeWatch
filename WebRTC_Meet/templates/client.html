@@ -1189,12 +1189,12 @@
             msgEl.className = 'chat-msg';
             
             const isMe = data.senderId === socket.id;
-            const authorName = isMe ? 'You' : data.senderName;
+            const authorName = isMe ? 'You' : String(data.senderName || 'Participant');
 
             msgEl.innerHTML = `
                 <div class="chat-msg-header">
-                    <span class="chat-msg-author">${authorName}</span>
-                    <span class="chat-msg-time">${data.time}</span>
+                    <span class="chat-msg-author">${escapeHtml(authorName)}</span>
+                    <span class="chat-msg-time">${escapeHtml(data.time || '')}</span>
                 </div>
                 <div class="chat-msg-body">${escapeHtml(data.text)}</div>
             `;
@@ -1244,7 +1244,7 @@
                 item.innerHTML = `
                     <div class="participant-avatar" style="background:${color};">${initial}</div>
                     <div class="participant-info">
-                        <div class="participant-name">${u.name} ${isMe ? '(You)' : ''}</div>
+                    <div class="participant-name">${escapeHtml(u.name || 'Participant')} ${isMe ? '(You)' : ''}</div>
                         <div class="participant-sub">${u.role === 'admin' ? 'Host / Admin' : 'Client Participant'}</div>
                     </div>
                     <div class="participant-icons">
@@ -1686,14 +1686,16 @@
             toast.className = 'gmeet-toast';
             toast.innerHTML = `
                 <span class="material-symbols-outlined" style="font-size:20px; color:var(--gmeet-primary);">info</span>
-                <span>${text}</span>
+                <span></span>
             `;
+            toast.querySelector('span:last-child').textContent = String(text ?? '');
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3500);
         }
 
         function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return String(text ?? '').replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
         }
 
         window.addEventListener('keydown', (e) => {

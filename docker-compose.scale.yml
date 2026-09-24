@@ -12,6 +12,8 @@ services:
     restart: unless-stopped
     depends_on:
       - redis
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-change-me}:${LIVEKIT_API_SECRET:-change-me-to-a-long-random-secret}"
     ports:
       - "7880:7880/tcp"
       - "7881:7881/tcp"

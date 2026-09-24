@@ -4,8 +4,9 @@ import sqlite3
 import time
 import logging
 import uuid
+import hmac
 from pathlib import Path
-from flask import Flask, render_template, Response, request, jsonify
+from flask import Flask, render_template, Response, request, jsonify, redirect, session, url_for
 from dotenv import load_dotenv
 
 # Setup Logging
@@ -18,12 +19,21 @@ load_dotenv()
 from camera import AICamera, FEATURES, STATUS
 from services.jarvis import start_jarvis
 from services.database import init_db, init_attendance_db
+from services.room_auth import issue_room_token
 from utils.security import safe_face_name
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv(
+    'WEBWATCH_SESSION_SECRET',
+    os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex()),
+)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('WEBWATCH_COOKIE_SECURE', 'false').lower() == 'true'
 
 BASE_DIR = Path(__file__).resolve().parent
 GALLERY_FOLDER = str(BASE_DIR / 'static' / 'gallery')
+ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
 os.makedirs(GALLERY_FOLDER, exist_ok=True)
 
 init_db()
@@ -35,13 +45,46 @@ camera = AICamera(FEATURES, STATUS)
 # Mulai pendengar Jarvis di background
 start_jarvis(camera)
 
+@app.before_request
+def require_admin_session():
+    allowed = {'auth_login', 'manifest'}
+    public_static = request.path.startswith('/static/') and not request.path.startswith('/static/gallery/')
+    if request.endpoint in allowed or public_static:
+        return None
+    if not session.get('admin_authenticated'):
+        if request.path == '/':
+            return redirect(url_for('auth_login'))
+        return jsonify(error='authentication required'), 401
+    return None
+
+@app.route('/auth/login', methods=['GET', 'POST'])
+def auth_login():
+    error = None
+    if request.method == 'POST':
+        supplied = (request.form.get('token') or '').strip()
+        if ADMIN_TOKEN and hmac.compare_digest(supplied, ADMIN_TOKEN):
+            session.clear()
+            session['admin_authenticated'] = True
+            session.permanent = True
+            return redirect(url_for('index'))
+        error = 'Token admin tidak valid atau belum dikonfigurasi.'
+    return render_template('login.html', error=error)
+
+@app.post('/auth/logout')
+def auth_logout():
+    session.clear()
+    return redirect(url_for('auth_login'))
+
 @app.route('/')
 def index():
-    # The dashboard is the trusted admin surface. The token is used only to
-    # authenticate its Socket.IO admin join with the signaling service.
+    join_ticket = ''
+    try:
+        join_ticket = issue_room_token('gmeet_room', 'admin-dashboard', 'admin', ttl=300)
+    except (RuntimeError, ValueError) as exc:
+        logging.error('Could not issue short-lived WebRTC admin ticket: %s', exc)
     return render_template(
         'index.html',
-        webrtc_admin_token=os.getenv('WEBRTC_ADMIN_TOKEN', ''),
+        webrtc_admin_ticket=join_ticket,
     )
 
 @app.route('/manifest.json')

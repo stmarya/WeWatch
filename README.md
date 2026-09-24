@@ -51,6 +51,8 @@ TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
 TELEGRAM_CHAT_ID=987654321
 ```
 Salin `.env.example` sebagai titik awal, lalu isi hanya nilai yang diperlukan.
+Dashboard utama sekarang meminta login admin dan tidak lagi menaruh admin
+secret di HTML. Isi `WEBWATCH_SESSION_SECRET` dengan random secret yang panjang.
 
 ### 3. Menjalankan Aplikasi
 Eksekusi file utama, dan biarkan "Sang Pengawas" bekerja:

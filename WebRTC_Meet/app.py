@@ -6,8 +6,9 @@ import logging
 import sys
 import json
 import uuid
+import hmac
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect
 from flask_socketio import SocketIO, emit, join_room, leave_room
 try:
     from services.room_auth import issue_room_token, verify_room_token
@@ -143,7 +144,9 @@ def client_page():
 
 @app.route('/admin')
 def admin_page():
-    return render_template('admin.html')
+    # Use the authenticated root dashboard as the canonical admin surface.
+    # Keeping a token in a query string on this legacy page is unsafe.
+    return redirect(os.getenv('ADMIN_DASHBOARD_URL', 'http://localhost:5000'))
 
 @app.route('/manifest.json')
 def manifest():
@@ -167,12 +170,22 @@ def manifest():
 @socketio.on('join')
 def handle_join(data):
     requested_role = data.get('role', 'client')
+    identity = str(data.get('identity', request.sid[:12])).strip()[:128]
     if requested_role == 'admin':
-        if not ADMIN_TOKEN or data.get('token', '') != ADMIN_TOKEN:
+        static_token_ok = bool(ADMIN_TOKEN) and hmac.compare_digest(
+            str(data.get('token', '')), ADMIN_TOKEN
+        )
+        ticket_ok = False
+        if not static_token_ok:
+            try:
+                claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
+                ticket_ok = claims['role'] == 'admin'
+            except ValueError:
+                ticket_ok = False
+        if not (static_token_ok or ticket_ok):
             emit('join_rejected', {'reason': 'Admin token required.'})
             return
     role = 'admin' if requested_role == 'admin' else 'client'
-    identity = str(data.get('identity', request.sid[:12])).strip()[:128]
     if REQUIRE_JOIN_TOKEN and role != 'admin':
         try:
             claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
@@ -197,6 +210,7 @@ def handle_join(data):
         'role': role,
         'mic': data.get('mic', True),
         'cam': data.get('cam', True),
+        'screen': False,
         'hand': False,
         'joined_at': now_str
     }
@@ -281,7 +295,7 @@ def handle_update_host_permission(data):
 def handle_toggle_media(data):
     if request.sid in participants:
         media_type = data.get('type') # 'mic' or 'cam'
-        if media_type not in ('mic', 'cam'):
+        if media_type not in ('mic', 'cam', 'screen'):
             return
         enabled = bool(data.get('enabled', True))
         participants[request.sid][media_type] = enabled

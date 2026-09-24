@@ -992,7 +992,8 @@
                 socket.emit('join', {
                     role: 'admin',
                     name: 'Admin (Host)',
-                    token: {{ webrtc_admin_token|tojson }},
+                    identity: 'admin-dashboard',
+                    join_token: {{ webrtc_admin_ticket|tojson }},
                     mic: isMicOn,
                     cam: isCamOn
                 });
@@ -1051,12 +1052,12 @@
                 msgEl.className = 'chat-msg';
                 
                 const isMe = data.senderId === socket.id;
-                const authorName = isMe ? 'You (Admin)' : data.senderName;
+                const authorName = isMe ? 'You (Admin)' : String(data.senderName || 'Participant');
 
                 msgEl.innerHTML = `
                     <div class="chat-msg-header">
-                        <span class="chat-msg-author">${authorName}</span>
-                        <span class="chat-msg-time">${data.time}</span>
+                        <span class="chat-msg-author">${escapeHtml(authorName)}</span>
+                        <span class="chat-msg-time">${escapeHtml(data.time || '')}</span>
                     </div>
                     <div class="chat-msg-body">${escapeHtml(data.text)}</div>
                 `;
@@ -1271,10 +1272,10 @@
 
                 <!-- Admin Monitoring Quick Action Controls -->
                 <div class="tile-actions">
-                    <button class="tile-action-btn" style="color:var(--gmeet-primary);" title="Remote Control & Assist Client" onclick="openRemoteControlModal('${clientId}', '${escapeHtml(clientName)}')">
+                    <button class="tile-action-btn" style="color:var(--gmeet-primary);" title="Remote Control & Assist Client" onclick="openRemoteControlModal(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
                         <span class="material-symbols-outlined">settings_remote</span>
                     </button>
-                    <button class="tile-action-btn" title="Capture Snapshot Evidence" onclick="captureClientSnapshot('${clientId}', '${escapeHtml(clientName)}')">
+                    <button class="tile-action-btn" title="Capture Snapshot Evidence" onclick="captureClientSnapshot(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
                         <span class="material-symbols-outlined">photo_camera</span>
                     </button>
                     <button class="tile-action-btn" title="Spotlight / Pin" onclick="togglePin('tile-${clientId}')">
@@ -1283,7 +1284,7 @@
                     <button class="tile-action-btn" title="Mute Participant" onclick="remoteMuteClient('${clientId}')">
                         <span class="material-symbols-outlined">mic_off</span>
                     </button>
-                    <button class="tile-action-btn" style="color:var(--gmeet-red);" title="Remove Participant" onclick="remoteKickClient('${clientId}', '${escapeHtml(clientName)}')">
+                    <button class="tile-action-btn" style="color:var(--gmeet-red);" title="Remove Participant" onclick="remoteKickClient(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
                         <span class="material-symbols-outlined">person_remove</span>
                     </button>
                 </div>
@@ -1293,7 +1294,7 @@
                     <div class="audio-status" id="mic-status-${clientId}">
                         <span class="material-symbols-outlined" id="mic-icon-${clientId}">mic</span>
                     </div>
-                    <span>${clientName}</span>
+                    <span>${escapeHtml(clientName)}</span>
                     <span class="ai-badge" style="background:#1a73e8; margin-left:6px;">LIVE WebRTC</span>
                 </div>
             `;
@@ -1441,7 +1442,7 @@
                     }
 
                     if (socket) {
-                        socket.emit('user_media_toggled', { id: socket.id, type: 'screen', enabled: true });
+                        socket.emit('toggle_media', { type: 'screen', enabled: true });
                     }
                     showToast("You are presenting your screen to participants.");
 
@@ -1470,7 +1471,7 @@
             isScreenSharing = false;
             
             if (socket) {
-                socket.emit('user_media_toggled', { id: socket.id, type: 'screen', enabled: false });
+                socket.emit('toggle_media', { type: 'screen', enabled: false });
             }
             showToast("Screen share stopped.");
         }
@@ -1672,13 +1673,13 @@
                 let hostActions = '';
                 if (!isMe) {
                     hostActions = `
-                        <button class="p-action-btn" title="Mute participant" onclick="remoteMuteClient('${u.id}')">
+                        <button class="p-action-btn" title="Mute participant" onclick="remoteMuteClient(${escapeJsString(u.id)})">
                             <span class="material-symbols-outlined" style="font-size:18px;">${u.mic ? 'mic' : 'mic_off'}</span>
                         </button>
-                        <button class="p-action-btn" title="Pin to screen" onclick="togglePin('tile-${u.id}')">
+                        <button class="p-action-btn" title="Pin to screen" onclick="togglePin(${escapeJsString(`tile-${u.id}`)})">
                             <span class="material-symbols-outlined" style="font-size:18px;">push_pin</span>
                         </button>
-                        <button class="p-action-btn danger" title="Remove from call" onclick="remoteKickClient('${u.id}', '${escapeHtml(u.name)}')">
+                        <button class="p-action-btn danger" title="Remove from call" onclick="remoteKickClient(${escapeJsString(u.id)}, ${escapeJsString(u.name)})">
                             <span class="material-symbols-outlined" style="font-size:18px;">person_remove</span>
                         </button>
                     `;
@@ -1689,9 +1690,9 @@
                 }
 
                 item.innerHTML = `
-                    <div class="participant-avatar" style="background:${color};">${initial}</div>
+                    <div class="participant-avatar" style="background:${color};">${escapeHtml(initial)}</div>
                     <div class="participant-info">
-                        <div class="participant-name">${u.name} ${isMe ? '(You)' : ''}</div>
+                    <div class="participant-name">${escapeHtml(u.name || 'Participant')} ${isMe ? '(You)' : ''}</div>
                         <div class="participant-sub">${u.role === 'admin' ? 'Meeting host' : 'Client Participant'}</div>
                     </div>
                     <div class="participant-icons">
@@ -2459,14 +2460,21 @@
             toast.className = 'gmeet-toast';
             toast.innerHTML = `
                 <span class="material-symbols-outlined" style="font-size:20px; color:var(--gmeet-primary);">info</span>
-                <span>${text}</span>
+                <span></span>
             `;
+            toast.querySelector('span:last-child').textContent = String(text ?? '');
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3500);
         }
 
         function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return String(text ?? '').replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        }
+
+        function escapeJsString(text) {
+            return JSON.stringify(String(text ?? '')).replace(/</g, '\\u003c')
+                .replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
         }
 
         // Keyboard Shortcuts (Ctrl+D = Mic, Ctrl+E = Cam)

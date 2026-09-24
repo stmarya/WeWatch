@@ -1,5 +1,6 @@
 import threading
 import time
+import logging
 from services.voice import speak
 
 try:
@@ -67,11 +68,12 @@ def jarvis_listener(camera):
                         speak("Mode keamanan dinonaktifkan.")
                         
         except sr.WaitTimeoutError:
-            pass
+            continue
         except sr.UnknownValueError:
-            pass
+            logging.debug("Jarvis could not understand the audio")
         except Exception as e:
-            pass
+            logging.exception("Jarvis listener error: %s", e)
+            time.sleep(1)
 
 def start_jarvis(camera):
     thread = threading.Thread(target=jarvis_listener, args=(camera,), daemon=True)
