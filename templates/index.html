@@ -992,6 +992,7 @@
                 socket.emit('join', {
                     role: 'admin',
                     name: 'Admin (Host)',
+                    token: {{ webrtc_admin_token|tojson }},
                     mic: isMicOn,
                     cam: isCamOn
                 });
@@ -999,6 +1000,15 @@
 
             socket.on('connect_error', (err) => {
                 console.warn("[WebRTC] Signaling server on 5001 not reachable yet:", err.message);
+                showToast("⚠️ WebRTC signaling unavailable");
+            });
+
+            socket.on('join_rejected', (data) => {
+                showToast(`⚠️ Admin join rejected: ${data.reason || 'authentication failed'}`);
+            });
+
+            socket.on('action_rejected', (data) => {
+                showToast(`⚠️ Remote action rejected: ${data.reason || 'not authorized'}`);
             });
 
             // When a client joins the room
@@ -3009,7 +3019,6 @@
                 showToast("Please enter a URL to open on client (e.g. https://google.com)");
                 return;
             }
-            sendHrDesktopAction('open_url', { url: url });
             if (activeRemoteClientId && socket) {
                 socket.emit('admin_remote_command', {
                     target: activeRemoteClientId,

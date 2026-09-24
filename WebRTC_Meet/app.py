@@ -42,6 +42,14 @@ socketio = SocketIO(
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
 REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 'true'
 ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
+ENABLE_SERVER_DESKTOP_CONTROL = os.getenv(
+    'ENABLE_SERVER_DESKTOP_CONTROL', 'false'
+).lower() == 'true'
+ALLOWED_REMOTE_COMMANDS = {
+    'ring_bell', 'tts_speak', 'force_fullscreen', 'toggle_cam',
+    'reload_page', 'hr_warning_banner', 'hr_session_lock',
+    'hr_session_unlock', 'open_url',
+}
 # Shared state is Redis-backed when REDIS_URL is configured and local otherwise.
 participants = SharedParticipants(os.getenv('REDIS_URL'))
 room_store = RoomStore(os.getenv('REDIS_URL'), ROOM_NAME)
@@ -119,6 +127,14 @@ def get_active_poll():
 def get_whiteboard_history():
     history = room_store.get('whiteboard_history', [])
     return history if isinstance(history, list) else []
+
+
+def emit_remote_error(message):
+    emit('desktop_action_result', {'status': 'error', 'msg': message}, to=request.sid)
+
+
+def valid_remote_target(target):
+    return isinstance(target, str) and target in participants and target != request.sid
 
 @app.route('/')
 @app.route('/client')
@@ -445,12 +461,19 @@ def handle_end_poll(data):
 @socketio.on('client_proctor_alert')
 def handle_proctor_alert(data):
     user = participants.get(request.sid, {})
+    event = str((data or {}).get('event', 'unknown'))[:200]
     emit('admin_proctor_alert', {
         'id': request.sid,
         'name': user.get('name', 'Participant'),
-        'event': data.get('event'),
+        'event': event,
         'time': datetime.now().strftime('%H:%M:%S')
     }, to=ROOM_NAME)
+
+
+@socketio.on('client_proctor_event')
+def handle_proctor_event(data):
+    handle_proctor_alert(data)
+
 
 # =========================================================================
 # OS-LEVEL REMOTE DESKTOP CONTROL (HR & MANAGER TAKEOVER)
@@ -460,27 +483,42 @@ def handle_proctor_alert(data):
 def handle_desktop_mouse_move(data):
     if not require_admin():
         return
+    if not ENABLE_SERVER_DESKTOP_CONTROL:
+        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
+        return
     if not pyautogui:
+        emit_remote_error('pyautogui is not available on the signaling host.')
         return
     try:
         sw, sh = pyautogui.size()
-        tx = max(0, min(sw - 1, int(data['xRatio'] * sw)))
-        ty = max(0, min(sh - 1, int(data['yRatio'] * sh)))
+        x_ratio = max(0.0, min(1.0, float(data.get('xRatio', 0))))
+        y_ratio = max(0.0, min(1.0, float(data.get('yRatio', 0))))
+        tx = max(0, min(sw - 1, int(x_ratio * sw)))
+        ty = max(0, min(sh - 1, int(y_ratio * sh)))
         pyautogui.moveTo(tx, ty)
     except Exception as e:
-        print("[DESKTOP MOUSE MOVE ERROR]", e)
+        emit_remote_error(f'Mouse move failed: {e}')
 
 @socketio.on('desktop_mouse_click')
 def handle_desktop_mouse_click(data):
     if not require_admin():
         return
+    if not ENABLE_SERVER_DESKTOP_CONTROL:
+        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
+        return
     if not pyautogui:
+        emit_remote_error('pyautogui is not available on the signaling host.')
         return
     try:
         sw, sh = pyautogui.size()
-        tx = max(0, min(sw - 1, int(data['xRatio'] * sw)))
-        ty = max(0, min(sh - 1, int(data['yRatio'] * sh)))
+        x_ratio = max(0.0, min(1.0, float(data.get('xRatio', 0))))
+        y_ratio = max(0.0, min(1.0, float(data.get('yRatio', 0))))
+        tx = max(0, min(sw - 1, int(x_ratio * sw)))
+        ty = max(0, min(sh - 1, int(y_ratio * sh)))
         btn = data.get('button', 'left')
+        if btn not in {'left', 'right', 'double', 'middle'}:
+            emit_remote_error('Unsupported mouse button.')
+            return
         if btn == 'right':
             pyautogui.rightClick(tx, ty)
         elif btn == 'double':
@@ -491,40 +529,52 @@ def handle_desktop_mouse_click(data):
             pyautogui.click(tx, ty)
         print(f"[DESKTOP CLICK] {btn} at ({tx}, {ty})")
     except Exception as e:
-        print("[DESKTOP CLICK ERROR]", e)
+        emit_remote_error(f'Mouse click failed: {e}')
 
 @socketio.on('desktop_mouse_scroll')
 def handle_desktop_mouse_scroll(data):
     if not require_admin():
         return
+    if not ENABLE_SERVER_DESKTOP_CONTROL:
+        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
+        return
     if not pyautogui:
+        emit_remote_error('pyautogui is not available on the signaling host.')
         return
     try:
-        clicks = int(data.get('clicks', -120))
+        clicks = max(-1200, min(1200, int(data.get('clicks', data.get('deltaY', 0)))))
         pyautogui.scroll(clicks)
     except Exception as e:
-        print("[DESKTOP SCROLL ERROR]", e)
+        emit_remote_error(f'Mouse scroll failed: {e}')
 
 @socketio.on('desktop_key_input')
 def handle_desktop_key_input(data):
     if not require_admin():
         return
+    if not ENABLE_SERVER_DESKTOP_CONTROL:
+        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
+        return
     if not pyautogui:
-        emit('desktop_action_result', {'status': 'error', 'msg': 'pyautogui not available on server'}, to=request.sid)
+        emit_remote_error('pyautogui is not available on the signaling host.')
         return
     try:
         itype = data.get('type')
         val = data.get('value')
-        if itype == 'text':
+        if itype == 'text' and isinstance(val, str) and len(val) <= 2000:
             pyautogui.write(val, interval=0.005)
             emit('desktop_action_result', {'status': 'success', 'msg': f'Typed "{val}" on client desktop'}, to=request.sid)
-        elif itype == 'key':
+        elif itype == 'key' and isinstance(val, str) and len(val) <= 32:
             pyautogui.press(val)
             emit('desktop_action_result', {'status': 'success', 'msg': f'Pressed [{val}]'}, to=request.sid)
-        elif itype == 'hotkey':
+        elif itype == 'hotkey' and (isinstance(val, list) or isinstance(val, str)):
             keys = val if isinstance(val, list) else val.split('+')
+            if not keys or len(keys) > 5 or not all(isinstance(key, str) and len(key) <= 32 for key in keys):
+                emit_remote_error('Invalid hotkey payload.')
+                return
             pyautogui.hotkey(*keys)
             emit('desktop_action_result', {'status': 'success', 'msg': f'Triggered hotkey [{" + ".join(keys)}]'}, to=request.sid)
+        else:
+            emit_remote_error('Unsupported or invalid keyboard input.')
         print(f"[DESKTOP KEY] {itype}: {val}")
     except Exception as e:
         print("[DESKTOP KEY ERROR]", e)
@@ -533,6 +583,9 @@ def handle_desktop_key_input(data):
 @socketio.on('desktop_quick_action')
 def handle_desktop_quick_action(data):
     if not require_admin():
+        return
+    if not ENABLE_SERVER_DESKTOP_CONTROL:
+        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
         return
     action = data.get('action')
     print(f"[HR DESKTOP ACTION] {action}")
@@ -644,27 +697,80 @@ def handle_admin_remote_pointer(data):
     if not require_admin():
         return
     target = data.get('target')
-    if target:
-        emit('client_remote_pointer', data, to=target)
-        emit('remote_pointer_moved', data, to=target)
+    if not valid_remote_target(target):
+        emit_remote_error('Remote pointer target is not connected.')
+        return
+    try:
+        payload = {
+            'x': max(0.0, min(1.0, float(data.get('x', 0)))),
+            'y': max(0.0, min(1.0, float(data.get('y', 0)))),
+            'active': bool(data.get('active', False)),
+        }
+    except (TypeError, ValueError):
+        emit_remote_error('Invalid remote pointer coordinates.')
+        return
+    emit('client_remote_pointer', payload, to=target)
 
 @socketio.on('admin_remote_annotate')
 def handle_admin_remote_annotate(data):
     if not require_admin():
         return
     target = data.get('target')
-    if target:
-        emit('client_remote_annotate', data, to=target)
-        emit('remote_annotation_received', data, to=target)
+    if not valid_remote_target(target):
+        emit_remote_error('Remote annotation target is not connected.')
+        return
+    action = data.get('action')
+    if action == 'clear':
+        emit('client_remote_annotate', {'action': 'clear'}, to=target)
+        return
+    stroke = data.get('stroke', {})
+    if (
+        action != 'stroke'
+        or not isinstance(stroke, dict)
+        or any(
+            not isinstance(stroke.get(key), (int, float))
+            or not 0 <= float(stroke.get(key)) <= 1
+            for key in ('x0', 'y0', 'x1', 'y1')
+        )
+    ):
+        emit_remote_error('Invalid remote annotation payload.')
+        return
+    try:
+        size = max(1, min(20, float(stroke.get('size', 4))))
+        normalized_stroke = {
+            'x0': float(stroke['x0']), 'y0': float(stroke['y0']),
+            'x1': float(stroke['x1']), 'y1': float(stroke['y1']),
+            'color': str(stroke.get('color', '#ff1744'))[:32],
+            'size': size,
+        }
+    except (TypeError, ValueError):
+        emit_remote_error('Invalid remote annotation values.')
+        return
+    emit('client_remote_annotate', {
+        'action': 'stroke',
+        'stroke': normalized_stroke,
+    }, to=target)
 
 @socketio.on('admin_remote_command')
 def handle_admin_remote_command(data):
     if not require_admin():
         return
     target = data.get('target')
-    if target:
-        emit('client_remote_command', data, to=target)
-        emit('remote_command_received', data, to=target)
+    command = data.get('command')
+    if not valid_remote_target(target):
+        emit_remote_error('Remote command target is not connected.')
+        return
+    if command not in ALLOWED_REMOTE_COMMANDS:
+        emit_remote_error('Unsupported remote command.')
+        return
+    payload = data.get('payload') if isinstance(data.get('payload'), dict) else {}
+    if len(json.dumps(payload)) > 4000:
+        emit_remote_error('Remote command payload is too large.')
+        return
+    emit('client_remote_command', {
+        'command': command,
+        'payload': payload,
+    }, to=target)
 
 @socketio.on('disconnect')
 def handle_disconnect():

@@ -18,6 +18,13 @@ docker compose -f docker-compose.scale.yml up -d
 Do not expose LiveKit or Coturn directly to the public internet without TLS,
 firewall rules, rate limiting, and rotated credentials.
 
+Server-side OS actions are disabled by default with
+`ENABLE_SERVER_DESKTOP_CONTROL=false`. The browser-only remote features
+(laser, annotation, in-app command, fullscreen, TTS, and camera toggle) are
+routed to the selected client. OS-level mouse, keyboard, process, clipboard,
+and workstation actions require a separately authenticated native desktop
+agent; they must not be executed blindly on the signaling host.
+
 ## Capacity policy
 
 - A room may have 500+ connected participants.

@@ -37,7 +37,12 @@ start_jarvis(camera)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # The dashboard is the trusted admin surface. The token is used only to
+    # authenticate its Socket.IO admin join with the signaling service.
+    return render_template(
+        'index.html',
+        webrtc_admin_token=os.getenv('WEBRTC_ADMIN_TOKEN', ''),
+    )
 
 @app.route('/manifest.json')
 def manifest():
