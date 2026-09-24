@@ -41,6 +41,7 @@ socketio = SocketIO(
 )
 
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
+DESKTOP_AGENT_TOKEN = os.getenv('DESKTOP_AGENT_TOKEN', '').strip()
 REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 'true'
 ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
 ENABLE_SERVER_DESKTOP_CONTROL = os.getenv(
@@ -77,7 +78,7 @@ def room_token():
     identity = str(data.get('identity', '')).strip()
     role = str(data.get('role', 'client')).strip()
     room = str(data.get('room', ROOM_NAME)).strip() or ROOM_NAME
-    if not identity or role not in {'admin', 'client'}:
+    if not identity or role not in {'admin', 'client', 'agent'}:
         return jsonify(error='identity and valid role are required'), 400
     try:
         ttl = int(data.get('ttl', 3600))
@@ -137,6 +138,43 @@ def emit_remote_error(message):
 def valid_remote_target(target):
     return isinstance(target, str) and target in participants and target != request.sid
 
+
+def public_participants():
+    return [user for user in participants.values() if user.get('role') != 'agent']
+
+
+def resolve_agent_sid(target):
+    if isinstance(target, str) and target in participants:
+        if participants.get(target, {}).get('role') == 'agent':
+            return target
+        target_identity = participants.get(target, {}).get('identity')
+    else:
+        target_identity = target
+    if not isinstance(target_identity, str) or not target_identity:
+        return None
+    for sid, user in participants.items():
+        if user.get('role') == 'agent' and user.get('target_identity') == target_identity:
+            return sid
+    return None
+
+
+def dispatch_to_agent(target, command, payload=None):
+    agent_sid = resolve_agent_sid(target)
+    if not agent_sid:
+        emit_remote_error('No paired desktop agent is connected for this client.')
+        return True
+    emit(
+        'desktop_command',
+        {
+            'request_id': uuid.uuid4().hex,
+            'command': command,
+            'payload': payload or {},
+            'reply_to': request.sid,
+        },
+        to=agent_sid,
+    )
+    return True
+
 @app.route('/')
 @app.route('/client')
 def client_page():
@@ -171,7 +209,21 @@ def manifest():
 def handle_join(data):
     requested_role = data.get('role', 'client')
     identity = str(data.get('identity', request.sid[:12])).strip()[:128]
-    if requested_role == 'admin':
+    if requested_role == 'agent':
+        static_agent_ok = bool(DESKTOP_AGENT_TOKEN) and hmac.compare_digest(
+            str(data.get('agent_token', '')), DESKTOP_AGENT_TOKEN
+        )
+        ticket_ok = False
+        if not static_agent_ok:
+            try:
+                claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
+                ticket_ok = claims['role'] == 'agent'
+            except ValueError:
+                ticket_ok = False
+        if not (static_agent_ok or ticket_ok):
+            emit('join_rejected', {'reason': 'Desktop agent authentication required.'})
+            return
+    elif requested_role == 'admin':
         static_token_ok = bool(ADMIN_TOKEN) and hmac.compare_digest(
             str(data.get('token', '')), ADMIN_TOKEN
         )
@@ -185,8 +237,8 @@ def handle_join(data):
         if not (static_token_ok or ticket_ok):
             emit('join_rejected', {'reason': 'Admin token required.'})
             return
-    role = 'admin' if requested_role == 'admin' else 'client'
-    if REQUIRE_JOIN_TOKEN and role != 'admin':
+    role = requested_role if requested_role in {'admin', 'agent'} else 'client'
+    if REQUIRE_JOIN_TOKEN and role == 'client':
         try:
             claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
             if claims['role'] != 'client':
@@ -208,6 +260,8 @@ def handle_join(data):
         'id': request.sid,
         'name': name,
         'role': role,
+        'identity': identity,
+        'target_identity': str(data.get('target_identity', '')).strip()[:128] if role == 'agent' else '',
         'mic': data.get('mic', True),
         'cam': data.get('cam', True),
         'screen': False,
@@ -217,7 +271,7 @@ def handle_join(data):
     print(f"[{role.upper()}] joined: {name} ({request.sid}) at {now_str}")
     
     # Send current participant list, lock state, and host permissions to newly joined user
-    emit('participants_update', list(participants.values()))
+    emit('participants_update', public_participants())
     emit('meeting_lock_changed', {'locked': is_meeting_locked()})
     emit('host_permissions_update', get_host_permissions())
     active_poll = get_active_poll()
@@ -225,7 +279,8 @@ def handle_join(data):
         emit('poll_created', active_poll)
     
     # Broadcast to other participants
-    emit('user_joined', participants[request.sid], to=room, include_self=False)
+    if role != 'agent':
+        emit('user_joined', participants[request.sid], to=room, include_self=False)
     
     # Specifically inform admin of client joined for WebRTC peering
     if role == 'client':
@@ -236,6 +291,24 @@ def handle_join(data):
 def handle_presence_ping():
     if request.sid in participants:
         participants.refresh(request.sid)
+
+
+@socketio.on('agent_action_result')
+def handle_agent_action_result(data):
+    agent = participants.get(request.sid, {})
+    if agent.get('role') != 'agent' or not isinstance(data, dict):
+        return
+    reply_to = data.get('reply_to')
+    if not isinstance(reply_to, str) or participants.get(reply_to, {}).get('role') != 'admin':
+        return
+    result = {
+        'status': 'success' if data.get('ok') else 'error',
+        'msg': str(data.get('message', 'Desktop agent completed the request.'))[:1000],
+    }
+    emit('desktop_action_result', result, to=reply_to)
+    screenshot = data.get('screenshot_b64')
+    if isinstance(screenshot, str) and len(screenshot) <= 8_000_000:
+        emit('desktop_screenshot_data', {'b64': screenshot}, to=reply_to)
 
 @socketio.on('webrtc_offer')
 def handle_offer(data):
@@ -497,6 +570,11 @@ def handle_proctor_event(data):
 def handle_desktop_mouse_move(data):
     if not require_admin():
         return
+    if data.get('target'):
+        dispatch_to_agent(data.get('target'), 'mouse_move', {
+            'xRatio': data.get('xRatio', 0), 'yRatio': data.get('yRatio', 0)
+        })
+        return
     if not ENABLE_SERVER_DESKTOP_CONTROL:
         emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
         return
@@ -516,6 +594,12 @@ def handle_desktop_mouse_move(data):
 @socketio.on('desktop_mouse_click')
 def handle_desktop_mouse_click(data):
     if not require_admin():
+        return
+    if data.get('target'):
+        dispatch_to_agent(data.get('target'), 'mouse_click', {
+            'xRatio': data.get('xRatio', 0), 'yRatio': data.get('yRatio', 0),
+            'button': data.get('button', 'left')
+        })
         return
     if not ENABLE_SERVER_DESKTOP_CONTROL:
         emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
@@ -549,6 +633,11 @@ def handle_desktop_mouse_click(data):
 def handle_desktop_mouse_scroll(data):
     if not require_admin():
         return
+    if data.get('target'):
+        dispatch_to_agent(data.get('target'), 'mouse_scroll', {
+            'deltaY': data.get('deltaY', data.get('clicks', 0))
+        })
+        return
     if not ENABLE_SERVER_DESKTOP_CONTROL:
         emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
         return
@@ -564,6 +653,11 @@ def handle_desktop_mouse_scroll(data):
 @socketio.on('desktop_key_input')
 def handle_desktop_key_input(data):
     if not require_admin():
+        return
+    if data.get('target'):
+        dispatch_to_agent(data.get('target'), 'key_input', {
+            'type': data.get('type'), 'value': data.get('value')
+        })
         return
     if not ENABLE_SERVER_DESKTOP_CONTROL:
         emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
@@ -597,6 +691,9 @@ def handle_desktop_key_input(data):
 @socketio.on('desktop_quick_action')
 def handle_desktop_quick_action(data):
     if not require_admin():
+        return
+    if data.get('target'):
+        dispatch_to_agent(data.get('target'), 'quick_action', dict(data))
         return
     if not ENABLE_SERVER_DESKTOP_CONTROL:
         emit_remote_error('Server desktop control is disabled; use a trusted native agent.')

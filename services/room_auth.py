@@ -22,7 +22,7 @@ def _secret() -> bytes:
 
 
 def issue_room_token(room: str, identity: str, role: str = "client", ttl: int = 3600) -> str:
-    if role not in {"admin", "client"}:
+    if role not in {"admin", "client", "agent"}:
         raise ValueError("Unsupported room role")
     now = int(time.time())
     payload = {

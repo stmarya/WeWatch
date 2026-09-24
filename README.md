@@ -85,5 +85,19 @@ shared room state saat `REDIS_URL` aktif. Jalankan `tools/load_test_signaling.py
 sebelum membuka room untuk pengguna dan tetapkan release gate minimal 600
 koneksi berhasil.
 
+### 7. Native Desktop Agent (opsional)
+Untuk remote mouse, keyboard, screenshot, volume, dan workflow desktop,
+jalankan `desktop_agent.py` pada komputer client. Agent hanya menerima command
+terstruktur yang diizinkan dan tidak menjalankan arbitrary shell command.
+Isi `DESKTOP_AGENT_TOKEN`, `DESKTOP_AGENT_IDENTITY`, dan
+`DESKTOP_AGENT_TARGET_IDENTITY`, lalu jalankan:
+
+```bash
+python desktop_agent.py
+```
+
+Biarkan `DESKTOP_AGENT_ALLOW_DANGEROUS=false` kecuali policy organisasi sudah
+menyetujui clipboard injection, workstation lock, atau process control.
+
 ---
 *Dibangun dengan ❤️ menggunakan MediaPipe, OpenCV, Flask, dan CustomTkinter.*

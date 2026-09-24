@@ -2961,7 +2961,9 @@
                 showToast("Socket server not connected");
                 return;
             }
-            socket.emit('desktop_quick_action', Object.assign({ action: action }, payload));
+            socket.emit('desktop_quick_action', Object.assign(
+                { action: action, target: activeRemoteClientId }, payload
+            ));
             showToast(`HR Action sent: ${action.replace(/_/g, ' ')}...`);
         }
 
@@ -2985,7 +2987,9 @@
 
         function sendDesktopKey(type, value) {
             if (!socket) return;
-            socket.emit('desktop_key_input', { type: type, value: value });
+            socket.emit('desktop_key_input', {
+                target: activeRemoteClientId, type: type, value: value
+            });
         }
 
         function sendDesktopTextInput() {
@@ -3070,6 +3074,7 @@
                 // 1. Live Desktop Mouse Takeover
                 if (isDesktopMouseControlActive && activeRemoteClientId === clientId && socket) {
                     socket.emit('desktop_mouse_move', {
+                        target: clientId,
                         xRatio: xRatio,
                         yRatio: yRatio
                     });
@@ -3099,6 +3104,7 @@
                     const xRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                     const yRatio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
                     socket.emit('desktop_mouse_click', {
+                        target: clientId,
                         xRatio: xRatio,
                         yRatio: yRatio,
                         button: 'left'
@@ -3113,6 +3119,7 @@
                     const xRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                     const yRatio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
                     socket.emit('desktop_mouse_click', {
+                        target: clientId,
                         xRatio: xRatio,
                         yRatio: yRatio,
                         button: 'right'
@@ -3126,6 +3133,7 @@
                     const xRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                     const yRatio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
                     socket.emit('desktop_mouse_click', {
+                        target: clientId,
                         xRatio: xRatio,
                         yRatio: yRatio,
                         button: 'double'
@@ -3137,6 +3145,7 @@
                 if (isDesktopMouseControlActive && activeRemoteClientId === clientId && socket) {
                     e.preventDefault();
                     socket.emit('desktop_mouse_scroll', {
+                        target: clientId,
                         deltaY: e.deltaY
                     });
                 }
