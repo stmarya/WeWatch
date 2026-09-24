@@ -4,18 +4,26 @@ import subprocess
 import ctypes
 import logging
 import sys
+import json
+import uuid
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
 try:
     from services.room_auth import issue_room_token, verify_room_token
+    from services.livekit_tokens import issue_livekit_token
 except ModuleNotFoundError:
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
     from services.room_auth import issue_room_token, verify_room_token
+    from services.livekit_tokens import issue_livekit_token
 try:
     from shared_state import SharedParticipants
 except ModuleNotFoundError:
     from WebRTC_Meet.shared_state import SharedParticipants
+try:
+    from room_store import RoomStore
+except ModuleNotFoundError:
+    from WebRTC_Meet.room_store import RoomStore
 
 try:
     import pyautogui
@@ -31,20 +39,13 @@ socketio = SocketIO(
     cors_allowed_origins=os.getenv('WEBRTC_ALLOWED_ORIGINS', 'http://localhost:5001'),
 )
 
-# In-memory store for connected users: { sid: { id, name, role, mic, cam, hand, joined_at } }
-participants = SharedParticipants(os.getenv('REDIS_URL'))
-meeting_locked = False
-whiteboard_history = []
-active_poll = None
-host_permissions = {
-    'screen': True,
-    'chat': True,
-    'mic': True,
-    'video': True
-}
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
 REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 'true'
 ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
+# Shared state is Redis-backed when REDIS_URL is configured and local otherwise.
+participants = SharedParticipants(os.getenv('REDIS_URL'))
+room_store = RoomStore(os.getenv('REDIS_URL'), ROOM_NAME)
+DEFAULT_HOST_PERMISSIONS = {'screen': True, 'chat': True, 'mic': True, 'video': True}
 
 
 @app.get('/healthz')
@@ -70,10 +71,21 @@ def room_token():
     if not identity or role not in {'admin', 'client'}:
         return jsonify(error='identity and valid role are required'), 400
     try:
-        token = issue_room_token(room, identity, role, int(data.get('ttl', 3600)))
+        ttl = int(data.get('ttl', 3600))
+        join_token = issue_room_token(room, identity, role, ttl)
     except (ValueError, RuntimeError) as exc:
         return jsonify(error=str(exc)), 400
-    return jsonify(token=token, room=room, identity=identity, role=role)
+    try:
+        livekit_token = issue_livekit_token(room, identity, ttl)
+    except RuntimeError:
+        livekit_token = None
+    return jsonify(
+        join_token=join_token,
+        livekit_token=livekit_token,
+        room=room,
+        identity=identity,
+        role=role,
+    )
 
 
 def is_admin(sid):
@@ -85,6 +97,28 @@ def require_admin():
         emit('action_rejected', {'reason': 'Host permission required.'}, to=request.sid)
         return False
     return True
+
+
+def get_host_permissions():
+    permissions = room_store.get('host_permissions')
+    if not isinstance(permissions, dict):
+        permissions = dict(DEFAULT_HOST_PERMISSIONS)
+        room_store.set('host_permissions', permissions)
+    return permissions
+
+
+def is_meeting_locked():
+    return bool(room_store.get('meeting_locked', False))
+
+
+def get_active_poll():
+    poll = room_store.get('active_poll')
+    return poll if isinstance(poll, dict) else None
+
+
+def get_whiteboard_history():
+    history = room_store.get('whiteboard_history', [])
+    return history if isinstance(history, list) else []
 
 @app.route('/')
 @app.route('/client')
@@ -116,7 +150,6 @@ def manifest():
 
 @socketio.on('join')
 def handle_join(data):
-    global meeting_locked
     requested_role = data.get('role', 'client')
     if requested_role == 'admin':
         if not ADMIN_TOKEN or data.get('token', '') != ADMIN_TOKEN:
@@ -133,7 +166,7 @@ def handle_join(data):
             emit('join_rejected', {'reason': 'Valid room token required.'})
             return
     
-    if meeting_locked and role == 'client':
+    if is_meeting_locked() and role == 'client':
         emit('join_rejected', {'reason': 'This meeting has been locked by the host.'})
         return
 
@@ -155,8 +188,9 @@ def handle_join(data):
     
     # Send current participant list, lock state, and host permissions to newly joined user
     emit('participants_update', list(participants.values()))
-    emit('meeting_lock_changed', {'locked': meeting_locked})
-    emit('host_permissions_update', host_permissions)
+    emit('meeting_lock_changed', {'locked': is_meeting_locked()})
+    emit('host_permissions_update', get_host_permissions())
+    active_poll = get_active_poll()
     if active_poll:
         emit('poll_created', active_poll)
     
@@ -194,7 +228,7 @@ def handle_ice(data):
 @socketio.on('chat_message')
 def handle_chat_message(data):
     user = participants.get(request.sid, {})
-    if user.get('role') == 'client' and not host_permissions.get('chat', True):
+    if user.get('role') == 'client' and not get_host_permissions().get('chat', True):
         emit('chat_rejected', {'reason': 'Chat has been disabled by the meeting host.'})
         return
 
@@ -210,18 +244,22 @@ def handle_chat_message(data):
 @socketio.on('live_caption')
 def handle_live_caption(data):
     # Broadcast live speech transcript to everyone in call
-    emit('caption_broadcast', data, to=ROOM_NAME)
+    if isinstance(data, dict):
+        payload = {'text': str(data.get('text', ''))[:2000]}
+        emit('caption_broadcast', payload, to=ROOM_NAME)
 
 @socketio.on('update_host_permission')
 def handle_update_host_permission(data):
     if not require_admin():
         return
     perm = data.get('perm')
-    allowed = data.get('allowed', True)
-    if perm in host_permissions:
-        host_permissions[perm] = allowed
+    allowed = bool(data.get('allowed', True))
+    permissions = get_host_permissions()
+    if perm in permissions:
+        permissions[perm] = allowed
+        room_store.set('host_permissions', permissions)
         print(f"[SECURITY] Host permission '{perm}' set to: {allowed}")
-        emit('host_permissions_update', host_permissions, to=ROOM_NAME)
+        emit('host_permissions_update', permissions, to=ROOM_NAME)
 
 @socketio.on('toggle_media')
 def handle_toggle_media(data):
@@ -250,15 +288,19 @@ def handle_raise_hand(data):
 
 @socketio.on('reaction_emoji')
 def handle_reaction(data):
+    allowed = {'👍', '👏', '❤️', '😂', '😮', '😢', '🎉'}
+    emoji = data.get('emoji', '👍')
     emit('reaction_emoji', {
         'senderId': request.sid,
-        'emoji': data.get('emoji', '👍')
+        'emoji': emoji if emoji in allowed else '👍'
     }, to=ROOM_NAME)
 
 @socketio.on('recording_state')
 def handle_recording_state(data):
+    if not require_admin():
+        return
     emit('recording_state', {
-        'isRecording': data.get('isRecording', False)
+        'isRecording': bool(data.get('isRecording', False))
     }, to=ROOM_NAME)
 
 # Host-specific moderation events
@@ -301,55 +343,63 @@ def handle_end_all():
 def handle_toggle_meeting_lock(data):
     if not require_admin():
         return
-    global meeting_locked
-    meeting_locked = data.get('locked', False)
-    print(f"[SECURITY] Meeting locked state: {meeting_locked}")
-    emit('meeting_lock_changed', {'locked': meeting_locked}, to=ROOM_NAME)
+    locked = bool(data.get('locked', False))
+    room_store.set('meeting_locked', locked)
+    print(f"[SECURITY] Meeting locked state: {locked}")
+    emit('meeting_lock_changed', {'locked': locked}, to=ROOM_NAME)
 
 # Collaborative Whiteboard Events
 @socketio.on('whiteboard_draw')
 def handle_whiteboard_draw(data):
-    if len(whiteboard_history) > 2000:
-        whiteboard_history.pop(0)
-    whiteboard_history.append(data)
+    if not isinstance(data, dict) or len(json.dumps(data)) > 10000:
+        return
+    history = get_whiteboard_history()
+    history.append(data)
+    room_store.set('whiteboard_history', history[-2000:])
     emit('whiteboard_draw', data, to=ROOM_NAME, include_self=False)
 
 @socketio.on('whiteboard_clear')
 def handle_whiteboard_clear():
-    global whiteboard_history
-    whiteboard_history = []
+    if not require_admin():
+        return
+    room_store.set('whiteboard_history', [])
     emit('whiteboard_clear', {}, to=ROOM_NAME)
 
 @socketio.on('whiteboard_request_sync')
 def handle_whiteboard_sync():
-    emit('whiteboard_full_sync', {'strokes': whiteboard_history})
+    emit('whiteboard_full_sync', {'strokes': get_whiteboard_history()})
 
 # In-Meeting Live Polls Events
 @socketio.on('create_poll')
 def handle_create_poll(data):
     if not require_admin():
         return
-    global active_poll
-    question = data.get('question', '').strip()
-    options = data.get('options', [])
-    if not question or not options:
+    question = str(data.get('question', '')).strip()[:500]
+    raw_options = data.get('options', [])
+    options = [
+        str(option).strip()[:120]
+        for option in raw_options
+        if str(option).strip()
+    ] if isinstance(raw_options, list) else []
+    options = list(dict.fromkeys(options))[:8]
+    if not question or len(options) < 2:
         return
     
-    poll_id = f"poll_{int(datetime.now().timestamp())}"
     active_poll = {
-        'id': poll_id,
+        'id': f"poll_{uuid.uuid4().hex}",
         'question': question,
         'options': [{'text': opt, 'votes': 0} for opt in options],
         'voters': {}, # sid -> optionIndex
         'active': True,
         'creator': participants.get(request.sid, {}).get('name', 'Host')
     }
+    room_store.set('active_poll', active_poll)
     print(f"[POLL] Created: {question} with {len(options)} options")
     emit('poll_created', active_poll, to=ROOM_NAME)
 
 @socketio.on('submit_vote')
 def handle_submit_vote(data):
-    global active_poll
+    active_poll = get_active_poll()
     if not active_poll or not active_poll.get('active'):
         return
     
@@ -370,6 +420,7 @@ def handle_submit_vote(data):
     
     active_poll['voters'][request.sid] = option_idx
     active_poll['options'][option_idx]['votes'] += 1
+    room_store.set('active_poll', active_poll)
     
     emit('poll_updated', {
         'id': active_poll['id'],
@@ -381,47 +432,15 @@ def handle_submit_vote(data):
 def handle_end_poll(data):
     if not require_admin():
         return
-    global active_poll
+    active_poll = get_active_poll()
     if active_poll:
         active_poll['active'] = False
+        room_store.set('active_poll', active_poll)
         emit('poll_ended', {'id': active_poll['id']}, to=ROOM_NAME)
 
 # =========================================================================
 # HOST REMOTE CONTROL & PROCTORING EVENTS
 # =========================================================================
-
-@socketio.on('admin_remote_command')
-def handle_remote_command(data):
-    if not require_admin():
-        return
-    target_id = data.get('target')
-    command = data.get('command')
-    payload = data.get('payload', {})
-    print(f"[REMOTE CONTROL] Command '{command}' to {target_id}")
-    if target_id == 'all':
-        emit('remote_command_received', {'command': command, 'payload': payload, 'from': request.sid}, to=ROOM_NAME)
-    elif target_id in participants:
-        emit('remote_command_received', {'command': command, 'payload': payload, 'from': request.sid}, to=target_id)
-
-@socketio.on('admin_remote_pointer')
-def handle_remote_pointer(data):
-    if not require_admin():
-        return
-    target_id = data.get('target')
-    if target_id == 'all':
-        emit('remote_pointer_moved', data, to=ROOM_NAME, include_self=False)
-    elif target_id in participants:
-        emit('remote_pointer_moved', data, to=target_id)
-
-@socketio.on('admin_remote_annotate')
-def handle_remote_annotate(data):
-    if not require_admin():
-        return
-    target_id = data.get('target')
-    if target_id == 'all':
-        emit('remote_annotation_received', data, to=ROOM_NAME, include_self=False)
-    elif target_id in participants:
-        emit('remote_annotation_received', data, to=target_id)
 
 @socketio.on('client_proctor_alert')
 def handle_proctor_alert(data):

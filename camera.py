@@ -169,11 +169,25 @@ class AICamera:
         self.frame_bytes = b.tobytes()
 
         # Thread 1: Hardware Frame Grabber (mencegah OpenCV buffer queue lag)
-        threading.Thread(target=self._grabber_loop, daemon=True).start()
+        threading.Thread(target=self._safe_grabber_loop, daemon=True).start()
 
         # Thread 2: Video Processing & AI Pipeline
-        threading.Thread(target=self.update, daemon=True).start()
+        threading.Thread(target=self._safe_update, daemon=True).start()
         logging.info("AICamera Turbo Pipeline Initialized Successfully.")
+
+    def _safe_grabber_loop(self):
+        try:
+            self._grabber_loop()
+        except Exception:
+            logging.exception("Camera grabber stopped unexpectedly")
+            self.running = False
+
+    def _safe_update(self):
+        try:
+            self.update()
+        except Exception:
+            logging.exception("AI processing loop stopped unexpectedly")
+            self.running = False
 
     def _grabber_loop(self):
         """Thread terpisah khusus membaca hardware webcam tanpa delay buffer."""

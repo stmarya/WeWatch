@@ -76,5 +76,12 @@ kontrol desktop tidak aktif. Jika client berada di host lain, atur
 - Pastikan pencahayaan wajah cukup dan jangan mengaktifkan semua model AI berat
   sekaligus pada perangkat CPU-only.
 
+### 6. Scale profile dan reliability
+Untuk meeting besar, gunakan `docker-compose.scale.yml` dengan Redis, LiveKit,
+dan Coturn. State participant, lock meeting, poll, dan whiteboard akan memakai
+shared room state saat `REDIS_URL` aktif. Jalankan `tools/load_test_signaling.py`
+sebelum membuka room untuk pengguna dan tetapkan release gate minimal 600
+koneksi berhasil.
+
 ---
 *Dibangun dengan ❤️ menggunakan MediaPipe, OpenCV, Flask, dan CustomTkinter.*

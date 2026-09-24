@@ -39,12 +39,14 @@ The signaling service now supports:
 - `REDIS_URL` for Socket.IO fan-out and shared participant state;
 - `WEBRTC_REQUIRE_JOIN_TOKEN=true` to require signed, short-lived client tokens;
 - `POST /api/room-token` with `X-Admin-Token` to issue a client token;
+- `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` to return a LiveKit JWT from the
+  same endpoint;
 - `/healthz` and `/readyz` for load balancers;
 - `tools/load_test_signaling.py` for connection/join smoke tests.
 
-When token enforcement is enabled, pass the returned token to the client as
-`/client?join_token=<token>`. The token identity must match the participant
-identity sent during join.
+When legacy token enforcement is enabled, pass `join_token` to the client as
+`/client?join_token=<token>`. For the SFU client, use `livekit_token` with the
+LiveKit client SDK. The token identity must match the participant identity.
 
 Minimum release gates:
 

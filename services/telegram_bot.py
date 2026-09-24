@@ -5,6 +5,7 @@ import requests
 import threading
 import logging
 from pathlib import Path
+import uuid
 from utils.security import Cooldown
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -18,7 +19,7 @@ def send_telegram_alert(frame, caption, save_as="alert"):
         return
 
     os.makedirs(GALLERY_FOLDER, exist_ok=True)
-    filename = os.path.join(GALLERY_FOLDER, f"{save_as}_{int(time.time())}.jpg")
+    filename = os.path.join(GALLERY_FOLDER, f"{save_as}_{uuid.uuid4().hex}.jpg")
     if not cv2.imwrite(filename, frame):
         logging.error("Failed to save Telegram alert frame: %s", filename)
         return

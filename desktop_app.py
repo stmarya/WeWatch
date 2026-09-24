@@ -13,6 +13,7 @@ class DesktopApp(ctk.CTk):
         super().__init__()
         self.title("The Ultimate Watcher - Desktop")
         self.geometry("1100x750")
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         
         self.last_kantuk = False
         self.last_postur = False
@@ -130,6 +131,13 @@ class DesktopApp(ctk.CTk):
 
         logging.info("Desktop GUI Initialized.")
         self.update_video()
+
+    def on_close(self):
+        """Release the webcam and stop background processing before exit."""
+        try:
+            camera.stop()
+        finally:
+            self.destroy()
 
     def show_toast(self, message):
         toast = ctk.CTkToplevel(self)

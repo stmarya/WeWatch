@@ -3,6 +3,7 @@ import glob
 import sqlite3
 import time
 import logging
+import uuid
 from pathlib import Path
 from flask import Flask, render_template, Response, request, jsonify
 from dotenv import load_dotenv
@@ -61,6 +62,11 @@ def manifest():
 def gallery():
     images = glob.glob(os.path.join(GALLERY_FOLDER, '*.jpg'))
     images.sort(key=os.path.getmtime, reverse=True)
+    try:
+        limit = min(max(int(request.args.get('limit', 100)), 1), 500)
+    except (TypeError, ValueError):
+        limit = 100
+    images = images[:limit]
     image_urls = [os.path.basename(img) for img in images]
     return render_template('gallery.html', images=image_urls)
 
@@ -87,7 +93,7 @@ def take_snapshot():
     if camera.frame_rgb is not None:
         try:
             import cv2
-            filename = f"snapshot_{int(time.time())}.jpg"
+            filename = f"snapshot_{uuid.uuid4().hex}.jpg"
             filepath = os.path.join(GALLERY_FOLDER, filename)
             bgr_frame = cv2.cvtColor(camera.frame_rgb, cv2.COLOR_RGB2BGR)
             cv2.imwrite(filepath, bgr_frame)
