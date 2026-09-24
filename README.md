@@ -47,9 +47,10 @@ pip install -r requirements.txt
 ### 2. Konfigurasi
 Buat sebuah file `.env` di direktori utama, lalu isikan Token Bot Telegram Anda:
 ```env
-TELEGRAM_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
-CHAT_ID=987654321
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+TELEGRAM_CHAT_ID=987654321
 ```
+Salin `.env.example` sebagai titik awal, lalu isi hanya nilai yang diperlukan.
 
 ### 3. Menjalankan Aplikasi
 Eksekusi file utama, dan biarkan "Sang Pengawas" bekerja:
@@ -57,6 +58,21 @@ Eksekusi file utama, dan biarkan "Sang Pengawas" bekerja:
 python main.py
 ```
 Akses **http://localhost:5000** di *browser* Anda untuk membuka Web Dashboard, atau gunakan Desktop App yang langsung muncul di layar Anda.
+
+### 4. WebRTC Meet (opsional)
+Sebelum membuka port WebRTC, isi `WEBRTC_ADMIN_TOKEN` dan `WEBRTC_SECRET_KEY`
+dengan nilai acak yang panjang. Buka halaman admin memakai
+`/admin?token=<WEBRTC_ADMIN_TOKEN>`. Tanpa token, koneksi admin ditolak dan
+kontrol desktop tidak aktif.
+
+### 5. Catatan performa
+- Pipeline kamera memakai buffer frame terbaru dan encoding maksimum 30 FPS
+  agar latency tidak menumpuk.
+- Registrasi Face ID menolak frame tanpa wajah atau dengan lebih dari satu wajah,
+  memakai dua jitter saat membuat embedding, dan mengganti embedding lama saat
+  nama yang sama didaftarkan ulang.
+- Pastikan pencahayaan wajah cukup dan jangan mengaktifkan semua model AI berat
+  sekaligus pada perangkat CPU-only.
 
 ---
 *Dibangun dengan ❤️ menggunakan MediaPipe, OpenCV, Flask, dan CustomTkinter.*

@@ -1,9 +1,10 @@
 import cv2
 import time
 import os
+from utils.security import safe_face_name
 
 print("--- REGISTRASI WAJAH (FACE ID) ---")
-nama_user = input("Masukkan nama Anda: ").strip()
+nama_user = safe_face_name(input("Masukkan nama Anda: "))
 if not nama_user:
     nama_user = "user_default"
     
@@ -36,7 +37,7 @@ while True:
     key = cv2.waitKey(1) & 0xFF
     if key == 32:  # SPASI
         os.makedirs('faces', exist_ok=True)
-        filepath = os.path.join('faces', f'{nama_user}.jpg')
+        filepath = os.path.join(os.path.dirname(__file__), 'faces', f'{nama_user}.jpg')
         cv2.imwrite(filepath, frame)
         print(f"✅ Berhasil! Foto wajah Anda telah disimpan di '{filepath}'.")
         break

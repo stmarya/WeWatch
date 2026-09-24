@@ -148,26 +148,13 @@ class DesktopApp(ctk.CTk):
         name = dialog.get_input()
         if name and name.strip():
             name = name.strip()
-            if camera.frame_rgb is not None:
-                import cv2
-                import os
-                import face_recognition
-                os.makedirs('faces', exist_ok=True)
-                filepath = os.path.join('faces', f'{name}.jpg')
-                bgr_frame = cv2.cvtColor(camera.frame_rgb, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(filepath, bgr_frame)
-                
-                try:
-                    img_ref = face_recognition.load_image_file(filepath)
-                    encodings = face_recognition.face_encodings(img_ref)
-                    if encodings:
-                        camera.ai.known_face_encodings.append(encodings[0])
-                        camera.ai.known_face_names.append(name)
-                        logging.info(f"Wajah '{name}' berhasil didaftarkan!")
-                    else:
-                        logging.warning("Wajah tidak terdeteksi pada foto.")
-                except Exception as e:
-                    logging.error(f"Error registering face: {e}")
+            success, message = camera.register_face(name)
+            if success:
+                logging.info(message)
+                self.show_toast(message)
+            else:
+                logging.warning(message)
+                self.show_toast(message)
 
     def toggle_feature(self, key):
         is_on = self.switches[key].get() == 1

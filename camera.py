@@ -8,6 +8,7 @@ import time
 import threading
 import pyautogui
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load Env
@@ -20,6 +21,7 @@ from services.voice import speak
 from services.telegram_bot import send_telegram_alert, GALLERY_FOLDER
 from services.database import insert_mood, log_clock_in, update_work_time
 from core.ai_models import AIModelManager
+from utils.security import Cooldown, MajorityVote, safe_face_name
 
 FEATURES = {
     'kantuk': True,
@@ -130,8 +132,16 @@ class AICamera:
         self.status = status
         self.frame_bytes = None
         self.frame_rgb = None
+        self.capture_rgb = None
         self.raw_frame = None
         self.running = True
+        self._frame_lock = threading.Lock()
+        self._face_lock = threading.RLock()
+        self._frame_sequence = 0
+        self._next_encode_at = 0.0
+        self._identity_vote = MajorityVote(size=5)
+        self._alert_cooldown = Cooldown(seconds=8)
+        self.base_dir = Path(__file__).resolve().parent
 
         # Inisialisasi Hardware Kamera dengan Buffer 1 untuk Zero Latency
         self.video = cv2.VideoCapture(0, cv2.CAP_DSHOW if os.name == 'nt' else cv2.CAP_ANY)
@@ -170,7 +180,8 @@ class AICamera:
         while self.running:
             success, frame = self.video.read()
             if success and frame is not None:
-                self.raw_frame = frame
+                with self._frame_lock:
+                    self.raw_frame = frame
             else:
                 time.sleep(0.005)
 
@@ -204,14 +215,22 @@ class AICamera:
 
             new_face_data = []
             current_name = "Tidak Dikenal"
+            with self._face_lock:
+                known_encodings = list(self.ai.known_face_encodings)
+                known_names = list(self.ai.known_face_names)
 
-            if len(self.ai.known_face_encodings) > 0:
+            if known_encodings:
                 for (top, right, bottom, left), enc in zip(face_locs, face_encs):
-                    face_distances = face_recognition.face_distance(self.ai.known_face_encodings, enc)
+                    face_distances = face_recognition.face_distance(known_encodings, enc)
                     best_match_idx = int(np.argmin(face_distances))
                     name = "Tidak Dikenal"
-                    if face_distances[best_match_idx] <= 0.58:
-                        name = self.ai.known_face_names[best_match_idx]
+                    # A stricter threshold reduces false positives. The margin
+                    # check also rejects ambiguous matches between similar faces.
+                    sorted_distances = np.sort(face_distances)
+                    best_distance = float(sorted_distances[0])
+                    margin = float(sorted_distances[1] - sorted_distances[0]) if len(sorted_distances) > 1 else 1.0
+                    if best_distance <= 0.54 and margin >= 0.035:
+                        name = known_names[best_match_idx]
                         current_name = name
                     new_face_data.append((name, top, right, bottom, left))
             else:
@@ -219,7 +238,8 @@ class AICamera:
                     new_face_data.append(("Tidak Dikenal", top, right, bottom, left))
 
             self.last_face_data = new_face_data
-            self.status['identitas'] = current_name
+            stable_name = self._identity_vote.add(current_name)
+            self.status['identitas'] = stable_name
             if current_name != "Tidak Dikenal" and self.status['active_user'] != current_name:
                 self.status['active_user'] = current_name
                 log_clock_in(current_name)
@@ -262,13 +282,21 @@ class AICamera:
         keyboard_hover_frames = 0
 
         while self.running:
-            if self.raw_frame is None:
+            with self._frame_lock:
+                if self.raw_frame is None:
+                    raw_frame = None
+                else:
+                    raw_frame = self.raw_frame.copy()
+            if raw_frame is None:
                 time.sleep(0.01)
                 continue
 
             # Ambil frame terbaru dan flip
-            image = cv2.flip(self.raw_frame, 1)
+            image = cv2.flip(raw_frame, 1)
             h_img, w_img, _ = image.shape
+            # Keep a clean copy for face enrollment; the display frame receives
+            # overlays later in this loop.
+            capture_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
             frame_count += 1
@@ -333,7 +361,8 @@ class AICamera:
                         self.status['main_hp'] = "TERCYDUK"
                         if time.time() - last_hp_alert > 10:
                             send_telegram_alert(image, "📱 ALERT: User ketahuan bermain HP saat jam kerja!", save_as="main_hp")
-                            speak("Tuan, berhentilah bermain ponsel dan kembalilah bekerja.")
+                            if self._alert_cooldown.ready("main_hp_voice"):
+                                speak("Tuan, berhentilah bermain ponsel dan kembalilah bekerja.")
                             last_hp_alert = time.time()
                 else:
                     hp_tercyduk_frames = 0
@@ -374,9 +403,15 @@ class AICamera:
                 self.status['identitas'] = "OFF"
                 self.last_face_data = []
 
-            if self.features['keamanan'] and self.status['identitas'] == "Tidak Dikenal":
+            if (
+                self.features['keamanan']
+                and self.status['identitas'] == "Tidak Dikenal"
+                and self.last_face_landmarks
+                and self.status['kehadiran'] == "AT DESK"
+            ):
                 send_telegram_alert(image, "🚨 ALERT: Seseorang yang tidak dikenal terdeteksi di kamera Anda!", save_as="penyusup")
-                speak("Awas, penyusup terdeteksi.")
+                if self._alert_cooldown.ready("penyusup_voice"):
+                    speak("Awas, penyusup terdeteksi.")
 
             # -------------------------------------------------------------
             # 5. POSE DETECTOR (Postur & AI Trainer)
@@ -398,7 +433,8 @@ class AICamera:
                     nose_y, shoulder_y = pose[0].y, (pose[11].y + pose[12].y) / 2
                     if shoulder_y - nose_y < 0.18:
                         self.status['postur'] = True
-                        speak("Tuan, perbaiki postur tubuh Anda.")
+                        if self._alert_cooldown.ready("postur_voice"):
+                            speak("Tuan, perbaiki postur tubuh Anda.")
                     else:
                         self.status['postur'] = False
 
@@ -451,7 +487,8 @@ class AICamera:
                             away_start_time = time.time()
                         elif time.time() - away_start_time > 15 and not alarm_triggered:
                             alarm_triggered = True
-                            speak("Peringatan, karyawan meninggalkan meja kerja terlalu lama.")
+                            if self._alert_cooldown.ready("away_voice"):
+                                speak("Peringatan, karyawan meninggalkan meja kerja terlalu lama.")
                             send_telegram_alert(image, f"🚨 ALERT: Karyawan {self.status['active_user']} meninggalkan meja kerja lebih dari 15 detik!", save_as="away_alarm")
                 else:
                     self.status['kehadiran'] = "AT DESK"
@@ -482,7 +519,8 @@ class AICamera:
                         if self.features['kantuk'] and mata_tertutup_frames >= 15:
                             self.status['kantuk'] = True
                             send_telegram_alert(image, "😴 ALERT: Anda terdeteksi mengantuk!", save_as="kantuk")
-                            speak("Awas, Anda mengantuk. Segera bangun.")
+                            if self._alert_cooldown.ready("kantuk_voice"):
+                                speak("Awas, Anda mengantuk. Segera bangun.")
 
                         # Liveness
                         if self.features['liveness']:
@@ -705,12 +743,78 @@ class AICamera:
                     last_work_update_time = time.time()
 
             # -------------------------------------------------------------
-            # 9. ULTRA FAST JPEG ENCODING & STREAM CACHING (Quality 75)
+            # 9. ULTRA FAST JPEG ENCODING & STREAM CACHING (Quality 82)
             # -------------------------------------------------------------
-            ret, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
-            if ret:
-                self.frame_bytes = buffer.tobytes()
-            self.frame_rgb = rgb_image
+            # Do not encode faster than the camera target FPS. This keeps the
+            # AI loop responsive when several expensive features are enabled.
+            now = time.monotonic()
+            if now >= self._next_encode_at:
+                ret, buffer = cv2.imencode(
+                    '.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 82]
+                )
+                if ret:
+                    with self._frame_lock:
+                        self.frame_bytes = buffer.tobytes()
+                        self._frame_sequence += 1
+                    self._next_encode_at = now + (1.0 / 30.0)
+
+            with self._frame_lock:
+                self.frame_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                self.capture_rgb = capture_rgb
+            # Yield briefly so a fast CPU cannot starve the grabber and GUI.
+            time.sleep(0.001)
+
+    def register_face(self, name, rgb_frame=None):
+        """Validate and atomically register exactly one face."""
+        clean_name = safe_face_name(name)
+        if rgb_frame is None:
+            with self._frame_lock:
+                rgb_frame = None if self.capture_rgb is None else self.capture_rgb.copy()
+        if rgb_frame is None:
+            return False, "Kamera belum siap."
+
+        try:
+            locations = face_recognition.face_locations(rgb_frame, model="hog")
+            if len(locations) != 1:
+                return False, "Pastikan tepat satu wajah terlihat jelas di kamera."
+            encodings = face_recognition.face_encodings(rgb_frame, locations, num_jitters=2)
+            if not encodings:
+                return False, "Wajah tidak cukup jelas untuk didaftarkan."
+
+            faces_dir = self.base_dir / "faces"
+            faces_dir.mkdir(exist_ok=True)
+            filepath = faces_dir / f"{clean_name}.jpg"
+            temp_path = faces_dir / f".{clean_name}.tmp.jpg"
+            bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
+            if not cv2.imwrite(str(temp_path), bgr_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95]):
+                return False, "Gagal menyimpan foto wajah."
+            os.replace(temp_path, filepath)
+
+            with self._face_lock:
+                # Re-registering a name replaces its old embedding instead of
+                # adding duplicate entries that make matching ambiguous.
+                kept = [
+                    (encoding, existing_name)
+                    for encoding, existing_name in zip(
+                        self.ai.known_face_encodings, self.ai.known_face_names
+                    )
+                    if existing_name != clean_name
+                ]
+                self.ai.known_face_encodings = [item[0] for item in kept] + [encodings[0]]
+                self.ai.known_face_names = [item[1] for item in kept] + [clean_name]
+                self._identity_vote.clear()
+            return True, f"Wajah '{clean_name}' berhasil didaftarkan."
+        except Exception as exc:
+            logging.error("Face registration failed: %s", exc)
+            return False, "Registrasi wajah gagal. Periksa kamera dan coba lagi."
 
     def get_frame(self):
-        return self.frame_bytes
+        with self._frame_lock:
+            return self.frame_bytes
+
+    def stop(self):
+        self.running = False
+        try:
+            self.video.release()
+        except Exception:
+            pass

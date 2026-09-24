@@ -4,20 +4,24 @@ import time
 import requests
 import threading
 import logging
+from pathlib import Path
+from utils.security import Cooldown
 
-last_telegram_time = 0
-GALLERY_FOLDER = os.path.join('static', 'gallery')
+BASE_DIR = Path(__file__).resolve().parent.parent
+GALLERY_FOLDER = str(BASE_DIR / 'static' / 'gallery')
+_alert_cooldown = Cooldown(seconds=15)
 
 def send_telegram_alert(frame, caption, save_as="alert"):
-    global last_telegram_time
-    # Cooldown 15 detik agar tidak spam API
-    if time.time() - last_telegram_time < 15:
+    # Cool down by alert type, so a drowsiness alert cannot suppress
+    # an unrelated security alert (and vice versa).
+    if not _alert_cooldown.ready(save_as):
         return
-    
-    last_telegram_time = time.time()
+
     os.makedirs(GALLERY_FOLDER, exist_ok=True)
     filename = os.path.join(GALLERY_FOLDER, f"{save_as}_{int(time.time())}.jpg")
-    cv2.imwrite(filename, frame)
+    if not cv2.imwrite(filename, frame):
+        logging.error("Failed to save Telegram alert frame: %s", filename)
+        return
     
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
@@ -30,7 +34,12 @@ def send_telegram_alert(frame, caption, save_as="alert"):
         try:
             url = f"https://api.telegram.org/bot{token}/sendPhoto"
             with open(filename, "rb") as f:
-                response = requests.post(url, data={"chat_id": chat_id, "caption": caption}, files={"photo": f})
+                response = requests.post(
+                    url,
+                    data={"chat_id": chat_id, "caption": caption},
+                    files={"photo": f},
+                    timeout=15,
+                )
                 if response.status_code != 200:
                     logging.error(f"Failed to send Telegram message: {response.text}")
                 else:
@@ -38,4 +47,4 @@ def send_telegram_alert(frame, caption, save_as="alert"):
         except Exception as e:
             logging.error(f"Telegram API Exception: {e}")
             
-    threading.Thread(target=send).start()
+    threading.Thread(target=send, daemon=True).start()

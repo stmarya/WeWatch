@@ -3,6 +3,7 @@ import glob
 import sqlite3
 import time
 import logging
+from pathlib import Path
 from flask import Flask, render_template, Response, request, jsonify
 from dotenv import load_dotenv
 
@@ -15,13 +16,16 @@ load_dotenv()
 
 from camera import AICamera, FEATURES, STATUS
 from services.jarvis import start_jarvis
+from services.database import init_db, init_attendance_db
+from utils.security import safe_face_name
 
 app = Flask(__name__)
 
-GALLERY_FOLDER = os.path.join('static', 'gallery')
+BASE_DIR = Path(__file__).resolve().parent
+GALLERY_FOLDER = str(BASE_DIR / 'static' / 'gallery')
 os.makedirs(GALLERY_FOLDER, exist_ok=True)
 
-from services.database import init_attendance_db
+init_db()
 init_attendance_db()
 
 # Initialize Camera with AI processing in background
@@ -62,40 +66,21 @@ def gallery():
 
 @app.route('/toggle', methods=['POST'])
 def toggle():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     feature = data.get('feature')
     state = data.get('state')
     if feature in FEATURES:
-        FEATURES[feature] = state
+        FEATURES[feature] = bool(state)
         logging.info(f"Feature {feature} set to {state}")
-    return jsonify(success=True)
+        return jsonify(success=True, feature=feature, state=FEATURES[feature])
+    return jsonify(success=False, message="Feature tidak valid."), 400
 
 @app.route('/snap_face', methods=['POST'])
 def snap_face():
-    name = request.json.get('name', 'user_default').strip()
-    if not name:
-        name = 'user_default'
-    
-    if camera.frame_rgb is not None:
-        import cv2
-        os.makedirs('faces', exist_ok=True)
-        filepath = os.path.join('faces', f'{name}.jpg')
-        bgr_frame = cv2.cvtColor(camera.frame_rgb, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(filepath, bgr_frame)
-        
-        import face_recognition
-        try:
-            img_ref = face_recognition.load_image_file(filepath)
-            encodings = face_recognition.face_encodings(img_ref)
-            if encodings:
-                camera.ai.known_face_encodings.append(encodings[0])
-                camera.ai.known_face_names.append(name)
-                return jsonify(success=True, message=f"Wajah '{name}' berhasil didaftarkan! AI sekarang mengenali Anda.")
-            else:
-                return jsonify(success=False, message="Wajah tidak terdeteksi pada foto. Silakan coba lagi.")
-        except Exception as e:
-            return jsonify(success=False, message=str(e))
-    return jsonify(success=False, message="Kamera belum siap.")
+    data = request.get_json(silent=True) or {}
+    name = safe_face_name(data.get('name', 'user_default'))
+    success, message = camera.register_face(name)
+    return jsonify(success=success, message=message), (200 if success else 422)
 
 @app.route('/take_snapshot', methods=['POST'])
 def take_snapshot():
@@ -118,7 +103,7 @@ def status_data():
 @app.route('/mood_data')
 def mood_data():
     try:
-        conn = sqlite3.connect('mood.db')
+        conn = sqlite3.connect(str(BASE_DIR / 'mood.db'), timeout=10)
         c = conn.cursor()
         c.execute("SELECT emosi, COUNT(*) FROM mood GROUP BY emosi")
         rows = c.fetchall()
@@ -141,7 +126,7 @@ def gen_frames():
         if frame is not None:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-            time.sleep(0.025)  # Ultra-smooth ~40 FPS target
+            time.sleep(1 / 30)  # Match the camera target and avoid duplicate frames
         else:
             time.sleep(0.005)
 

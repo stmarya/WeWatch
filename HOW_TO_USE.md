@@ -30,6 +30,8 @@ Kategori ini menjaga area kerja Anda tetap aman saat Anda sedang atau tidak bera
 - **Deteksi Identitas (Face ID)**:
   - **Cara Mendaftar**: Klik tombol hijau **"📸 Daftarkan Wajah"** di Desktop App atau Web Dashboard. Masukkan nama Anda, hadap ke kamera, lalu tekan **OK / Spasi**.
   - Setelah aktif, AI akan mengenali wajah Anda. Jika ada orang asing masuk, status berubah menjadi "PENYUSUP!" dan akan melaporkan ke Telegram.
+  - Registrasi sekarang hanya menerima tepat satu wajah, memvalidasi kualitas
+    embedding, dan mengganti profil lama jika nama yang sama dipakai lagi.
 - **Liveness Detection**: Membedakan antara wajah asli dan foto topeng. Kedipkan mata atau buka mulut Anda sedikit untuk membuktikan bahwa Anda adalah manusia sungguhan (Status akan berubah menjadi *PASSED*).
 - **Deteksi Kantuk**: Jika mata Anda tertutup lebih dari beberapa detik, alarm merah akan menyala dan peringatan dikirimkan.
 - **Sensor Area Rahasia (Blur)**: Menyamarkan latar belakang (Background Blur) secara seketika agar area di belakang Anda tidak terlihat.
@@ -74,3 +76,6 @@ Kategori ini memungkinkan Anda berinteraksi dengan komputer tanpa menyentuh mous
 
 ---
 **Tips**: Fitur-fitur yang berjalan secara bersamaan membutuhkan daya prosesor (CPU) yang cukup tinggi. Nyalakan hanya fitur yang sedang Anda butuhkan agar aplikasi berjalan sangat mulus (FPS tinggi). Selamat mengeksplorasi! 🚀
+
+> **WebRTC admin:** isi `WEBRTC_ADMIN_TOKEN` pada `.env`, lalu buka
+> `/admin?token=<WEBRTC_ADMIN_TOKEN>`. Jangan mengekspos port 5001 tanpa token.

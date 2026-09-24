@@ -87,7 +87,10 @@
         }
 
         // ==== 3. WebRTC Signaling ====
-        socket.emit('join', { role: 'admin' });
+        // The token is supplied only through the private admin URL:
+        // /admin?token=<WEBRTC_ADMIN_TOKEN>
+        const adminToken = new URLSearchParams(window.location.search).get('token') || '';
+        socket.emit('join', { role: 'admin', token: adminToken });
 
         socket.on('client_joined', async (data) => {
             const clientId = data.id;

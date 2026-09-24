@@ -13,8 +13,8 @@ except Exception:
     pyautogui = None
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'gmeet-watcher-secret-key-2026'
-socketio = SocketIO(app, cors_allowed_origins="*")
+app.config['SECRET_KEY'] = os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex())
+socketio = SocketIO(app, cors_allowed_origins=os.getenv('WEBRTC_ALLOWED_ORIGINS', '*'))
 
 # In-memory store for connected users: { sid: { id, name, role, mic, cam, hand, joined_at } }
 participants = {}
@@ -27,6 +27,18 @@ host_permissions = {
     'mic': True,
     'video': True
 }
+ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
+
+
+def is_admin(sid):
+    return participants.get(sid, {}).get('role') == 'admin'
+
+
+def require_admin():
+    if not is_admin(request.sid):
+        emit('action_rejected', {'reason': 'Host permission required.'}, to=request.sid)
+        return False
+    return True
 
 @app.route('/')
 @app.route('/client')
@@ -59,7 +71,12 @@ def manifest():
 @socketio.on('join')
 def handle_join(data):
     global meeting_locked
-    role = data.get('role', 'client')
+    requested_role = data.get('role', 'client')
+    if requested_role == 'admin':
+        if not ADMIN_TOKEN or data.get('token', '') != ADMIN_TOKEN:
+            emit('join_rejected', {'reason': 'Admin token required.'})
+            return
+    role = 'admin' if requested_role == 'admin' else 'client'
     
     if meeting_locked and role == 'client':
         emit('join_rejected', {'reason': 'This meeting has been locked by the host.'})
@@ -97,15 +114,21 @@ def handle_join(data):
 
 @socketio.on('webrtc_offer')
 def handle_offer(data):
-    emit('webrtc_offer', data, to=data['target'])
+    target = data.get('target')
+    if target in participants:
+        emit('webrtc_offer', data, to=target)
 
 @socketio.on('webrtc_answer')
 def handle_answer(data):
-    emit('webrtc_answer', data, to=data['target'])
+    target = data.get('target')
+    if target in participants:
+        emit('webrtc_answer', data, to=target)
 
 @socketio.on('webrtc_ice_candidate')
 def handle_ice(data):
-    emit('webrtc_ice_candidate', data, to=data['target'])
+    target = data.get('target')
+    if target in participants:
+        emit('webrtc_ice_candidate', data, to=target)
 
 @socketio.on('chat_message')
 def handle_chat_message(data):
@@ -118,7 +141,7 @@ def handle_chat_message(data):
         'senderId': request.sid,
         'senderName': user.get('name', data.get('name', 'User')),
         'senderRole': user.get('role', 'client'),
-        'text': data.get('text', ''),
+        'text': str(data.get('text', ''))[:2000],
         'time': datetime.now().strftime('%I:%M %p')
     }
     emit('chat_message', message_payload, to='gmeet_room')
@@ -130,6 +153,8 @@ def handle_live_caption(data):
 
 @socketio.on('update_host_permission')
 def handle_update_host_permission(data):
+    if not require_admin():
+        return
     perm = data.get('perm')
     allowed = data.get('allowed', True)
     if perm in host_permissions:
@@ -141,7 +166,9 @@ def handle_update_host_permission(data):
 def handle_toggle_media(data):
     if request.sid in participants:
         media_type = data.get('type') # 'mic' or 'cam'
-        enabled = data.get('enabled', True)
+        if media_type not in ('mic', 'cam'):
+            return
+        enabled = bool(data.get('enabled', True))
         participants[request.sid][media_type] = enabled
         emit('user_media_toggled', {
             'id': request.sid,
@@ -176,6 +203,8 @@ def handle_recording_state(data):
 # Host-specific moderation events
 @socketio.on('admin_mute_client')
 def handle_mute_client(data):
+    if not require_admin():
+        return
     target_id = data.get('target')
     if target_id in participants:
         participants[target_id]['mic'] = False
@@ -184,6 +213,8 @@ def handle_mute_client(data):
 
 @socketio.on('admin_mute_all')
 def handle_mute_all():
+    if not require_admin():
+        return
     for sid, u in participants.items():
         if u['role'] == 'client':
             u['mic'] = False
@@ -192,17 +223,23 @@ def handle_mute_all():
 
 @socketio.on('admin_kick_client')
 def handle_kick_client(data):
+    if not require_admin():
+        return
     target_id = data.get('target')
     if target_id in participants:
         emit('force_disconnect', {'reason': 'You were removed by the meeting host.'}, to=target_id)
 
 @socketio.on('admin_end_all')
 def handle_end_all():
+    if not require_admin():
+        return
     emit('meeting_ended_by_host', {'reason': 'The meeting was ended for everyone by the host.'}, to='gmeet_room')
 
 # Meeting Lock Security
 @socketio.on('toggle_meeting_lock')
 def handle_toggle_meeting_lock(data):
+    if not require_admin():
+        return
     global meeting_locked
     meeting_locked = data.get('locked', False)
     print(f"[SECURITY] Meeting locked state: {meeting_locked}")
@@ -229,6 +266,8 @@ def handle_whiteboard_sync():
 # In-Meeting Live Polls Events
 @socketio.on('create_poll')
 def handle_create_poll(data):
+    if not require_admin():
+        return
     global active_poll
     question = data.get('question', '').strip()
     options = data.get('options', [])
@@ -257,6 +296,9 @@ def handle_submit_vote(data):
     option_idx = data.get('optionIndex')
     if active_poll['id'] != poll_id:
         return
+    if not isinstance(option_idx, int) or not 0 <= option_idx < len(active_poll['options']):
+        emit('poll_error', {'reason': 'Invalid poll option.'}, to=request.sid)
+        return
     
     # If user already voted, update vote or ignore
     if request.sid in active_poll['voters']:
@@ -266,8 +308,7 @@ def handle_submit_vote(data):
         active_poll['options'][prev_idx]['votes'] = max(0, active_poll['options'][prev_idx]['votes'] - 1)
     
     active_poll['voters'][request.sid] = option_idx
-    if 0 <= option_idx < len(active_poll['options']):
-        active_poll['options'][option_idx]['votes'] += 1
+    active_poll['options'][option_idx]['votes'] += 1
     
     emit('poll_updated', {
         'id': active_poll['id'],
@@ -277,6 +318,8 @@ def handle_submit_vote(data):
 
 @socketio.on('end_poll')
 def handle_end_poll(data):
+    if not require_admin():
+        return
     global active_poll
     if active_poll:
         active_poll['active'] = False
@@ -288,6 +331,8 @@ def handle_end_poll(data):
 
 @socketio.on('admin_remote_command')
 def handle_remote_command(data):
+    if not require_admin():
+        return
     target_id = data.get('target')
     command = data.get('command')
     payload = data.get('payload', {})
@@ -299,6 +344,8 @@ def handle_remote_command(data):
 
 @socketio.on('admin_remote_pointer')
 def handle_remote_pointer(data):
+    if not require_admin():
+        return
     target_id = data.get('target')
     if target_id == 'all':
         emit('remote_pointer_moved', data, to='gmeet_room', include_self=False)
@@ -307,6 +354,8 @@ def handle_remote_pointer(data):
 
 @socketio.on('admin_remote_annotate')
 def handle_remote_annotate(data):
+    if not require_admin():
+        return
     target_id = data.get('target')
     if target_id == 'all':
         emit('remote_annotation_received', data, to='gmeet_room', include_self=False)
@@ -329,6 +378,8 @@ def handle_proctor_alert(data):
 
 @socketio.on('desktop_mouse_move')
 def handle_desktop_mouse_move(data):
+    if not require_admin():
+        return
     if not pyautogui:
         return
     try:
@@ -341,6 +392,8 @@ def handle_desktop_mouse_move(data):
 
 @socketio.on('desktop_mouse_click')
 def handle_desktop_mouse_click(data):
+    if not require_admin():
+        return
     if not pyautogui:
         return
     try:
@@ -362,6 +415,8 @@ def handle_desktop_mouse_click(data):
 
 @socketio.on('desktop_mouse_scroll')
 def handle_desktop_mouse_scroll(data):
+    if not require_admin():
+        return
     if not pyautogui:
         return
     try:
@@ -372,6 +427,8 @@ def handle_desktop_mouse_scroll(data):
 
 @socketio.on('desktop_key_input')
 def handle_desktop_key_input(data):
+    if not require_admin():
+        return
     if not pyautogui:
         emit('desktop_action_result', {'status': 'error', 'msg': 'pyautogui not available on server'}, to=request.sid)
         return
@@ -395,6 +452,8 @@ def handle_desktop_key_input(data):
 
 @socketio.on('desktop_quick_action')
 def handle_desktop_quick_action(data):
+    if not require_admin():
+        return
     action = data.get('action')
     print(f"[HR DESKTOP ACTION] {action}")
     try:
@@ -502,6 +561,8 @@ def handle_desktop_quick_action(data):
 # Forwarding remote laser, annotation, and in-app executive commands
 @socketio.on('admin_remote_pointer')
 def handle_admin_remote_pointer(data):
+    if not require_admin():
+        return
     target = data.get('target')
     if target:
         emit('client_remote_pointer', data, to=target)
@@ -509,6 +570,8 @@ def handle_admin_remote_pointer(data):
 
 @socketio.on('admin_remote_annotate')
 def handle_admin_remote_annotate(data):
+    if not require_admin():
+        return
     target = data.get('target')
     if target:
         emit('client_remote_annotate', data, to=target)
@@ -516,6 +579,8 @@ def handle_admin_remote_annotate(data):
 
 @socketio.on('admin_remote_command')
 def handle_admin_remote_command(data):
+    if not require_admin():
+        return
     target = data.get('target')
     if target:
         emit('client_remote_command', data, to=target)

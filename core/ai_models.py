@@ -2,28 +2,38 @@ import os
 import cv2
 import face_recognition
 import logging
+from pathlib import Path
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 class AIModelManager:
     def __init__(self):
         logging.info("Initializing MediaPipe Models...")
+        self.face_detector = None
+        self.hands_detector = None
+        self.pose_detector = None
+        self.segmenter = None
+        self.object_detector = None
+        self.kacamata_img = None
+        self.mustache_img = None
+        self.tophat_img = None
+        self.base_dir = Path(__file__).resolve().parent.parent
         try:
             self.face_detector = vision.FaceLandmarker.create_from_options(vision.FaceLandmarkerOptions(
-                base_options=python.BaseOptions(model_asset_path='face_landmarker.task'),
+                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'face_landmarker.task')),
                 output_face_blendshapes=True, output_facial_transformation_matrixes=True, num_faces=1))
             
             self.hands_detector = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
-                base_options=python.BaseOptions(model_asset_path='hand_landmarker.task'), num_hands=2))
+                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'hand_landmarker.task')), num_hands=2))
             
             self.pose_detector = vision.PoseLandmarker.create_from_options(vision.PoseLandmarkerOptions(
-                base_options=python.BaseOptions(model_asset_path='pose_landmarker.task')))
+                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'pose_landmarker.task'))))
             
             self.segmenter = vision.ImageSegmenter.create_from_options(vision.ImageSegmenterOptions(
-                base_options=python.BaseOptions(model_asset_path='selfie_segmenter.tflite'), output_category_mask=True))
+                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'selfie_segmenter.tflite')), output_category_mask=True))
                 
             self.object_detector = vision.ObjectDetector.create_from_options(vision.ObjectDetectorOptions(
-                base_options=python.BaseOptions(model_asset_path='efficientdet_lite0.tflite'), max_results=5, score_threshold=0.3))
+                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'efficientdet_lite0.tflite')), max_results=5, score_threshold=0.3))
                 
             logging.info("All MediaPipe Models Loaded Successfully.")
         except Exception as e:
@@ -32,12 +42,13 @@ class AIModelManager:
         # Identitas Face Recognition
         self.known_face_encodings = []
         self.known_face_names = []
-        os.makedirs('faces', exist_ok=True)
-        for filename in os.listdir('faces'):
+        faces_dir = self.base_dir / 'faces'
+        faces_dir.mkdir(exist_ok=True)
+        for filename in os.listdir(faces_dir):
             if filename.endswith('.jpg') or filename.endswith('.png'):
                 try:
                     name = os.path.splitext(filename)[0]
-                    img_ref = face_recognition.load_image_file(os.path.join('faces', filename))
+                    img_ref = face_recognition.load_image_file(faces_dir / filename)
                     encodings = face_recognition.face_encodings(img_ref)
                     if encodings:
                         self.known_face_encodings.append(encodings[0])
@@ -49,9 +60,10 @@ class AIModelManager:
                     logging.warning(f"Could not load {filename}: {e}")
                     
         # Fallback for old wajah_saya.jpg
-        if os.path.exists('wajah_saya.jpg') and "wajah_saya" not in self.known_face_names:
+        legacy_face = self.base_dir / 'wajah_saya.jpg'
+        if legacy_face.exists() and "wajah_saya" not in self.known_face_names:
             try:
-                img_ref = face_recognition.load_image_file('wajah_saya.jpg')
+                img_ref = face_recognition.load_image_file(legacy_face)
                 self.known_face_encodings.append(face_recognition.face_encodings(img_ref)[0])
                 self.known_face_names.append("Altar (Legacy)")
                 logging.info("Face Identity 'wajah_saya.jpg' loaded.")
@@ -59,11 +71,11 @@ class AIModelManager:
                 pass
                 
         # Asset Kacamata, Kumis, Topi
-        try: self.kacamata_img = cv2.imread('kacamata.png', cv2.IMREAD_UNCHANGED)
+        try: self.kacamata_img = cv2.imread(str(self.base_dir / 'kacamata.png'), cv2.IMREAD_UNCHANGED)
         except: self.kacamata_img = None
         
-        try: self.mustache_img = cv2.imread('assets/mustache.png', cv2.IMREAD_UNCHANGED)
+        try: self.mustache_img = cv2.imread(str(self.base_dir / 'assets/mustache.png'), cv2.IMREAD_UNCHANGED)
         except: self.mustache_img = None
         
-        try: self.tophat_img = cv2.imread('assets/tophat.png', cv2.IMREAD_UNCHANGED)
+        try: self.tophat_img = cv2.imread(str(self.base_dir / 'assets/tophat.png'), cv2.IMREAD_UNCHANGED)
         except: self.tophat_img = None
