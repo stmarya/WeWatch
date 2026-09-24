@@ -983,6 +983,7 @@
         // Allows Admin (localhost:5000) to connect directly to the Client room (localhost:5001)!
         const SIGNALING_URL = `${window.location.protocol}//${window.location.hostname}:5001`;
         let socket = null;
+        let presenceTimer = null;
 
         try {
             socket = io(SIGNALING_URL);
@@ -998,6 +999,16 @@
                     mic: isMicOn,
                     cam: isCamOn
                 });
+                if (!presenceTimer) {
+                    presenceTimer = setInterval(() => socket.emit('presence_ping'), 60000);
+                }
+            });
+
+            socket.on('disconnect', () => {
+                if (presenceTimer) {
+                    clearInterval(presenceTimer);
+                    presenceTimer = null;
+                }
             });
 
             socket.on('connect_error', (err) => {

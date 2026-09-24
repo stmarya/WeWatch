@@ -30,6 +30,10 @@ class RoomAuthTests(unittest.TestCase):
         claims = verify_room_token(token, "room-1", "workstation-1")
         self.assertEqual(claims["role"], "agent")
 
+    def test_malformed_base64_is_rejected_as_value_error(self):
+        with self.assertRaises(ValueError):
+            verify_room_token("not-valid-base64.abc", "room-1")
+
 
 if __name__ == "__main__":
     unittest.main()

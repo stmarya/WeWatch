@@ -57,6 +57,13 @@ Hardening lanjutan pada batch berikutnya menambahkan:
 6. Workflow GitHub Actions untuk test Python, compile, JavaScript template,
    dan whitespace.
 7. Notifikasi UI ketika event terkena rate limit.
+8. Room-scoped Redis participant keys agar beberapa room tidak saling
+   mencampur state.
+9. Atomic room-state update untuk whiteboard dan voting ketika Redis aktif.
+10. Heartbeat admin dan desktop agent untuk mencegah participant menghilang
+    setelah TTL Redis habis.
+11. Invalid base64 room token sekarang selalu ditolak sebagai error autentikasi,
+    bukan menjadi HTTP 500.
 
 ## 3. Konfigurasi minimum
 

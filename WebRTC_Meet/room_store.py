@@ -41,8 +41,13 @@ class RoomStore:
 
     def get(self, name, default=None):
         if self._redis:
-            value = self._redis.get(self._prefix + name)
-            return default if value is None else json.loads(value)
+            try:
+                value = self._redis.get(self._prefix + name)
+                return default if value is None else json.loads(value)
+            except (json.JSONDecodeError, TypeError) as exc:
+                logging.warning("Ignoring corrupt room state %s: %s", name, exc)
+                self._redis.delete(self._prefix + name)
+                return default
         with self._lock:
             return self._local.get(name, default)
 
@@ -59,3 +64,34 @@ class RoomStore:
         else:
             with self._lock:
                 self._local.pop(name, None)
+
+    def update(self, name, updater, default=None, ttl=86400, retries=5):
+        """Atomically update one JSON value when Redis is available."""
+        if not self._redis:
+            with self._lock:
+                current = self._local.get(name, default)
+                updated = updater(current)
+                self._local[name] = updated
+                return updated
+
+        from redis.exceptions import WatchError
+
+        key = self._prefix + name
+        for _ in range(retries):
+            try:
+                with self._redis.pipeline() as pipe:
+                    pipe.watch(key)
+                    raw = pipe.get(key)
+                    try:
+                        current = default if raw is None else json.loads(raw)
+                    except (json.JSONDecodeError, TypeError):
+                        logging.warning("Resetting corrupt room state %s during update", name)
+                        current = default
+                    updated = updater(current)
+                    pipe.multi()
+                    pipe.set(key, json.dumps(updated), ex=ttl)
+                    pipe.execute()
+                    return updated
+            except WatchError:
+                continue
+        raise RuntimeError(f"Could not atomically update room state: {name}")

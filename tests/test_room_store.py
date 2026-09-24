@@ -15,6 +15,13 @@ class RoomStoreTests(unittest.TestCase):
         store.delete("items")
         self.assertIsNone(store.get("items"))
 
+    def test_local_update_is_atomic_under_store_lock(self):
+        store = RoomStore(None, "test-room")
+        store.set("counter", 0)
+        value = store.update("counter", lambda current: int(current or 0) + 1, default=0)
+        self.assertEqual(value, 1)
+        self.assertEqual(store.get("counter"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

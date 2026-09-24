@@ -7,6 +7,7 @@ tokens before Redis or the optional SFU stack is installed.
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -52,5 +53,13 @@ def verify_room_token(token: str, room: str, identity: str | None = None) -> dic
         if identity and payload["identity"] != identity:
             raise ValueError("Token identity mismatch")
         return payload
-    except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+    except (
+        ValueError,
+        KeyError,
+        TypeError,
+        OverflowError,
+        UnicodeError,
+        binascii.Error,
+        json.JSONDecodeError,
+    ) as exc:
         raise ValueError("Invalid room token") from exc

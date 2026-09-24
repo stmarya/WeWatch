@@ -67,7 +67,7 @@ ALLOWED_REMOTE_COMMANDS = {
     'hr_session_unlock', 'open_url',
 }
 # Shared state is Redis-backed when REDIS_URL is configured and local otherwise.
-participants = SharedParticipants(os.getenv('REDIS_URL'))
+participants = SharedParticipants(os.getenv('REDIS_URL'), ROOM_NAME)
 room_store = RoomStore(os.getenv('REDIS_URL'), ROOM_NAME)
 DEFAULT_HOST_PERMISSIONS = {'screen': True, 'chat': True, 'mic': True, 'video': True}
 join_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
@@ -142,6 +142,8 @@ def room_token():
     room = str(data.get('room', ROOM_NAME)).strip() or ROOM_NAME
     if not identity or role not in {'admin', 'client', 'agent'}:
         return jsonify(error='identity and valid role are required'), 400
+    if room != ROOM_NAME:
+        return jsonify(error='room does not match the configured signaling room'), 400
     try:
         ttl = int(data.get('ttl', 3600))
         join_token = issue_room_token(room, identity, role, ttl)
@@ -578,9 +580,11 @@ def handle_whiteboard_draw(data):
         return
     if not isinstance(data, dict) or len(json.dumps(data)) > 10000:
         return
-    history = get_whiteboard_history()
-    history.append(data)
-    room_store.set('whiteboard_history', history[-2000:])
+    def append_stroke(history):
+        history = history if isinstance(history, list) else []
+        return (history + [data])[-2000:]
+
+    room_store.update('whiteboard_history', append_stroke, default=[], ttl=86400)
     emit('whiteboard_draw', data, to=ROOM_NAME, include_self=False)
 
 @socketio.on('whiteboard_clear')
@@ -638,16 +642,32 @@ def handle_submit_vote(data):
         emit('poll_error', {'reason': 'Invalid poll option.'}, to=request.sid)
         return
     
-    # If user already voted, update vote or ignore
-    if request.sid in active_poll['voters']:
-        prev_idx = active_poll['voters'][request.sid]
-        if prev_idx == option_idx:
-            return
-        active_poll['options'][prev_idx]['votes'] = max(0, active_poll['options'][prev_idx]['votes'] - 1)
-    
-    active_poll['voters'][request.sid] = option_idx
-    active_poll['options'][option_idx]['votes'] += 1
-    room_store.set('active_poll', active_poll)
+    def apply_vote(current):
+        if (
+            not isinstance(current, dict)
+            or current.get('id') != poll_id
+            or not current.get('active')
+            or not isinstance(current.get('options'), list)
+            or not 0 <= option_idx < len(current['options'])
+        ):
+            return current
+        voters = current.setdefault('voters', {})
+        previous = voters.get(request.sid)
+        if previous == option_idx:
+            return current
+        if isinstance(previous, int) and 0 <= previous < len(current['options']):
+            current['options'][previous]['votes'] = max(
+                0, int(current['options'][previous].get('votes', 0)) - 1
+            )
+        voters[request.sid] = option_idx
+        current['options'][option_idx]['votes'] = int(
+            current['options'][option_idx].get('votes', 0)
+        ) + 1
+        return current
+
+    active_poll = room_store.update('active_poll', apply_vote, default=None)
+    if not isinstance(active_poll, dict) or active_poll.get('id') != poll_id:
+        return
     
     emit('poll_updated', {
         'id': active_poll['id'],

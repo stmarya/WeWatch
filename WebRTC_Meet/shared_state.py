@@ -8,10 +8,11 @@ from collections.abc import MutableMapping
 
 
 class SharedParticipants(MutableMapping):
-    def __init__(self, redis_url: str | None):
+    def __init__(self, redis_url: str | None, room: str = "default"):
         self._local: dict[str, dict] = {}
         self._redis = None
-        self._prefix = "wewatch:participants:"
+        safe_room = "".join(char if char.isalnum() or char in "-_" else "_" for char in room)
+        self._prefix = f"wewatch:participants:{safe_room}:"
         if redis_url:
             try:
                 import redis
@@ -39,10 +40,15 @@ class SharedParticipants(MutableMapping):
 
     def __getitem__(self, key):
         if self._redis:
-            value = self._redis.get(self._key(key))
-            if value is None:
-                raise KeyError(key)
-            return json.loads(value)
+            try:
+                value = self._redis.get(self._key(key))
+                if value is None:
+                    raise KeyError(key)
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError) as exc:
+                logging.warning("Removing corrupt participant state for %s: %s", key, exc)
+                self._redis.delete(self._key(key))
+                raise KeyError(key) from exc
         return self._local[key]
 
     def __setitem__(self, key, value):
@@ -64,7 +70,7 @@ class SharedParticipants(MutableMapping):
             return iter(
                 [key[prefix_len:] for key in self._redis.scan_iter(match=f"{self._prefix}*")]
             )
-        return iter(self._local)
+        return iter(list(self._local))
 
     def __len__(self):
         if self._redis:
@@ -72,10 +78,22 @@ class SharedParticipants(MutableMapping):
         return len(self._local)
 
     def values(self):
-        return [self[key] for key in self]
+        values = []
+        for key in self:
+            try:
+                values.append(self[key])
+            except KeyError:
+                continue
+        return values
 
     def items(self):
-        return [(key, self[key]) for key in self]
+        items = []
+        for key in self:
+            try:
+                items.append((key, self[key]))
+            except KeyError:
+                continue
+        return items
 
     def clear(self):
         if self._redis:
@@ -87,5 +105,8 @@ class SharedParticipants(MutableMapping):
 
     def refresh(self, key):
         if self._redis:
-            return bool(self._redis.expire(self._key(key), 300))
+            try:
+                return bool(self._redis.expire(self._key(key), 300))
+            except Exception:
+                return False
         return key in self._local

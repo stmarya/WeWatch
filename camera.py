@@ -486,8 +486,9 @@ class AICamera:
                         self.last_face_landmarks = detection_result.face_landmarks
                     else:
                         self.last_face_landmarks = []
-                except:
-                    pass
+                except Exception as exc:
+                    logging.debug("Face landmark detection failed: %s", exc)
+                    self.last_face_landmarks = []
 
             if run_face_ai:
                 if not detection_result or not detection_result.face_landmarks:

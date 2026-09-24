@@ -74,11 +74,26 @@ class AIModelManager:
                 logging.warning("Could not load legacy face %s: %s", legacy_face, e)
                 
         # Asset Kacamata, Kumis, Topi
-        try: self.kacamata_img = cv2.imread(str(self.base_dir / 'kacamata.png'), cv2.IMREAD_UNCHANGED)
-        except: self.kacamata_img = None
+        try:
+            self.kacamata_img = cv2.imread(
+                str(self.base_dir / 'kacamata.png'), cv2.IMREAD_UNCHANGED
+            )
+        except Exception as exc:
+            logging.warning("Could not load kacamata asset: %s", exc)
+            self.kacamata_img = None
         
-        try: self.mustache_img = cv2.imread(str(self.base_dir / 'assets/mustache.png'), cv2.IMREAD_UNCHANGED)
-        except: self.mustache_img = None
+        try:
+            self.mustache_img = cv2.imread(
+                str(self.base_dir / 'assets/mustache.png'), cv2.IMREAD_UNCHANGED
+            )
+        except Exception as exc:
+            logging.warning("Could not load mustache asset: %s", exc)
+            self.mustache_img = None
         
-        try: self.tophat_img = cv2.imread(str(self.base_dir / 'assets/tophat.png'), cv2.IMREAD_UNCHANGED)
-        except: self.tophat_img = None
+        try:
+            self.tophat_img = cv2.imread(
+                str(self.base_dir / 'assets/tophat.png'), cv2.IMREAD_UNCHANGED
+            )
+        except Exception as exc:
+            logging.warning("Could not load tophat asset: %s", exc)
+            self.tophat_img = None

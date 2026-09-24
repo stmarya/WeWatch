@@ -207,6 +207,8 @@ def execute_command(command, payload):
 sio = socketio.Client(reconnection=True, logger=False, engineio_logger=False)
 _seen_command_ids = deque(maxlen=512)
 _seen_command_lock = threading.Lock()
+_presence_stop = threading.Event()
+_presence_thread = None
 
 
 def _claim_command(data):
@@ -229,7 +231,9 @@ def _claim_command(data):
 
 @sio.event
 def connect():
+    global _presence_thread
     logging.info("Desktop agent connected to %s", SERVER_URL)
+    _presence_stop.clear()
     sio.emit("join", {
         "role": "agent",
         "identity": AGENT_IDENTITY,
@@ -237,11 +241,21 @@ def connect():
         "target_identity": TARGET_IDENTITY,
         "agent_token": AGENT_TOKEN,
     })
+    if _presence_thread is None or not _presence_thread.is_alive():
+        _presence_thread = threading.Thread(target=_presence_loop, daemon=True)
+        _presence_thread.start()
 
 
 @sio.event
 def disconnect():
+    _presence_stop.set()
     logging.warning("Desktop agent disconnected")
+
+
+def _presence_loop():
+    while not _presence_stop.wait(60):
+        if sio.connected:
+            sio.emit("presence_ping")
 
 
 @sio.on("desktop_command")

@@ -60,6 +60,12 @@ class SignalingContractTests(unittest.TestCase):
             ).status_code,
             401,
         )
+        response = client.post(
+            "/api/room-token",
+            headers={"X-Admin-Token": "admin-test"},
+            json={"identity": "client-1", "room": "different-room"},
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_livekit_token_exchange_uses_room_token(self):
         client = signaling.app.test_client()
@@ -170,6 +176,13 @@ class SignalingContractTests(unittest.TestCase):
             _claim_command(
                 {"request_id": "expired", "expires_at": time.time() - 1}
             )
+
+    def test_participant_state_is_room_scoped(self):
+        from WebRTC_Meet.shared_state import SharedParticipants
+
+        first = SharedParticipants(None, "room-a")
+        second = SharedParticipants(None, "room-b")
+        self.assertNotEqual(first._prefix, second._prefix)
 
 
 if __name__ == "__main__":
