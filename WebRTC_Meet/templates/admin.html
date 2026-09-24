@@ -37,6 +37,7 @@
         const socket = io();
         let peerConnections = {};
         let adminStream = null;
+        let presenceTimer = null;
         const config = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] };
         const videoGrid = document.getElementById('videoGrid');
 
@@ -91,6 +92,9 @@
         // /admin?token=<WEBRTC_ADMIN_TOKEN>
         const adminToken = new URLSearchParams(window.location.search).get('token') || '';
         socket.emit('join', { role: 'admin', token: adminToken });
+        if (!presenceTimer) {
+            presenceTimer = setInterval(() => socket.emit('presence_ping'), 60000);
+        }
 
         socket.on('client_joined', async (data) => {
             const clientId = data.id;

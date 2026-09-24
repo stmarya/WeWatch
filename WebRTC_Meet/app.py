@@ -167,6 +167,12 @@ def handle_join(data):
     if role == 'client':
         emit('client_joined', {'id': request.sid, 'name': name}, to=room)
 
+
+@socketio.on('presence_ping')
+def handle_presence_ping():
+    if request.sid in participants:
+        participants.refresh(request.sid)
+
 @socketio.on('webrtc_offer')
 def handle_offer(data):
     target = data.get('target')

@@ -35,7 +35,7 @@ class SharedParticipants(MutableMapping):
 
     def __setitem__(self, key, value):
         if self._redis:
-            self._redis.set(self._key(key), json.dumps(value), ex=86400)
+            self._redis.set(self._key(key), json.dumps(value), ex=300)
         else:
             self._local[key] = value
 
@@ -72,3 +72,8 @@ class SharedParticipants(MutableMapping):
                 self._redis.delete(*keys)
         else:
             self._local.clear()
+
+    def refresh(self, key):
+        if self._redis:
+            return bool(self._redis.expire(self._key(key), 300))
+        return key in self._local

@@ -532,6 +532,7 @@
         let peerConnections = {}; 
         let clientName = 'Client Participant';
         let inMeeting = false;
+        let presenceTimer = null;
 
         const config = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] };
         const socket = io();
@@ -613,6 +614,9 @@
                 mic: isMicOn, 
                 cam: isCamOn 
             });
+            if (!presenceTimer) {
+                presenceTimer = setInterval(() => socket.emit('presence_ping'), 60000);
+            }
 
             showToast("Connected to Google Meet room");
         }
