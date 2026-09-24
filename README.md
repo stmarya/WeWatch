@@ -53,6 +53,8 @@ TELEGRAM_CHAT_ID=987654321
 Salin `.env.example` sebagai titik awal, lalu isi hanya nilai yang diperlukan.
 Dashboard utama sekarang meminta login admin dan tidak lagi menaruh admin
 secret di HTML. Isi `WEBWATCH_SESSION_SECRET` dengan random secret yang panjang.
+Dokumentasi audit, operasional, dan release readiness tersedia di
+[`docs/AUDIT_AND_OPERATIONS.md`](docs/AUDIT_AND_OPERATIONS.md).
 
 ### 3. Menjalankan Aplikasi
 Eksekusi file utama, dan biarkan "Sang Pengawas" bekerja:
