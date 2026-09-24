@@ -126,6 +126,8 @@ Endpoint penting:
 
 - Dashboard: `http://localhost:5000/`
 - Client meeting: `http://localhost:5001/`
+- Opt-in LiveKit media room:
+  `http://localhost:5001/livekit?join_token=<CLIENT_JOIN_TOKEN>`
 - Health check signaling: `http://localhost:5001/healthz`
 - Readiness check signaling: `http://localhost:5001/readyz`
 - LiveKit token exchange: `POST http://localhost:5001/api/livekit-token`
@@ -137,6 +139,10 @@ Untuk tahap migrasi LiveKit, browser mengirim short-lived `join_token` ke
 `/api/livekit-token`. Endpoint ini mengembalikan `livekit_token` dan
 `livekit_url`; browser tidak pernah menerima `WEBRTC_ADMIN_TOKEN` atau
 `LIVEKIT_API_SECRET`.
+
+Halaman `/livekit` adalah jalur media SFU opt-in untuk pilot. Halaman legacy
+tetap tersedia sebagai fallback sampai halaman LiveKit melewati browser QA,
+TURN test, dan load test media.
 
 Untuk deployment multi-worker atau multi-instance, aktifkan
 `WEBRTC_REQUIRE_SHARED_STATE=true`. Dengan opsi ini `/readyz` akan gagal jika

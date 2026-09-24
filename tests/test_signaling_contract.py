@@ -50,6 +50,11 @@ class SignalingContractTests(unittest.TestCase):
         finally:
             signaling.REQUIRE_SHARED_STATE = previous
 
+    def test_livekit_page_is_available_as_opt_in_media_path(self):
+        response = signaling.app.test_client().get("/livekit")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"LiveKit Room", response.data)
+
     def test_room_token_requires_admin(self):
         client = signaling.app.test_client()
         self.assertEqual(

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WeWatch LiveKit Room</title>
+    <style>
+        :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+        body { margin: 0; min-height: 100vh; background: #111827; color: #f9fafb; }
+        header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px; border-bottom: 1px solid #374151; }
+        h1 { margin: 0; font-size: 20px; }
+        #status { color: #9ca3af; font-size: 13px; }
+        main { padding: 24px; max-width: 1400px; margin: auto; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+        button { border: 1px solid #4b5563; border-radius: 8px; padding: 10px 14px; background: #1f2937; color: #f9fafb; cursor: pointer; }
+        button.primary { background: #2563eb; border-color: #3b82f6; }
+        button:disabled { opacity: .5; cursor: not-allowed; }
+        #grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+        .tile { position: relative; min-height: 180px; overflow: hidden; border-radius: 12px; background: #030712; border: 1px solid #374151; }
+        .tile video { display: block; width: 100%; height: 100%; min-height: 180px; object-fit: cover; }
+        .label { position: absolute; left: 10px; bottom: 10px; padding: 5px 8px; border-radius: 6px; background: rgb(0 0 0 / 70%); font-size: 12px; }
+        .empty { padding: 30px; border: 1px dashed #4b5563; border-radius: 12px; color: #9ca3af; text-align: center; }
+        .error { color: #fca5a5; }
+    </style>
+    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>WeWatch LiveKit Room</h1>
+        <div id="status">Not connected</div>
+    </header>
+    <main>
+        <div class="toolbar">
+            <button class="primary" id="connect" type="button">Connect</button>
+            <button id="mic" type="button" disabled>Mute microphone</button>
+            <button id="camera" type="button" disabled>Stop camera</button>
+            <button id="leave" type="button" disabled>Leave</button>
+        </div>
+        <div id="error" class="error" role="alert"></div>
+        <div id="grid"><div class="empty">Connect using a short-lived join token.</div></div>
+    </main>
+    <script>
+        (() => {
+            const LiveKit = window.LivekitClient || window.LiveKitClient;
+            const room = LiveKit ? new LiveKit.Room({
+                adaptiveStream: true,
+                dynacast: true,
+                videoCaptureDefaults: { resolution: LiveKit.VideoPresets?.h720?.resolution }
+            }) : null;
+            const grid = document.getElementById('grid');
+            const status = document.getElementById('status');
+            const error = document.getElementById('error');
+            const connectButton = document.getElementById('connect');
+            const micButton = document.getElementById('mic');
+            const cameraButton = document.getElementById('camera');
+            const leaveButton = document.getElementById('leave');
+            const tiles = new Map();
+            const serverConfigured = {{ livekit_configured|tojson }};
+
+            function setStatus(text) { status.textContent = text; }
+            function setError(text) { error.textContent = text || ''; }
+
+            function tileFor(identity, label) {
+                if (tiles.has(identity)) return tiles.get(identity);
+                const tile = document.createElement('div');
+                tile.className = 'tile';
+                tile.dataset.identity = identity;
+                const name = document.createElement('div');
+                name.className = 'label';
+                name.textContent = label || identity;
+                tile.appendChild(name);
+                if (grid.querySelector('.empty')) grid.innerHTML = '';
+                grid.appendChild(tile);
+                tiles.set(identity, tile);
+                return tile;
+            }
+
+            function removeTile(identity) {
+                const tile = tiles.get(identity);
+                if (tile) tile.remove();
+                tiles.delete(identity);
+                if (!tiles.size) {
+                    grid.innerHTML = '';
+                    const empty = document.createElement('div');
+                    empty.className = 'empty';
+                    empty.textContent = 'No active participants.';
+                    grid.appendChild(empty);
+                }
+            }
+
+            function attachTrack(track, participant) {
+                const tile = tileFor(participant.identity, participant.name || participant.identity);
+                for (const element of track.attach()) {
+                    element.dataset.trackSid = track.sid || '';
+                    if (track.kind === 'audio') element.muted = participant === room.localParticipant;
+                    tile.insertBefore(element, tile.firstChild);
+                }
+            }
+
+            function detachTrack(track) {
+                for (const element of track.detach()) element.remove();
+            }
+
+            async function connectRoom() {
+                if (!room) {
+                    setError('LiveKit client SDK failed to load.');
+                    return;
+                }
+                if (!serverConfigured) {
+                    setError('LiveKit is not configured on the signaling server.');
+                    return;
+                }
+                const joinToken = new URLSearchParams(window.location.search).get('join_token') || '';
+                if (!joinToken) {
+                    setError('join_token is required. Request a short-lived token first.');
+                    return;
+                }
+                connectButton.disabled = true;
+                setError('');
+                setStatus('Requesting media token…');
+                try {
+                    const response = await fetch('/api/livekit-token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ join_token: joinToken })
+                    });
+                    const payload = await response.json();
+                    if (!response.ok) throw new Error(payload.error || 'LiveKit token exchange failed');
+                    await room.connect(payload.livekit_url, payload.livekit_token);
+                    await room.localParticipant.enableCameraAndMicrophone();
+                    setStatus(`Connected as ${payload.identity}`);
+                    connectButton.disabled = true;
+                    micButton.disabled = false;
+                    cameraButton.disabled = false;
+                    leaveButton.disabled = false;
+                    for (const publication of room.localParticipant.trackPublications.values()) {
+                        if (publication.track) attachTrack(publication.track, room.localParticipant);
+                    }
+                } catch (err) {
+                    connectButton.disabled = false;
+                    setStatus('Connection failed');
+                    setError(err.message || 'Unable to connect to LiveKit');
+                }
+            }
+
+            connectButton.addEventListener('click', connectRoom);
+            micButton.addEventListener('click', async () => {
+                const enabled = room.localParticipant.isMicrophoneEnabled;
+                await room.localParticipant.setMicrophoneEnabled(!enabled);
+                micButton.textContent = enabled ? 'Unmute microphone' : 'Mute microphone';
+            });
+            cameraButton.addEventListener('click', async () => {
+                const enabled = room.localParticipant.isCameraEnabled;
+                await room.localParticipant.setCameraEnabled(!enabled);
+                cameraButton.textContent = enabled ? 'Start camera' : 'Stop camera';
+            });
+            leaveButton.addEventListener('click', () => room.disconnect());
+
+            if (room) {
+                room.on(LiveKit.RoomEvent.TrackSubscribed, (track, publication, participant) => attachTrack(track, participant));
+                room.on(LiveKit.RoomEvent.TrackUnsubscribed, (track, publication, participant) => detachTrack(track));
+                room.on(LiveKit.RoomEvent.ParticipantConnected, participant => tileFor(participant.identity, participant.name || participant.identity));
+                room.on(LiveKit.RoomEvent.ParticipantDisconnected, participant => removeTile(participant.identity));
+                room.on(LiveKit.RoomEvent.Disconnected, () => {
+                    setStatus('Disconnected');
+                    connectButton.disabled = false;
+                    micButton.disabled = true;
+                    cameraButton.disabled = true;
+                    leaveButton.disabled = true;
+                });
+                room.on(LiveKit.RoomEvent.ConnectionStateChanged, state => setStatus(`LiveKit: ${state}`));
+            }
+        })();
+    </script>
+</body>
+</html>

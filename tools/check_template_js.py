@@ -11,6 +11,7 @@ from pathlib import Path
 TEMPLATES = (
     Path("templates/index.html"),
     Path("WebRTC_Meet/templates/client.html"),
+    Path("WebRTC_Meet/templates/livekit.html"),
 )
 
 

@@ -277,6 +277,19 @@ def dispatch_to_agent(target, command, payload=None):
 def client_page():
     return render_template('client.html')
 
+
+@app.route('/livekit')
+def livekit_page():
+    return render_template(
+        'livekit.html',
+        livekit_configured=bool(
+            os.getenv('LIVEKIT_API_KEY', '').strip()
+            and os.getenv('LIVEKIT_API_SECRET', '').strip()
+            and LIVEKIT_URL
+        ),
+    )
+
+
 @app.route('/admin')
 def admin_page():
     # Use the authenticated root dashboard as the canonical admin surface.
