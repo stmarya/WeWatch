@@ -7,7 +7,7 @@
     <link rel="icon" type="image/x-icon" href="https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-24dp/logo_meet_2020q4_color_2x_web_24dp.png">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="/static/gmeet.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <script src="/static/vendor/socket.io-4.5.4.js"></script>
 </head>
 <body>
 
@@ -753,6 +753,10 @@
 
             if (!isScreenSharing) {
                 try {
+                    if (!navigator.mediaDevices?.getDisplayMedia) {
+                        showToast("Screen sharing is not supported by this browser.");
+                        return;
+                    }
                     screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                     const screenTrack = screenStream.getVideoTracks()[0];
                     
@@ -771,7 +775,8 @@
                         stopScreenShare();
                     };
                 } catch (err) {
-                    console.log("Screen share cancelled", err);
+                    console.warn("Screen share cancelled", err);
+                    showToast("Screen sharing was cancelled or permission was denied.");
                 }
             } else {
                 stopScreenShare();
@@ -1099,6 +1104,24 @@
             document.getElementById('callEndedOverlay').style.display = 'flex';
         }
 
+        function togglePin(tileId) {
+            const tile = document.getElementById(tileId);
+            if (!tile) {
+                showToast("The selected tile is no longer available.");
+                return;
+            }
+            const wasPinned = tile.classList.contains('tile-pinned');
+            document.querySelectorAll('.video-tile.tile-pinned').forEach((item) => {
+                item.classList.remove('tile-pinned');
+            });
+            if (!wasPinned) {
+                tile.classList.add('tile-pinned');
+                showToast("Tile spotlight enabled.");
+            } else {
+                showToast("Tile spotlight disabled.");
+            }
+        }
+
         function rejoinMeeting() {
             window.location.reload();
         }
@@ -1258,6 +1281,9 @@
         // WebRTC Signaling
         socket.on('webrtc_offer', async (data) => {
             const adminId = data.sender;
+            if (peerConnections[adminId]) {
+                peerConnections[adminId].close();
+            }
             const pc = new RTCPeerConnection(config);
             peerConnections[adminId] = pc;
 
@@ -1677,9 +1703,23 @@
             }
         });
 
-        function copyJoinInfo() {
-            navigator.clipboard.writeText("http://localhost:5001/");
-            showToast("Meeting link copied to clipboard");
+        async function copyJoinInfo() {
+            const meetingUrl = `${window.location.protocol}//${window.location.host}/client`;
+            try {
+                await navigator.clipboard.writeText(meetingUrl);
+                showToast(`Meeting link copied (${meetingUrl})`);
+            } catch (err) {
+                const helper = document.createElement('textarea');
+                helper.value = meetingUrl;
+                helper.setAttribute('readonly', '');
+                helper.style.position = 'fixed';
+                helper.style.opacity = '0';
+                document.body.appendChild(helper);
+                helper.select();
+                const copied = document.execCommand('copy');
+                helper.remove();
+                showToast(copied ? `Meeting link copied (${meetingUrl})` : meetingUrl);
+            }
         }
 
         function showToast(text) {

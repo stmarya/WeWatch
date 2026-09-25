@@ -55,6 +55,13 @@ class SignalingContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"LiveKit Room", response.data)
 
+    def test_local_socketio_client_asset_is_available(self):
+        response = signaling.app.test_client().get(
+            "/static/vendor/socket.io-4.5.4.js"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Socket.IO v4.5.4", response.data)
+
     def test_room_token_requires_admin(self):
         client = signaling.app.test_client()
         self.assertEqual(

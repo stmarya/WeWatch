@@ -132,6 +132,12 @@ body {
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.video-tile.tile-pinned {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    z-index: 5;
+}
+
 .video-tile video, .video-tile img {
     width: 100%;
     height: 100%;
