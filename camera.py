@@ -47,6 +47,27 @@ FEATURES = {
     'produktivitas': False
 }
 
+try:
+    FACE_MISSING_GRACE_SECONDS = max(
+        5.0, float(os.getenv('FACE_MISSING_GRACE_SECONDS', '30'))
+    )
+except ValueError:
+    FACE_MISSING_GRACE_SECONDS = 30.0
+
+try:
+    POSE_PRESENCE_GRACE_SECONDS = max(
+        1.0, float(os.getenv('POSE_PRESENCE_GRACE_SECONDS', '3'))
+    )
+except ValueError:
+    POSE_PRESENCE_GRACE_SECONDS = 3.0
+
+try:
+    PHONE_DETECTION_THRESHOLD = min(
+        0.99, max(0.1, float(os.getenv('PHONE_DETECTION_THRESHOLD', '0.55')))
+    )
+except ValueError:
+    PHONE_DETECTION_THRESHOLD = 0.55
+
 STATUS = {
     'identitas': '-',
     'ekspresi': '-',
@@ -60,6 +81,7 @@ STATUS = {
     'keyboard_text': '',
     'last_command': '-',
     'kehadiran': 'AT DESK',
+    'kehadiran_detail': 'AT_DESK',
     'main_hp': 'AMAN',
     'status_kerja': 'Kerja',
     'active_user': '-',
@@ -160,6 +182,7 @@ class AICamera:
         self.last_detected_objects = []
         self.last_hand_landmarks = []
         self.last_pose_landmarks = None
+        self._identity_unknown_frames = 0
         self.cached_blur_mask = None
 
         # Placeholder frame saat kamera sedang pemanasan
@@ -255,8 +278,14 @@ class AICamera:
             stable_name = self._identity_vote.add(current_name)
             self.status['identitas'] = stable_name
             if current_name != "Tidak Dikenal" and self.status['active_user'] != current_name:
+                self._identity_unknown_frames = 0
                 self.status['active_user'] = current_name
                 log_clock_in(current_name)
+            elif current_name == "Tidak Dikenal":
+                self._identity_unknown_frames += 1
+                if self._identity_unknown_frames >= 5:
+                    self.status['active_user'] = '-'
+                    self._identity_vote.clear()
         except Exception as e:
             logging.debug(f"Async Face ID error: {e}")
         finally:
@@ -277,12 +306,16 @@ class AICamera:
 
         liveness_verified = False
         face_missing_frames = 0
+        face_missing_started_at = None
+        last_pose_seen_time = 0.0
 
         hp_tercyduk_frames = 0
+        hp_clear_frames = 0
         last_hp_alert = 0
 
         last_work_update_time = time.time()
         away_start_time = None
+        away_user = '-'
         alarm_triggered = False
 
         keyboard_layout = [
@@ -355,7 +388,10 @@ class AICamera:
                     for obj in obj_result.detections:
                         bbox = obj.bounding_box
                         name = obj.categories[0].category_name
-                        self.last_detected_objects.append({'name': name, 'bbox': bbox})
+                        score = float(getattr(obj.categories[0], 'score', 0.0) or 0.0)
+                        self.last_detected_objects.append(
+                            {'name': name, 'bbox': bbox, 'score': score}
+                        )
                 except Exception as e:
                     logging.debug(f"Object error: {e}")
 
@@ -368,9 +404,14 @@ class AICamera:
                     cv2.putText(image, name, (bbox.origin_x, bbox.origin_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
 
             if self.features.get('produktivitas', False):
-                is_holding_hp = any(obj['name'] == 'cell phone' for obj in self.last_detected_objects)
+                is_holding_hp = any(
+                    obj['name'] == 'cell phone'
+                    and obj.get('score', 0.0) >= PHONE_DETECTION_THRESHOLD
+                    for obj in self.last_detected_objects
+                )
                 if is_holding_hp:
                     hp_tercyduk_frames += 1
+                    hp_clear_frames = 0
                     if hp_tercyduk_frames > 10:
                         self.status['main_hp'] = "TERCYDUK"
                         if time.time() - last_hp_alert > 10:
@@ -379,8 +420,10 @@ class AICamera:
                                 speak("Tuan, berhentilah bermain ponsel dan kembalilah bekerja.")
                             last_hp_alert = time.time()
                 else:
-                    hp_tercyduk_frames = 0
-                    self.status['main_hp'] = "AMAN"
+                    hp_tercyduk_frames = max(0, hp_tercyduk_frames - 1)
+                    hp_clear_frames += 1
+                    if hp_clear_frames >= 15:
+                        self.status['main_hp'] = "AMAN"
 
             # -------------------------------------------------------------
             # 4. FACE IDENTITAS & SLEEK HUD RETICLE
@@ -435,6 +478,7 @@ class AICamera:
                     pose_result = self.ai.pose_detector.detect(mp_image)
                     if pose_result.pose_landmarks:
                         self.last_pose_landmarks = pose_result.pose_landmarks[0]
+                        last_pose_seen_time = time.monotonic()
                     else:
                         self.last_pose_landmarks = None
                 except Exception as e:
@@ -493,22 +537,47 @@ class AICamera:
             if run_face_ai:
                 if not detection_result or not detection_result.face_landmarks:
                     face_missing_frames += 1
+                    now = time.monotonic()
+                    if face_missing_started_at is None:
+                        face_missing_started_at = now
                     if face_missing_frames > 15:
                         liveness_verified = False
                         self.status['liveness'] = "OFF"
-                    if face_missing_frames > 75:  # ~5 detik
+                    pose_present = (
+                        self.last_pose_landmarks is not None
+                        and now - last_pose_seen_time <= POSE_PRESENCE_GRACE_SECONDS
+                    )
+                    phone_present = self.status['main_hp'] == "TERCYDUK"
+                    if pose_present or phone_present:
+                        self.status['kehadiran'] = "AT DESK"
+                        self.status['kehadiran_detail'] = (
+                            "FACE_NOT_VISIBLE" if pose_present else "PHONE_DETECTED"
+                        )
+                        away_start_time = None
+                        alarm_triggered = False
+                    elif (
+                        face_missing_started_at is not None
+                        and now - face_missing_started_at >= FACE_MISSING_GRACE_SECONDS
+                    ):
                         self.status['kehadiran'] = "AWAY"
+                        self.status['kehadiran_detail'] = "NO_PERSON_SIGNAL"
                         if away_start_time is None:
-                            away_start_time = time.time()
-                        elif time.time() - away_start_time > 15 and not alarm_triggered:
+                            away_start_time = now
+                            away_user = self.status['active_user']
+                            self.status['active_user'] = '-'
+                            self._identity_vote.clear()
+                        elif now - away_start_time > 15 and not alarm_triggered:
                             alarm_triggered = True
                             if self._alert_cooldown.ready("away_voice"):
                                 speak("Peringatan, karyawan meninggalkan meja kerja terlalu lama.")
-                            send_telegram_alert(image, f"🚨 ALERT: Karyawan {self.status['active_user']} meninggalkan meja kerja lebih dari 15 detik!", save_as="away_alarm")
+                            send_telegram_alert(image, f"🚨 ALERT: Karyawan {away_user} meninggalkan meja kerja lebih dari 15 detik!", save_as="away_alarm")
                 else:
                     self.status['kehadiran'] = "AT DESK"
+                    self.status['kehadiran_detail'] = "AT_DESK"
                     away_start_time = None
+                    away_user = '-'
                     alarm_triggered = False
+                    face_missing_started_at = None
 
                 if detection_result and detection_result.face_blendshapes:
                     face_missing_frames = 0

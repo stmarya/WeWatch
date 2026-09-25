@@ -47,9 +47,12 @@ class AIModelManager:
         for filename in os.listdir(faces_dir):
             if filename.endswith('.jpg') or filename.endswith('.png'):
                 try:
-                    name = os.path.splitext(filename)[0]
+                    # Allow optional multi-sample enrollment files such as
+                    # `alice__left.jpg` while keeping existing `alice.jpg`
+                    # registrations compatible.
+                    name = os.path.splitext(filename)[0].split('__', 1)[0]
                     img_ref = face_recognition.load_image_file(faces_dir / filename)
-                    encodings = face_recognition.face_encodings(img_ref)
+                    encodings = face_recognition.face_encodings(img_ref, num_jitters=2)
                     if encodings:
                         self.known_face_encodings.append(encodings[0])
                         self.known_face_names.append(name)

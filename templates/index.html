@@ -1058,6 +1058,10 @@
                 }
                 const tile = document.getElementById(`tile-${clientId}`);
                 if (tile) tile.remove();
+                if (activeRemoteClientId === clientId) {
+                    resetRemoteTargetState();
+                    showToast('Remote target disconnected. Select a connected client to continue.');
+                }
                 updateGridClass();
             });
 
@@ -2885,6 +2889,17 @@
         let annotLastX = 0, annotLastY = 0;
         let isDesktopMouseControlActive = false;
 
+        function resetRemoteTargetState() {
+            isRemoteLaserActive = false;
+            isRemoteAnnotateActive = false;
+            isAnnotDrawing = false;
+            isDesktopMouseControlActive = false;
+            activeRemoteClientId = null;
+            activeRemoteClientName = '';
+            closeRemoteControlModal();
+            updateRemoteModalButtons();
+        }
+
         function openRemoteControlModal(clientId, clientName) {
             activeRemoteClientId = clientId;
             activeRemoteClientName = clientName;
@@ -2976,6 +2991,10 @@
                 showToast("Socket server not connected");
                 return;
             }
+            if (!activeRemoteClientId) {
+                showToast("Select a connected client before sending a desktop action");
+                return;
+            }
             socket.emit('desktop_quick_action', Object.assign(
                 { action: action, target: activeRemoteClientId }, payload
             ));
@@ -3001,7 +3020,10 @@
         }
 
         function sendDesktopKey(type, value) {
-            if (!socket) return;
+            if (!socket || !activeRemoteClientId) {
+                showToast("Select a connected client before sending keyboard input");
+                return;
+            }
             socket.emit('desktop_key_input', {
                 target: activeRemoteClientId, type: type, value: value
             });

@@ -1,7 +1,4 @@
 import os
-import threading
-import subprocess
-import ctypes
 import logging
 import sys
 import json
@@ -9,6 +6,7 @@ import uuid
 import hmac
 import time
 from datetime import datetime
+from urllib.parse import urlparse
 from flask import Flask, render_template, request, jsonify, redirect
 from flask_socketio import SocketIO, emit, join_room, leave_room
 try:
@@ -27,12 +25,6 @@ try:
 except ModuleNotFoundError:
     from WebRTC_Meet.room_store import RoomStore
 from utils.security import SlidingWindowRateLimiter
-
-try:
-    import pyautogui
-    pyautogui.FAILSAFE = False
-except Exception:
-    pyautogui = None
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex())
@@ -69,9 +61,6 @@ try:
     MAX_PARTICIPANTS = max(1, int(os.getenv('WEBRTC_MAX_PARTICIPANTS', '600')))
 except ValueError:
     MAX_PARTICIPANTS = 600
-ENABLE_SERVER_DESKTOP_CONTROL = os.getenv(
-    'ENABLE_SERVER_DESKTOP_CONTROL', 'false'
-).lower() == 'true'
 ALLOWED_REMOTE_COMMANDS = {
     'ring_bell', 'tts_speak', 'force_fullscreen', 'toggle_cam',
     'reload_page', 'hr_warning_banner', 'hr_session_lock',
@@ -241,7 +230,19 @@ def emit_remote_error(message):
 
 
 def valid_remote_target(target):
-    return isinstance(target, str) and target in participants and target != request.sid
+    if not isinstance(target, str) or target == request.sid:
+        return False
+    target_user = participants.get(target)
+    return isinstance(target_user, dict) and target_user.get('role') == 'client'
+
+
+def require_remote_client_target(data):
+    """Require every OS-level remote action to target a connected client."""
+    target = data.get('target') if isinstance(data, dict) else None
+    if not valid_remote_target(target):
+        emit_remote_error('A connected client target is required for remote desktop control.')
+        return None
+    return target
 
 
 def public_participants():
@@ -753,26 +754,12 @@ def handle_desktop_mouse_move(data):
         return
     if not allow_socket_event('desktop'):
         return
-    if data.get('target'):
-        dispatch_to_agent(data.get('target'), 'mouse_move', {
-            'xRatio': data.get('xRatio', 0), 'yRatio': data.get('yRatio', 0)
-        })
+    target = require_remote_client_target(data)
+    if target is None:
         return
-    if not ENABLE_SERVER_DESKTOP_CONTROL:
-        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
-        return
-    if not pyautogui:
-        emit_remote_error('pyautogui is not available on the signaling host.')
-        return
-    try:
-        sw, sh = pyautogui.size()
-        x_ratio = max(0.0, min(1.0, float(data.get('xRatio', 0))))
-        y_ratio = max(0.0, min(1.0, float(data.get('yRatio', 0))))
-        tx = max(0, min(sw - 1, int(x_ratio * sw)))
-        ty = max(0, min(sh - 1, int(y_ratio * sh)))
-        pyautogui.moveTo(tx, ty)
-    except Exception as e:
-        emit_remote_error(f'Mouse move failed: {e}')
+    dispatch_to_agent(target, 'mouse_move', {
+        'xRatio': data.get('xRatio', 0), 'yRatio': data.get('yRatio', 0)
+    })
 
 @socketio.on('desktop_mouse_click')
 def handle_desktop_mouse_click(data):
@@ -781,39 +768,13 @@ def handle_desktop_mouse_click(data):
         return
     if not allow_socket_event('desktop'):
         return
-    if data.get('target'):
-        dispatch_to_agent(data.get('target'), 'mouse_click', {
-            'xRatio': data.get('xRatio', 0), 'yRatio': data.get('yRatio', 0),
-            'button': data.get('button', 'left')
-        })
+    target = require_remote_client_target(data)
+    if target is None:
         return
-    if not ENABLE_SERVER_DESKTOP_CONTROL:
-        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
-        return
-    if not pyautogui:
-        emit_remote_error('pyautogui is not available on the signaling host.')
-        return
-    try:
-        sw, sh = pyautogui.size()
-        x_ratio = max(0.0, min(1.0, float(data.get('xRatio', 0))))
-        y_ratio = max(0.0, min(1.0, float(data.get('yRatio', 0))))
-        tx = max(0, min(sw - 1, int(x_ratio * sw)))
-        ty = max(0, min(sh - 1, int(y_ratio * sh)))
-        btn = data.get('button', 'left')
-        if btn not in {'left', 'right', 'double', 'middle'}:
-            emit_remote_error('Unsupported mouse button.')
-            return
-        if btn == 'right':
-            pyautogui.rightClick(tx, ty)
-        elif btn == 'double':
-            pyautogui.doubleClick(tx, ty)
-        elif btn == 'middle':
-            pyautogui.middleClick(tx, ty)
-        else:
-            pyautogui.click(tx, ty)
-        print(f"[DESKTOP CLICK] {btn} at ({tx}, {ty})")
-    except Exception as e:
-        emit_remote_error(f'Mouse click failed: {e}')
+    dispatch_to_agent(target, 'mouse_click', {
+        'xRatio': data.get('xRatio', 0), 'yRatio': data.get('yRatio', 0),
+        'button': data.get('button', 'left')
+    })
 
 @socketio.on('desktop_mouse_scroll')
 def handle_desktop_mouse_scroll(data):
@@ -822,22 +783,12 @@ def handle_desktop_mouse_scroll(data):
         return
     if not allow_socket_event('desktop'):
         return
-    if data.get('target'):
-        dispatch_to_agent(data.get('target'), 'mouse_scroll', {
-            'deltaY': data.get('deltaY', data.get('clicks', 0))
-        })
+    target = require_remote_client_target(data)
+    if target is None:
         return
-    if not ENABLE_SERVER_DESKTOP_CONTROL:
-        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
-        return
-    if not pyautogui:
-        emit_remote_error('pyautogui is not available on the signaling host.')
-        return
-    try:
-        clicks = max(-1200, min(1200, int(data.get('clicks', data.get('deltaY', 0)))))
-        pyautogui.scroll(clicks)
-    except Exception as e:
-        emit_remote_error(f'Mouse scroll failed: {e}')
+    dispatch_to_agent(target, 'mouse_scroll', {
+        'deltaY': data.get('deltaY', data.get('clicks', 0))
+    })
 
 @socketio.on('desktop_key_input')
 def handle_desktop_key_input(data):
@@ -846,39 +797,12 @@ def handle_desktop_key_input(data):
         return
     if not allow_socket_event('desktop'):
         return
-    if data.get('target'):
-        dispatch_to_agent(data.get('target'), 'key_input', {
-            'type': data.get('type'), 'value': data.get('value')
-        })
+    target = require_remote_client_target(data)
+    if target is None:
         return
-    if not ENABLE_SERVER_DESKTOP_CONTROL:
-        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
-        return
-    if not pyautogui:
-        emit_remote_error('pyautogui is not available on the signaling host.')
-        return
-    try:
-        itype = data.get('type')
-        val = data.get('value')
-        if itype == 'text' and isinstance(val, str) and len(val) <= 2000:
-            pyautogui.write(val, interval=0.005)
-            emit('desktop_action_result', {'status': 'success', 'msg': f'Typed "{val}" on client desktop'}, to=request.sid)
-        elif itype == 'key' and isinstance(val, str) and len(val) <= 32:
-            pyautogui.press(val)
-            emit('desktop_action_result', {'status': 'success', 'msg': f'Pressed [{val}]'}, to=request.sid)
-        elif itype == 'hotkey' and (isinstance(val, list) or isinstance(val, str)):
-            keys = val if isinstance(val, list) else val.split('+')
-            if not keys or len(keys) > 5 or not all(isinstance(key, str) and len(key) <= 32 for key in keys):
-                emit_remote_error('Invalid hotkey payload.')
-                return
-            pyautogui.hotkey(*keys)
-            emit('desktop_action_result', {'status': 'success', 'msg': f'Triggered hotkey [{" + ".join(keys)}]'}, to=request.sid)
-        else:
-            emit_remote_error('Unsupported or invalid keyboard input.')
-        print(f"[DESKTOP KEY] {itype}: {val}")
-    except Exception as e:
-        print("[DESKTOP KEY ERROR]", e)
-        emit('desktop_action_result', {'status': 'error', 'msg': str(e)}, to=request.sid)
+    dispatch_to_agent(target, 'key_input', {
+        'type': data.get('type'), 'value': data.get('value')
+    })
 
 @socketio.on('desktop_quick_action')
 def handle_desktop_quick_action(data):
@@ -887,115 +811,10 @@ def handle_desktop_quick_action(data):
         return
     if not allow_socket_event('desktop'):
         return
-    if data.get('target'):
-        dispatch_to_agent(data.get('target'), 'quick_action', dict(data))
+    target = require_remote_client_target(data)
+    if target is None:
         return
-    if not ENABLE_SERVER_DESKTOP_CONTROL:
-        emit_remote_error('Server desktop control is disabled; use a trusted native agent.')
-        return
-    action = data.get('action')
-    print(f"[HR DESKTOP ACTION] {action}")
-    try:
-        if action == 'lock_workstation':
-            ctypes.windll.user32.LockWorkStation()
-            emit('desktop_action_result', {'status': 'success', 'msg': 'Client Windows workstation locked!'}, to=request.sid)
-        elif action == 'show_desktop':
-            if pyautogui:
-                pyautogui.hotkey('win', 'd')
-            emit('desktop_action_result', {'status': 'success', 'msg': 'Show Desktop executed (Win + D)'}, to=request.sid)
-        elif action == 'open_task_manager':
-            if pyautogui:
-                pyautogui.hotkey('ctrl', 'shift', 'esc')
-            emit('desktop_action_result', {'status': 'success', 'msg': 'Task Manager launched on client desktop'}, to=request.sid)
-        elif action == 'open_explorer':
-            if pyautogui:
-                pyautogui.hotkey('win', 'e')
-            emit('desktop_action_result', {'status': 'success', 'msg': 'File Explorer opened (Win + E)'}, to=request.sid)
-        elif action == 'close_active_window':
-            if pyautogui:
-                pyautogui.hotkey('alt', 'f4')
-            emit('desktop_action_result', {'status': 'success', 'msg': 'Active window closed (Alt + F4)'}, to=request.sid)
-        elif action == 'volume_up':
-            if pyautogui:
-                for _ in range(3):
-                    pyautogui.press('volumeup')
-            emit('desktop_action_result', {'status': 'success', 'msg': 'Master volume increased (+6%)'}, to=request.sid)
-        elif action == 'volume_down':
-            if pyautogui:
-                for _ in range(3):
-                    pyautogui.press('volumedown')
-            emit('desktop_action_result', {'status': 'success', 'msg': 'Master volume decreased (-6%)'}, to=request.sid)
-        elif action == 'volume_mute':
-            if pyautogui:
-                pyautogui.press('volumemute')
-            emit('desktop_action_result', {'status': 'success', 'msg': 'Client audio mute toggled'}, to=request.sid)
-        elif action == 'open_url':
-            import webbrowser
-            target_url = (data.get('url') or 'https://google.com').strip()
-            if not target_url.startswith(('http://', 'https://')):
-                target_url = 'https://' + target_url
-            webbrowser.open(target_url)
-            emit('desktop_action_result', {'status': 'success', 'msg': f'Opened URL in client browser: {target_url}'}, to=request.sid)
-        elif action == 'clipboard_inject':
-            clip_text = data.get('text', '').strip()
-            if clip_text:
-                subprocess.run(['powershell', '-Command', f"Set-Clipboard -Value '{clip_text}'"], capture_output=True)
-                emit('desktop_action_result', {'status': 'success', 'msg': f'Copied text into client clipboard: "{clip_text}"'}, to=request.sid)
-            else:
-                emit('desktop_action_result', {'status': 'error', 'msg': 'Clipboard text cannot be empty'}, to=request.sid)
-        elif action == 'capture_screen':
-            if pyautogui:
-                import io, base64
-                screenshot = pyautogui.screenshot()
-                # Resize thumbnail for fast transmission
-                screenshot.thumbnail((1280, 720))
-                buffered = io.BytesIO()
-                screenshot.save(buffered, format="JPEG", quality=65)
-                img_b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                emit('desktop_screenshot_data', {'b64': img_b64}, to=request.sid)
-                emit('desktop_action_result', {'status': 'success', 'msg': 'Desktop screenshot captured!'}, to=request.sid)
-        elif action == 'system_telemetry':
-            class MEMORYSTATUSEX(ctypes.Structure):
-                _fields_ = [
-                    ("dwLength", ctypes.c_ulong),
-                    ("dwMemoryLoad", ctypes.c_ulong),
-                    ("ullTotalPhys", ctypes.c_ulonglong),
-                    ("ullAvailPhys", ctypes.c_ulonglong),
-                    ("ullTotalPageFile", ctypes.c_ulonglong),
-                    ("ullAvailPageFile", ctypes.c_ulonglong),
-                    ("ullTotalVirtual", ctypes.c_ulonglong),
-                    ("ullAvailVirtual", ctypes.c_ulonglong),
-                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
-                ]
-            stat = MEMORYSTATUSEX()
-            stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
-            total_ram_gb = round(stat.ullTotalPhys / (1024**3), 1)
-            avail_ram_gb = round(stat.ullAvailPhys / (1024**3), 1)
-            emit('desktop_action_result', {
-                'status': 'success',
-                'msg': f'Client RAM: {stat.dwMemoryLoad}% used ({avail_ram_gb}GB free of {total_ram_gb}GB)'
-            }, to=request.sid)
-        elif action == 'windows_alert':
-            msg = data.get('message', 'Perhatian: Aktivitas Anda sedang dipantau oleh HR & Manager.')
-            def popup():
-                ctypes.windll.user32.MessageBoxW(0, msg, "HR & Manager Compliance Alert", 0x40000 | 0x30)
-            threading.Thread(target=popup, daemon=True).start()
-            emit('desktop_action_result', {'status': 'success', 'msg': 'Pop-up alert shown on client desktop!'}, to=request.sid)
-        elif action == 'kill_distracting_app':
-            app_name = data.get('appName', '').strip()
-            if app_name:
-                if not app_name.lower().endswith('.exe'):
-                    app_name += '.exe'
-                res = subprocess.run(['taskkill', '/F', '/IM', app_name], capture_output=True, text=True)
-                if res.returncode == 0:
-                    emit('desktop_action_result', {'status': 'success', 'msg': f'Process "{app_name}" successfully terminated!'}, to=request.sid)
-                else:
-                    emit('desktop_action_result', {'status': 'error', 'msg': f'Process "{app_name}" not found or already closed.'}, to=request.sid)
-            else:
-                emit('desktop_action_result', {'status': 'error', 'msg': 'Please specify process name (e.g. discord.exe)'}, to=request.sid)
-    except Exception as e:
-        emit('desktop_action_result', {'status': 'error', 'msg': str(e)}, to=request.sid)
+    dispatch_to_agent(target, 'quick_action', dict(data))
 
 # Forwarding remote laser, annotation, and in-app executive commands
 @socketio.on('admin_remote_pointer')
@@ -1076,6 +895,17 @@ def handle_admin_remote_command(data):
     if len(json.dumps(payload)) > 4000:
         emit_remote_error('Remote command payload is too large.')
         return
+    if command == 'open_url':
+        target_url = payload.get('url')
+        parsed = urlparse(target_url) if isinstance(target_url, str) else None
+        if (
+            parsed is None
+            or parsed.scheme not in {'http', 'https'}
+            or not parsed.netloc
+            or len(target_url) > 2048
+        ):
+            emit_remote_error('Remote URL must be a valid HTTP(S) URL.')
+            return
     emit('client_remote_command', {
         'command': command,
         'payload': payload,

@@ -206,6 +206,77 @@ class SignalingContractTests(unittest.TestCase):
         finally:
             signaling.MAX_PARTICIPANTS = previous
 
+    def test_remote_desktop_requires_a_connected_client_target(self):
+        http = signaling.app.test_client()
+        admin = signaling.socketio.test_client(signaling.app, flask_test_client=http)
+        admin.emit(
+            "join",
+            {
+                "role": "admin",
+                "identity": "remote-admin",
+                "name": "Remote Admin",
+                "join_token": self._ticket("remote-admin", "admin"),
+            },
+        )
+        admin.get_received()
+
+        admin.emit("desktop_quick_action", {"action": "lock_workstation"})
+        errors = [
+            event
+            for event in admin.get_received()
+            if event["name"] == "desktop_action_result"
+        ]
+        self.assertTrue(errors)
+        self.assertEqual(errors[-1]["args"][0]["status"], "error")
+
+        client = signaling.socketio.test_client(signaling.app, flask_test_client=http)
+        client.emit(
+            "join",
+            {
+                "role": "client",
+                "identity": "remote-client",
+                "name": "Remote Client",
+                "join_token": self._ticket("remote-client", "client"),
+            },
+        )
+        client.get_received()
+        client_sid = next(
+            sid
+            for sid, user in signaling.participants.items()
+            if user.get("identity") == "remote-client"
+        )
+
+        admin.emit(
+            "desktop_quick_action",
+            {"target": client_sid, "action": "lock_workstation"},
+        )
+        errors = [
+            event
+            for event in admin.get_received()
+            if event["name"] == "desktop_action_result"
+        ]
+        self.assertTrue(errors)
+        self.assertIn("paired desktop agent", errors[-1]["args"][0]["msg"])
+
+        admin.emit(
+            "admin_remote_command",
+            {
+                "target": client_sid,
+                "command": "open_url",
+                "payload": {"url": "javascript:alert(1)"},
+            },
+        )
+        errors = [
+            event
+            for event in admin.get_received()
+            if event["name"] == "desktop_action_result"
+        ]
+        self.assertTrue(errors)
+        self.assertIn("valid HTTP(S)", errors[-1]["args"][0]["msg"])
+
+        admin.disconnect()
+        client.disconnect()
+
     def test_desktop_command_expiry_and_replay_protection(self):
         with _seen_command_lock:
             _seen_command_ids.clear()
