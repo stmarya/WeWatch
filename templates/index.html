@@ -66,7 +66,7 @@
                         <div class="audio-status" id="adminMicStatus">
                             <span class="material-symbols-outlined" id="adminMicIcon">mic</span>
                         </div>
-                        <span>Admin (Host)</span>
+                        <span>Admin WeWatch</span>
                         <span class="ai-badge" id="badgeLiveness">AI Active</span>
                         <span id="badgeKerja" style="font-size:12px; margin-left:6px; font-weight:600; color:#8ab4f8;"></span>
                     </div>
@@ -186,7 +186,7 @@
                             <input type="text" class="poll-opt-input" placeholder="Option 3 (optional)" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:8px;">
                             <div style="display:flex; gap:8px;">
                                 <button type="button" class="btn-gmeet btn-gmeet-primary" style="flex:1; font-size:12px;" onclick="submitNewPoll()">Launch Poll</button>
-                                <button type="button" class="btn-gmeet btn-gmeet-text" style="font-size:12px;" onclick="togglePollCreationForm()">Cancel</button>
+                                <button type="button" class="btn-gmeet btn-gmeet-text" style="font-size:12px;" onclick="togglePollCreationForm()">Batal</button>
                             </div>
                         </div>
                         <div id="activePollDisplay" style="margin-top:10px;"></div>
@@ -200,10 +200,10 @@
                         </div>
                         <div style="flex:1;">
                             <div class="activity-title" style="display:flex; align-items:center; gap:8px;">
-                                <span>Live AI Telemetry</span>
+                                <span>Status monitoring AI</span>
                                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#34a853; box-shadow:0 0 8px #34a853; animation:pulse 2s infinite;"></span>
                             </div>
-                            <div style="font-size:12px; color:var(--gmeet-text-muted);">Real-time biometrics, posture & focus</div>
+                            <div style="font-size:12px; color:var(--gmeet-text-muted);">Biometrik, postur, dan fokus secara real-time</div>
                         </div>
                     </div>
                     
@@ -253,7 +253,7 @@
                     <!-- Quick Action Buttons -->
                     <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
                         <button type="button" class="btn-gmeet btn-gmeet-primary" style="flex:1; min-width:90px; font-size:12px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;" onclick="takeSnapshot()">
-                            <span class="material-symbols-outlined" style="font-size:16px;">photo_camera</span> Snapshot
+                            <span class="material-symbols-outlined" style="font-size:16px;">photo_camera</span> Ambil snapshot
                         </button>
                         <button type="button" class="btn-gmeet btn-gmeet-outline" style="flex:1; min-width:90px; font-size:12px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;" onclick="toggleFaceRegisterForm()">
                             <span class="material-symbols-outlined" style="font-size:16px;">face</span> Face ID
@@ -266,23 +266,23 @@
                     <!-- Inline Face ID Registration Box -->
                     <div id="faceRegisterBox" style="display:none; background:rgba(0,0,0,0.5); border:1px solid var(--gmeet-border); border-radius:8px; padding:10px; margin-top:8px;">
                         <div style="font-size:12px; font-weight:600; color:#fff; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                            <span>Register Face to AI</span>
+                            <span>Daftarkan wajah tepercaya</span>
                             <button type="button" onclick="toggleFaceRegisterForm()" style="background:none; border:none; color:var(--gmeet-text-muted); cursor:pointer;">&times;</button>
                         </div>
                         <div style="display:flex; gap:6px;">
-                            <input type="text" id="faceRegisterName" placeholder="Enter person name..." style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
-                            <button type="button" class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 12px;" onclick="submitRegisterFace()">Register</button>
+                            <input type="text" id="faceRegisterName" placeholder="Masukkan nama pengguna" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
+                            <button type="button" class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 12px;" onclick="submitRegisterFace()">Daftarkan</button>
                         </div>
                         <div id="faceRegisterStatus" style="font-size:11px; color:var(--gmeet-text-muted); margin-top:6px;"></div>
                     </div>
 
-                    <!-- Snapshot Preview Card -->
+                    <!-- Ambil snapshot Preview Card -->
                     <div id="snapshotPreviewCard" style="display:none; background:rgba(0,0,0,0.5); border:1px solid rgba(52, 168, 83, 0.4); border-radius:8px; padding:10px; margin-top:8px; text-align:center;">
-                        <div style="font-size:12px; color:var(--gmeet-green); font-weight:600; margin-bottom:6px;">✓ Snapshot Captured</div>
+                        <div style="font-size:12px; color:var(--gmeet-green); font-weight:600; margin-bottom:6px;">✓ Ambil snapshot Captured</div>
                         <img id="snapshotPreviewThumb" src="" style="width:100%; max-height:120px; object-fit:cover; border-radius:6px; margin-bottom:6px; border:1px solid rgba(255,255,255,0.1);">
                         <div style="display:flex; gap:8px; justify-content:center;">
-                            <a id="snapshotDownloadBtn" href="#" target="_blank" class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 10px; text-decoration:none;">View in Gallery</a>
-                            <button type="button" class="btn-gmeet btn-gmeet-text" style="font-size:11px; padding:4px 8px;" onclick="document.getElementById('snapshotPreviewCard').style.display='none'">Dismiss</button>
+                            <a id="snapshotDownloadBtn" href="#" target="_blank" class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 10px; text-decoration:none;">Buka galeri</a>
+                            <button type="button" class="btn-gmeet btn-gmeet-text" style="font-size:11px; padding:4px 8px;" onclick="document.getElementById('snapshotPreviewCard').style.display='none'">Tutup</button>
                         </div>
                     </div>
                 </div>
@@ -294,7 +294,7 @@
                             <span class="material-symbols-outlined">sentiment_satisfied</span>
                         </div>
                         <div style="flex:1;">
-                            <div class="activity-title">Emotion Analytics</div>
+                            <div class="activity-title">Analitik emosi</div>
                             <div style="font-size:11px; color:var(--gmeet-text-muted);" id="moodTotalSamples">Aggregated facial sentiment</div>
                         </div>
                     </div>
@@ -572,7 +572,7 @@
             <div class="drawer-content" id="drawerPeople" style="display:none;">
                 <div class="people-search-box">
                     <span class="material-symbols-outlined search-icon">search</span>
-                    <input type="text" id="peopleSearchInput" placeholder="Search for people" oninput="filterPeople()">
+                    <input type="text" id="peopleSearchInput" placeholder="Cari peserta" oninput="filterPeople()">
                 </div>
                 <div class="people-section-title">In call (<span id="peopleCountBadge">1</span>)</div>
                 <button type="button" class="btn-gmeet btn-gmeet-outline" style="width:100%; margin-bottom:12px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gmeet-green); border-color:rgba(129, 201, 149, 0.4);" onclick="exportAttendanceReport()">
@@ -600,7 +600,7 @@
                 <div class="chat-messages" id="chatMessages">
                     <div class="chat-msg">
                         <div class="chat-msg-header">
-                            <span class="chat-msg-author">Google Meet</span>
+                            <span class="chat-msg-author">WeWatch</span>
                             <span class="chat-msg-time" id="chatWelcomeTime">--:--</span>
                         </div>
                         <div class="chat-msg-body" style="color:var(--gmeet-text-muted);">
@@ -681,7 +681,7 @@
                     Client Page: http://localhost:5001/
                 </div>
                 <button type="button" class="btn-gmeet btn-gmeet-outline" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="copyJoinInfo()">
-                    <span class="material-symbols-outlined">content_copy</span> Copy joining info
+                    <span class="material-symbols-outlined">content_copy</span> Salin informasi sesi
                 </button>
             </div>
         </aside>
@@ -751,34 +751,34 @@
             </button>
 
             <!-- Leave Call Button (Red Pill) -->
-            <button type="button" class="control-btn btn-hangup" id="btnLeave" onclick="leaveCall()" data-tooltip="Leave call">
+            <button type="button" class="control-btn btn-hangup" id="btnLeave" onclick="leaveCall()" data-tooltip="Akhiri sesi" aria-label="Akhiri sesi">
                 <span class="material-symbols-outlined">call_end</span>
             </button>
         </div>
 
         <!-- Right: Info, People, Chat, Activities (AI), Host Controls -->
         <div class="bar-right">
-            <button type="button" class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Meeting details">
+            <button type="button" class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Detail sesi" aria-label="Buka detail sesi">
                 <span class="material-symbols-outlined">info</span>
             </button>
 
-            <button type="button" class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Show everyone">
+            <button type="button" class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Lihat peserta" aria-label="Buka daftar peserta">
                 <span class="material-symbols-outlined">group</span>
                 <span class="badge-count" id="badgePeopleCount">1</span>
             </button>
 
-            <button type="button" class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Chat with everyone">
+            <button type="button" class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Pesan peserta" aria-label="Buka pesan peserta">
                 <span class="material-symbols-outlined">chat</span>
                 <span class="badge-count" id="badgeChatUnread" style="display:none;">0</span>
             </button>
 
             <!-- Activities Button (Watcher AI Telemetry & Modules) -->
-            <button type="button" class="icon-toggle-btn active" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Activities & AI Tools">
+            <button type="button" class="icon-toggle-btn active" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Modul AI" aria-label="Buka modul AI">
                 <span class="material-symbols-outlined">shapes</span>
             </button>
 
             <!-- Host Controls -->
-            <button type="button" class="icon-toggle-btn" id="btnHostDrawer" onclick="toggleDrawer('host')" data-tooltip="Host controls">
+            <button type="button" class="icon-toggle-btn" id="btnHostDrawer" onclick="toggleDrawer('host')" data-tooltip="Keamanan meeting" aria-label="Buka kontrol keamanan meeting">
                 <span class="material-symbols-outlined">shield_person</span>
             </button>
         </div>
@@ -804,21 +804,21 @@
     <div class="gmeet-menu-popover" id="moreMenuPopover">
         <button type="button" class="gmeet-menu-item" onclick="openLayoutModal()">
             <span class="material-symbols-outlined">dashboard</span>
-            <span>Change layout</span>
+            <span>Ubah tata letak</span>
         </button>
         <button type="button" class="gmeet-menu-item" onclick="toggleFullscreen()">
             <span class="material-symbols-outlined">fullscreen</span>
-            <span>Full screen</span>
+            <span>Layar penuh</span>
         </button>
-        <button type="button" class="gmeet-menu-item" onclick="toggleCaptions()"><span class="material-symbols-outlined">closed_caption</span><span>Live captions</span></button>
-        <button type="button" class="gmeet-menu-item" onclick="toggleReactionTray()"><span class="material-symbols-outlined">add_reaction</span><span>Send reaction</span></button>
-        <button type="button" class="gmeet-menu-item" onclick="openWhiteboard()"><span class="material-symbols-outlined">draw</span><span>Collaborative whiteboard</span></button>
-        <button type="button" class="gmeet-menu-item" onclick="toggleScreenShare()"><span class="material-symbols-outlined">present_to_all</span><span>Present screen</span></button>
-        <button type="button" class="gmeet-menu-item" onclick="toggleMeetingRecording()"><span class="material-symbols-outlined">fiber_manual_record</span><span>Record meeting</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="toggleCaptions()"><span class="material-symbols-outlined">closed_caption</span><span>Teks otomatis</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="toggleReactionTray()"><span class="material-symbols-outlined">add_reaction</span><span>Kirim reaksi</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="openWhiteboard()"><span class="material-symbols-outlined">draw</span><span>Papan kolaborasi</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="toggleScreenShare()"><span class="material-symbols-outlined">present_to_all</span><span>Bagikan layar</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="toggleMeetingRecording()"><span class="material-symbols-outlined">fiber_manual_record</span><span>Rekam sesi</span></button>
         <div class="gmeet-menu-divider"></div>
         <button type="button" class="gmeet-menu-item" onclick="openSettingsModal()">
             <span class="material-symbols-outlined">settings</span>
-            <span>Settings</span>
+            <span>Pengaturan</span>
         </button>
         <button type="button" class="gmeet-menu-item" onclick="togglePip()">
             <span class="material-symbols-outlined">picture_in_picture_alt</span>
@@ -827,56 +827,56 @@
         <div class="gmeet-menu-divider"></div>
         <button type="button" class="gmeet-menu-item" id="btnInstallApp" onclick="triggerPwaInstall()">
             <span class="material-symbols-outlined">install_desktop</span>
-            <span>Install WeWatch App</span>
+            <span>Instal aplikasi WeWatch</span>
         </button>
     </div>
 
-    <!-- Authentic Google Meet Host Leave Dialog Modal -->
+    <!-- WeWatch session leave dialog -->
     <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="hostLeaveModal" style="display:none;">
         <div class="gmeet-modal-card">
-            <h2>Leave call?</h2>
-            <p>Others will be able to continue without you, or you can end the call for everyone.</p>
+            <h2>Akhiri sesi?</h2>
+            <p>Peserta lain dapat melanjutkan sesi, atau Anda dapat mengakhirinya untuk semua peserta.</p>
             <div class="gmeet-modal-actions">
-                <button type="button" class="btn-gmeet btn-gmeet-outline" onclick="closeHostLeaveModal()">Cancel</button>
-                <button type="button" class="btn-gmeet btn-gmeet-text" onclick="justLeaveCall()">Just leave the call</button>
-                <button type="button" class="btn-gmeet btn-gmeet-danger" onclick="endCallForEveryone()">End the call for everyone</button>
+                <button type="button" class="btn-gmeet btn-gmeet-outline" onclick="closeHostLeaveModal()">Batal</button>
+                <button type="button" class="btn-gmeet btn-gmeet-text" onclick="justLeaveCall()">Keluar dari sesi</button>
+                <button type="button" class="btn-gmeet btn-gmeet-danger" onclick="endCallForEveryone()">Akhiri untuk semua</button>
             </div>
         </div>
     </div>
 
-    <!-- Google Meet Change Layout Modal -->
+    <!-- WeWatch layout modal -->
     <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="layoutModal" style="display:none;">
         <div class="gmeet-modal-card" style="max-width:500px;">
-            <h2>Change layout</h2>
+            <h2>Ubah tata letak</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin: 16px 0;">
                 <button type="button" class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('auto')">
                     <span class="material-symbols-outlined" style="font-size:28px;">auto_awesome</span>
-                    <span>Auto (Dynamic)</span>
+                    <span>Otomatis</span>
                 </button>
                 <button type="button" class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('tiled')">
                     <span class="material-symbols-outlined" style="font-size:28px;">grid_view</span>
-                    <span>Tiled (Grid)</span>
+                    <span>Grid</span>
                 </button>
                 <button type="button" class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('spotlight')">
                     <span class="material-symbols-outlined" style="font-size:28px;">crop_portrait</span>
-                    <span>Spotlight</span>
+                    <span>Fokus utama</span>
                 </button>
                 <button type="button" class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('sidebar')">
                     <span class="material-symbols-outlined" style="font-size:28px;">view_sidebar</span>
-                    <span>Sidebar</span>
+                    <span>Panel samping</span>
                 </button>
             </div>
             <div class="gmeet-modal-actions">
-                <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="closeLayoutModal()">Done</button>
+                <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="closeLayoutModal()">Selesai</button>
             </div>
         </div>
     </div>
 
-    <!-- Google Meet Functional Settings Modal -->
+    <!-- WeWatch settings modal -->
     <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="settingsModal" style="display:none;">
         <div class="gmeet-modal-card" style="max-width:560px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                <h2 style="margin:0;">Settings</h2>
+                <h2 style="margin:0;">Pengaturan</h2>
                 <button type="button" class="drawer-close-btn" onclick="closeSettingsModal()">
                     <span class="material-symbols-outlined">close</span>
                 </button>
@@ -974,17 +974,17 @@
             </div>
 
             <div class="gmeet-modal-actions">
-                <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="closeSettingsModal()">Done</button>
+                <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="closeSettingsModal()">Selesai</button>
             </div>
         </div>
     </div>
 
     <!-- Call Ended Screen Overlay -->
     <div class="call-ended-overlay" id="callEndedOverlay">
-        <h1>You've left the meeting</h1>
-        <p>Your session has ended.</p>
+        <h1>Sesi telah berakhir</h1>
+        <p>Monitoring dan komunikasi pada sesi ini telah dihentikan.</p>
         <div class="ended-buttons">
-            <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="window.location.reload()">Rejoin</button>
+            <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="window.location.reload()">Mulai kembali</button>
         </div>
     </div>
 
@@ -1084,7 +1084,7 @@
                 showToast("Connected to WebRTC signaling server (5001)");
                 socket.emit('join', {
                     role: 'admin',
-                    name: 'Admin (Host)',
+                    name: 'Admin WeWatch',
                     identity: 'admin-dashboard',
                     join_token: {{ webrtc_admin_ticket|tojson }},
                     mic: isMicOn,
@@ -1309,7 +1309,7 @@
 
             // Live Caption Broadcast receiver
             socket.on('caption_broadcast', (data) => {
-                if (isCaptionsOn && data && data.name !== 'Admin (Host)') {
+                if (isCaptionsOn && data && data.name !== 'Admin WeWatch') {
                     displayLiveCaption(data.name || 'Participant', data.text || '');
                 }
             });
@@ -1323,7 +1323,7 @@
             const pc = new RTCPeerConnection(rtcConfig);
             peerConnections[clientId] = pc;
 
-            // Dynamically create client video tile in Google Meet layout
+            // Dynamically create client video tile in the WeWatch layout
             createClientTile(clientId, clientName);
 
             pc.ontrack = (event) => {
@@ -1390,7 +1390,7 @@
                     <button type="button" class="tile-action-btn" style="color:var(--gmeet-primary);" title="Remote Control & Assist Client" onclick="openRemoteControlModal(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
                         <span class="material-symbols-outlined">settings_remote</span>
                     </button>
-                    <button type="button" class="tile-action-btn" title="Capture Snapshot Evidence" onclick="captureClientSnapshot(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
+                    <button type="button" class="tile-action-btn" title="Capture Ambil snapshot Evidence" onclick="captureClientSnapshot(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
                         <span class="material-symbols-outlined">photo_camera</span>
                     </button>
                     <button type="button" class="tile-action-btn" title="Spotlight / Pin" onclick="togglePin('tile-${clientId}')">
@@ -1630,9 +1630,9 @@
                     text += e.results[i][0].transcript;
                 }
                 if (text.trim()) {
-                    displayLiveCaption('Admin (Host)', text);
+                    displayLiveCaption('Admin WeWatch', text);
                     if (socket) {
-                        socket.emit('live_caption', { name: 'Admin (Host)', text: text });
+                        socket.emit('live_caption', { name: 'Admin WeWatch', text: text });
                     }
                 }
             };
@@ -1782,7 +1782,7 @@
             if (!text || !socket) return;
 
             socket.emit('chat_message', {
-                name: 'Admin (Host)',
+                name: 'Admin WeWatch',
                 text: text
             });
 
@@ -2023,7 +2023,7 @@
             }
         }
 
-        // Evidence Snapshot Function
+        // Evidence Ambil snapshot Function
         function captureClientSnapshot(clientId, clientName) {
             const videoEl = document.getElementById(`video-${clientId}`);
             if (!videoEl || videoEl.videoWidth === 0) {
@@ -2370,14 +2370,14 @@
             });
         }
 
-        // Instant Snapshot Capture
+        // Instant Ambil snapshot Capture
         function takeSnapshot() {
             showToast("Mengambil foto dari kamera AI...");
             fetch('/take_snapshot', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content } })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        showToast("📸 Snapshot tersimpan ke galeri!");
+                        showToast("📸 Ambil snapshot tersimpan ke galeri!");
                         const previewImg = document.getElementById('snapshotPreviewThumb');
                         const previewCard = document.getElementById('snapshotPreviewCard');
                         const downloadBtn = document.getElementById('snapshotDownloadBtn');
@@ -3536,7 +3536,7 @@
             <div class="wb-header">
                 <div class="wb-header-title">
                     <span class="material-symbols-outlined">draw</span>
-                    <span>Google Meet Collaborative Whiteboard</span>
+                    <span>WeWatch Collaborative Whiteboard</span>
                     <span style="font-size:12px; color:var(--gmeet-text-muted); margin-left:8px;">(Live Synced)</span>
                 </div>
                 <div class="wb-header-actions">
