@@ -2011,3 +2011,10 @@ input, select, textarea { min-height: 44px; }
   .side-drawer { inset:auto 4px calc(72px + env(safe-area-inset-bottom)) 4px; height:min(76vh,680px); }
   .bottom-bar { padding-bottom:env(safe-area-inset-bottom); }
 }
+
+/* Participant controls must remain clickable above annotation overlays. */
+.tile-actions { z-index: 90; }
+.video-tile:focus-within .tile-actions { opacity: 1; }
+@media (hover: none), (pointer: coarse) {
+    .tile-actions { opacity: 1; }
+}

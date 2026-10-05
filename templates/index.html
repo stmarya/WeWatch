@@ -1385,21 +1385,23 @@
                     <span class="material-symbols-outlined">back_hand</span>
                 </div>
 
-                <!-- Admin Monitoring Quick Action Controls -->
-                <div class="tile-actions">
-                    <button type="button" class="tile-action-btn" style="color:var(--gmeet-primary);" title="Remote Control & Assist Client" onclick="openRemoteControlModal(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
+                <!-- Admin monitoring quick actions use delegated listeners.
+                     Avoid inline handlers: JSON-quoted client values break double-quoted
+                     HTML attributes and previously made these controls inert. -->
+                <div class="tile-actions" aria-label="Kontrol peserta">
+                    <button type="button" class="tile-action-btn" data-client-action="remote" style="color:var(--gmeet-primary);" title="Remote Control & Assist Client" aria-label="Remote Control & Assist Client">
                         <span class="material-symbols-outlined">settings_remote</span>
                     </button>
-                    <button type="button" class="tile-action-btn" title="Capture Ambil snapshot Evidence" onclick="captureClientSnapshot(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
+                    <button type="button" class="tile-action-btn" data-client-action="snapshot" title="Capture snapshot evidence" aria-label="Capture snapshot evidence">
                         <span class="material-symbols-outlined">photo_camera</span>
                     </button>
-                    <button type="button" class="tile-action-btn" title="Spotlight / Pin" onclick="togglePin('tile-${clientId}')">
+                    <button type="button" class="tile-action-btn" data-client-action="pin" title="Spotlight / Pin" aria-label="Spotlight / Pin participant">
                         <span class="material-symbols-outlined">push_pin</span>
                     </button>
-                    <button type="button" class="tile-action-btn" title="Mute Participant" onclick="remoteMuteClient('${clientId}')">
+                    <button type="button" class="tile-action-btn" data-client-action="mute" title="Mute Participant" aria-label="Mute participant">
                         <span class="material-symbols-outlined">mic_off</span>
                     </button>
-                    <button type="button" class="tile-action-btn" style="color:var(--gmeet-red);" title="Remove Participant" onclick="remoteKickClient(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
+                    <button type="button" class="tile-action-btn" data-client-action="kick" style="color:var(--gmeet-red);" title="Remove Participant" aria-label="Remove participant">
                         <span class="material-symbols-outlined">person_remove</span>
                     </button>
                 </div>
@@ -1414,10 +1416,24 @@
                 </div>
             `;
 
-            // Attach Remote Laser Pointer and Annotation events on client tile
-            attachTileRemoteInteractions(tile, clientId);
+            const actions = tile.querySelector('.tile-actions');
+            actions?.addEventListener('click', (event) => {
+                const button = event.target.closest('[data-client-action]');
+                if (!button) return;
+                event.preventDefault();
+                event.stopPropagation();
+                handleClientControlAction(
+                    button.dataset.clientAction,
+                    clientId,
+                    clientName,
+                    tile.id,
+                );
+            });
 
+            // Append before sizing the annotation canvas. Previously the canvas was
+            // initialized while detached and remained 0×0 until a window resize.
             grid.appendChild(tile);
+            attachTileRemoteInteractions(tile, clientId);
             updateGridClass();
         }
 
@@ -1817,13 +1833,13 @@
                 let hostActions = '';
                 if (!isMe) {
                     hostActions = `
-                        <button type="button" class="p-action-btn" title="Mute participant" onclick="remoteMuteClient(${escapeJsString(u.id)})">
+                        <button type="button" class="p-action-btn" data-client-action="mute" title="Mute participant" aria-label="Mute participant">
                             <span class="material-symbols-outlined" style="font-size:18px;">${u.mic ? 'mic' : 'mic_off'}</span>
                         </button>
-                        <button type="button" class="p-action-btn" title="Pin to screen" onclick="togglePin(${escapeJsString(`tile-${u.id}`)})">
+                        <button type="button" class="p-action-btn" data-client-action="pin" title="Pin to screen" aria-label="Pin participant to screen">
                             <span class="material-symbols-outlined" style="font-size:18px;">push_pin</span>
                         </button>
-                        <button type="button" class="p-action-btn danger" title="Remove from call" onclick="remoteKickClient(${escapeJsString(u.id)}, ${escapeJsString(u.name)})">
+                        <button type="button" class="p-action-btn danger" data-client-action="kick" title="Remove from call" aria-label="Remove participant from call">
                             <span class="material-symbols-outlined" style="font-size:18px;">person_remove</span>
                         </button>
                     `;
@@ -1843,25 +1859,66 @@
                         ${hostActions}
                     </div>
                 `;
+                item.querySelector('.participant-icons')?.addEventListener('click', (event) => {
+                    const button = event.target.closest('[data-client-action]');
+                    if (!button || isMe) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleClientControlAction(
+                        button.dataset.clientAction,
+                        u.id,
+                        u.name || 'Participant',
+                        `tile-${u.id}`,
+                    );
+                });
                 container.appendChild(item);
             });
         }
 
-        // Host Moderation Actions
-        function remoteMuteClient(clientId) {
-            if (socket) {
-                socket.emit('admin_mute_client', { target: clientId });
-                showToast("Participant muted by host.");
+        function handleClientControlAction(action, clientId, clientName, tileId) {
+            if (!clientId) {
+                showToast('Kontrol gagal: ID peserta tidak tersedia.');
+                return;
+            }
+            switch (action) {
+                case 'remote':
+                    openRemoteControlModal(clientId, clientName);
+                    break;
+                case 'snapshot':
+                    captureClientSnapshot(clientId, clientName);
+                    break;
+                case 'pin':
+                    togglePin(tileId || `tile-${clientId}`);
+                    break;
+                case 'mute':
+                    remoteMuteClient(clientId);
+                    break;
+                case 'kick':
+                    remoteKickClient(clientId, clientName);
+                    break;
+                default:
+                    showToast('Kontrol peserta tidak dikenali.');
             }
         }
 
-        function remoteKickClient(clientId, clientName) {
-            if (confirm(`Remove ${clientName} from the meeting?`)) {
-                if (socket) {
-                    socket.emit('admin_kick_client', { target: clientId });
-                    showToast(`${clientName} was removed from the meeting.`);
-                }
+        // Host Moderation Actions
+        function remoteMuteClient(clientId) {
+            if (!socket || socket.connected === false) {
+                showToast('Mute gagal: signaling server tidak terhubung.');
+                return;
             }
+            socket.emit('admin_mute_client', { target: clientId });
+            showToast('Permintaan mute dikirim ke peserta.');
+        }
+
+        function remoteKickClient(clientId, clientName) {
+            if (!confirm(`Keluarkan ${clientName} dari sesi?`)) return;
+            if (!socket || socket.connected === false) {
+                showToast('Remove gagal: signaling server tidak terhubung.');
+                return;
+            }
+            socket.emit('admin_kick_client', { target: clientId });
+            showToast(`Permintaan remove dikirim untuk ${clientName}.`);
         }
 
         function muteAllClients() {
@@ -3134,15 +3191,34 @@
         }
 
         function openRemoteControlModal(clientId, clientName) {
+            const tile = document.getElementById(`tile-${clientId}`);
+            const modal = document.getElementById('remoteControlModal');
+            const targetName = document.getElementById('remoteTargetName');
+            if (!tile || !modal || !targetName) {
+                showToast('Remote Control tidak tersedia: peserta sudah terputus.');
+                return;
+            }
+            if (!socket || socket.connected === false) {
+                showToast('Remote Control tidak tersedia: signaling server belum terhubung.');
+                return;
+            }
             activeRemoteClientId = clientId;
-            activeRemoteClientName = clientName;
-            document.getElementById('remoteTargetName').innerText = clientName;
-            document.getElementById('remoteControlModal').style.display = 'flex';
+            activeRemoteClientName = clientName || 'Participant';
+            targetName.innerText = activeRemoteClientName;
+            modal.style.display = 'flex';
             updateRemoteModalButtons();
         }
 
         function closeRemoteControlModal() {
-            document.getElementById('remoteControlModal').style.display = 'none';
+            const modal = document.getElementById('remoteControlModal');
+            if (modal) modal.style.display = 'none';
+            isRemoteLaserActive = false;
+            isRemoteAnnotateActive = false;
+            isDesktopMouseControlActive = false;
+            if (activeRemoteClientId) {
+                document.getElementById(`annot-canvas-${activeRemoteClientId}`)?.classList.remove('active-draw');
+            }
+            updateRemoteModalButtons();
         }
 
         function updateRemoteModalButtons() {

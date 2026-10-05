@@ -92,6 +92,16 @@ def main() -> int:
             for required_id in ("overviewPanel", "overviewTitle", "summaryPresence", "summaryFocus", "summaryDrowsiness", "summarySecurity", "summaryPosture"):
                 require(required_id in parser.ids, f"dashboard: missing hierarchy contract #{required_id}")
             require("Google Meet" not in source, "dashboard: legacy Google Meet branding remains")
+            require(
+                not re.search(r'onclick="[^\"]*\$\{escapeJsString', source),
+                "dashboard: dynamic client values must not be interpolated into inline onclick attributes",
+            )
+            for action in ("remote", "snapshot", "pin", "mute", "kick"):
+                require(
+                    f'data-client-action="{action}"' in source,
+                    f"dashboard: missing delegated client control action {action}",
+                )
+            require("function handleClientControlAction" in source, "dashboard: client control dispatcher missing")
 
     css = Path("static/gmeet.css").read_text(encoding="utf-8")
     require(":focus-visible" in css, "CSS: visible keyboard focus contract missing")
