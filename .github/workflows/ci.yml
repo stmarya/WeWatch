@@ -39,6 +39,9 @@ jobs:
       - name: Validate inline template JavaScript
         run: python tools/check_template_js.py
 
+      - name: Validate UI and accessibility contracts
+        run: python tools/check_ui_contracts.py
+
       - name: Smoke import signaling service
         run: PYTHONPATH=. python -c "import WebRTC_Meet.app"
 
