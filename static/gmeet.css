@@ -1985,3 +1985,29 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     flex: 0 0 auto;
 }
 .bottom-bar > * { min-width: 0; }
+
+
+/* ==========================================================================
+   ACCESSIBILITY & RESPONSIVE HARDENING — UI/UX PHASE 5
+   ========================================================================== */
+html { overflow-x: hidden; }
+[role="dialog"] { overscroll-behavior: contain; }
+.gmeet-modal-card { max-height: min(86vh, 760px); overflow-y: auto; }
+.drawer-close-btn, .tile-action-btn, .chat-send-btn, .p-action-btn { min-width: 44px; min-height: 44px; }
+input, select, textarea { min-height: 44px; }
+.sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+@media (max-width: 900px) {
+  .gmeet-modal-backdrop { padding:16px; align-items:flex-end; }
+  .gmeet-modal-card { width:100%; max-width:none!important; max-height:88vh; border-radius:16px 16px 8px 8px; }
+  .wb-modal-window { width:calc(100vw - 16px); height:calc(100vh - 96px); }
+  .remote-control-modal-body { grid-template-columns:1fr; }
+}
+@media (max-width: 560px) {
+  .gmeet-modal-actions { flex-direction:column-reverse; align-items:stretch; }
+  .gmeet-modal-actions .btn-gmeet { min-height:44px; }
+  .telemetry-grid { grid-template-columns:1fr!important; }
+  .overview-heading h1 { font-size:20px; }
+  .risk-row { min-height:46px; }
+  .side-drawer { inset:auto 4px calc(72px + env(safe-area-inset-bottom)) 4px; height:min(76vh,680px); }
+  .bottom-bar { padding-bottom:env(safe-area-inset-bottom); }
+}

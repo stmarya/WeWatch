@@ -82,7 +82,7 @@
             </div>
 
             <!-- Live Captions Bar -->
-            <div class="captions-bar" id="captionsBar">
+            <div class="captions-bar" id="captionsBar" role="status" aria-live="polite">
                 <span id="captionText">Listening to conversation...</span>
             </div>
         </div>
@@ -117,7 +117,7 @@
                     <h2 id="incidentSummaryTitle">Latest incident</h2>
                     <span id="overviewIncidentTime">—</span>
                 </div>
-                <div class="incident-empty" id="overviewIncidentCard">
+                <div class="incident-empty" id="overviewIncidentCard" role="status" aria-live="polite">
                     <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
                     <div>
                         <strong id="overviewIncidentTitle">Tidak ada insiden aktif</strong>
@@ -180,10 +180,10 @@
                             <span class="material-symbols-outlined" style="font-size:16px;">add</span> Launch a poll
                         </button>
                         <div id="pollCreateForm" style="display:none; margin-top:10px;">
-                            <input type="text" id="pollQuestionInput" placeholder="Ask a question..." style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px; margin-bottom:8px;">
-                            <input type="text" class="poll-opt-input" placeholder="Option 1" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:6px;">
-                            <input type="text" class="poll-opt-input" placeholder="Option 2" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:6px;">
-                            <input type="text" class="poll-opt-input" placeholder="Option 3 (optional)" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:8px;">
+                            <input type="text" id="pollQuestionInput" placeholder="Ask a question..." style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px; margin-bottom:8px;" aria-label="Pertanyaan polling">
+                            <input type="text" class="poll-opt-input" placeholder="Option 1" aria-label="Pilihan polling 1" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:6px;">
+                            <input type="text" class="poll-opt-input" placeholder="Option 2" aria-label="Pilihan polling 2" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:6px;">
+                            <input type="text" class="poll-opt-input" placeholder="Option 3 (optional)" aria-label="Pilihan polling 3, opsional" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:8px;">
                             <div style="display:flex; gap:8px;">
                                 <button type="button" class="btn-gmeet btn-gmeet-primary" style="flex:1; font-size:12px;" onclick="submitNewPoll()">Launch Poll</button>
                                 <button type="button" class="btn-gmeet btn-gmeet-text" style="font-size:12px;" onclick="togglePollCreationForm()">Batal</button>
@@ -270,7 +270,7 @@
                             <button type="button" onclick="toggleFaceRegisterForm()" style="background:none; border:none; color:var(--gmeet-text-muted); cursor:pointer;">&times;</button>
                         </div>
                         <div style="display:flex; gap:6px;">
-                            <input type="text" id="faceRegisterName" placeholder="Masukkan nama pengguna" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
+                            <input type="text" id="faceRegisterName" placeholder="Masukkan nama pengguna" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;" aria-label="Nama pengguna tepercaya">
                             <button type="button" class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 12px;" onclick="submitRegisterFace()">Daftarkan</button>
                         </div>
                         <div id="faceRegisterStatus" style="font-size:11px; color:var(--gmeet-text-muted); margin-top:6px;"></div>
@@ -572,7 +572,7 @@
             <div class="drawer-content" id="drawerPeople" style="display:none;">
                 <div class="people-search-box">
                     <span class="material-symbols-outlined search-icon">search</span>
-                    <input type="text" id="peopleSearchInput" placeholder="Cari peserta" oninput="filterPeople()">
+                    <input type="text" id="peopleSearchInput" placeholder="Cari peserta" oninput="filterPeople()" aria-label="Cari peserta">
                 </div>
                 <div class="people-section-title">In call (<span id="peopleCountBadge">1</span>)</div>
                 <button type="button" class="btn-gmeet btn-gmeet-outline" style="width:100%; margin-bottom:12px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gmeet-green); border-color:rgba(129, 201, 149, 0.4);" onclick="exportAttendanceReport()">
@@ -609,7 +609,7 @@
                     </div>
                 </div>
                 <form class="chat-input-wrapper" onsubmit="sendChatMessage(event)">
-                    <input type="text" id="chatInput" placeholder="Send a message to everyone" autocomplete="off">
+                    <input type="text" id="chatInput" placeholder="Send a message to everyone" autocomplete="off" aria-label="Tulis pesan untuk peserta">
                     <button type="submit" class="chat-send-btn" id="chatSendBtn">
                         <span class="material-symbols-outlined">send</span>
                     </button>
@@ -702,12 +702,12 @@
         <!-- Center: Action Controls -->
         <div class="bar-center">
             <!-- Mic Button -->
-            <button type="button" class="control-btn" id="btnMic" onclick="toggleAdminMic()" data-tooltip="Turn off microphone (Ctrl + d)">
+            <button type="button" class="control-btn" id="btnMic" onclick="toggleAdminMic()" data-tooltip="Turn off microphone (Ctrl + d)" aria-label="Turn off microphone (Ctrl + d)">
                 <span class="material-symbols-outlined" id="iconMic">mic</span>
             </button>
 
             <!-- Camera Button -->
-            <button type="button" class="control-btn" id="btnCam" onclick="toggleAdminCam()" data-tooltip="Turn off camera (Ctrl + e)">
+            <button type="button" class="control-btn" id="btnCam" onclick="toggleAdminCam()" data-tooltip="Turn off camera (Ctrl + e)" aria-label="Turn off camera (Ctrl + e)">
                 <span class="material-symbols-outlined" id="iconCam">videocam</span>
             </button>
 
@@ -716,37 +716,37 @@
             </button>
 
             <!-- Captions Button -->
-            <button type="button" class="control-btn control-secondary" id="btnCaptions" onclick="toggleCaptions()" data-tooltip="Turn on captions (c)">
+            <button type="button" class="control-btn control-secondary" id="btnCaptions" onclick="toggleCaptions()" data-tooltip="Turn on captions (c)" aria-label="Turn on captions (c)">
                 <span class="material-symbols-outlined">closed_caption</span>
             </button>
 
             <!-- Raise Hand Button -->
-            <button type="button" class="control-btn control-secondary" id="btnHand" onclick="toggleRaiseHand()" data-tooltip="Raise hand (Ctrl + h)">
+            <button type="button" class="control-btn control-secondary" id="btnHand" onclick="toggleRaiseHand()" data-tooltip="Raise hand (Ctrl + h)" aria-label="Raise hand (Ctrl + h)">
                 <span class="material-symbols-outlined" id="iconHand">back_hand</span>
             </button>
 
             <!-- Reaction Emojis Button -->
-            <button type="button" class="control-btn control-secondary" id="btnReaction" onclick="toggleReactionTray()" data-tooltip="Send a reaction">
+            <button type="button" class="control-btn control-secondary" id="btnReaction" onclick="toggleReactionTray()" data-tooltip="Send a reaction" aria-label="Send a reaction">
                 <span class="material-symbols-outlined">add_reaction</span>
             </button>
 
             <!-- Whiteboard Button -->
-            <button type="button" class="control-btn control-secondary" id="btnWhiteboard" onclick="openWhiteboard()" data-tooltip="Collaborative Whiteboard">
+            <button type="button" class="control-btn control-secondary" id="btnWhiteboard" onclick="openWhiteboard()" data-tooltip="Collaborative Whiteboard" aria-label="Collaborative Whiteboard">
                 <span class="material-symbols-outlined" style="color:#fdd663;">draw</span>
             </button>
 
             <!-- Present Screen Button -->
-            <button type="button" class="control-btn control-secondary" id="btnScreen" onclick="toggleScreenShare()" data-tooltip="Present now">
+            <button type="button" class="control-btn control-secondary" id="btnScreen" onclick="toggleScreenShare()" data-tooltip="Present now" aria-label="Present now">
                 <span class="material-symbols-outlined" id="iconScreen">present_to_all</span>
             </button>
 
             <!-- Record Meeting Button -->
-            <button type="button" class="control-btn control-secondary" id="btnRecord" onclick="toggleMeetingRecording()" data-tooltip="Record meeting">
+            <button type="button" class="control-btn control-secondary" id="btnRecord" onclick="toggleMeetingRecording()" data-tooltip="Record meeting" aria-label="Record meeting">
                 <span class="material-symbols-outlined" id="iconRecord" style="color:var(--gmeet-red);">fiber_manual_record</span>
             </button>
 
             <!-- More Options Button -->
-            <button type="button" class="control-btn" id="btnMore" onclick="showMoreOptions()" data-tooltip="More options">
+            <button type="button" class="control-btn" id="btnMore" onclick="showMoreOptions()" data-tooltip="More options" aria-label="More options">
                 <span class="material-symbols-outlined">more_vert</span>
             </button>
 
@@ -758,27 +758,27 @@
 
         <!-- Right: Info, People, Chat, Activities (AI), Host Controls -->
         <div class="bar-right">
-            <button type="button" class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Detail sesi" aria-label="Buka detail sesi">
+            <button type="button" class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Detail sesi" aria-label="Buka detail sesi" aria-controls="drawerDetails" aria-expanded="false">
                 <span class="material-symbols-outlined">info</span>
             </button>
 
-            <button type="button" class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Lihat peserta" aria-label="Buka daftar peserta">
+            <button type="button" class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Lihat peserta" aria-label="Buka daftar peserta" aria-controls="drawerPeople" aria-expanded="false">
                 <span class="material-symbols-outlined">group</span>
-                <span class="badge-count" id="badgePeopleCount">1</span>
+                <span class="badge-count" id="badgePeopleCount" aria-live="polite">1</span>
             </button>
 
-            <button type="button" class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Pesan peserta" aria-label="Buka pesan peserta">
+            <button type="button" class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Pesan peserta" aria-label="Buka pesan peserta" aria-controls="drawerChat" aria-expanded="false">
                 <span class="material-symbols-outlined">chat</span>
-                <span class="badge-count" id="badgeChatUnread" style="display:none;">0</span>
+                <span class="badge-count" id="badgeChatUnread" aria-live="polite" style="display:none;">0</span>
             </button>
 
             <!-- Activities Button (Watcher AI Telemetry & Modules) -->
-            <button type="button" class="icon-toggle-btn active" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Modul AI" aria-label="Buka modul AI">
+            <button type="button" class="icon-toggle-btn active" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Modul AI" aria-label="Buka modul AI" aria-controls="drawerActivities" aria-expanded="false">
                 <span class="material-symbols-outlined">shapes</span>
             </button>
 
             <!-- Host Controls -->
-            <button type="button" class="icon-toggle-btn" id="btnHostDrawer" onclick="toggleDrawer('host')" data-tooltip="Keamanan meeting" aria-label="Buka kontrol keamanan meeting">
+            <button type="button" class="icon-toggle-btn" id="btnHostDrawer" onclick="toggleDrawer('host')" data-tooltip="Keamanan meeting" aria-label="Buka kontrol keamanan meeting" aria-controls="drawerHost" aria-expanded="false">
                 <span class="material-symbols-outlined">shield_person</span>
             </button>
         </div>
@@ -792,12 +792,12 @@
 
     <!-- Reaction Tray Popover -->
     <div class="reaction-tray" id="reactionTray">
-        <button type="button" class="reaction-btn" onclick="sendReaction('💖')">💖</button>
-        <button type="button" class="reaction-btn" onclick="sendReaction('👍')">👍</button>
-        <button type="button" class="reaction-btn" onclick="sendReaction('🎉')">🎉</button>
-        <button type="button" class="reaction-btn" onclick="sendReaction('👏')">👏</button>
-        <button type="button" class="reaction-btn" onclick="sendReaction('😂')">😂</button>
-        <button type="button" class="reaction-btn" onclick="sendReaction('😮')">😮</button>
+        <button type="button" class="reaction-btn" aria-label="Kirim reaksi Love" onclick="sendReaction('💖')">💖</button>
+        <button type="button" class="reaction-btn" aria-label="Kirim reaksi Jempol" onclick="sendReaction('👍')">👍</button>
+        <button type="button" class="reaction-btn" aria-label="Kirim reaksi Perayaan" onclick="sendReaction('🎉')">🎉</button>
+        <button type="button" class="reaction-btn" aria-label="Kirim reaksi Tepuk tangan" onclick="sendReaction('👏')">👏</button>
+        <button type="button" class="reaction-btn" aria-label="Kirim reaksi Tertawa" onclick="sendReaction('😂')">😂</button>
+        <button type="button" class="reaction-btn" aria-label="Kirim reaksi Terkejut" onclick="sendReaction('😮')">😮</button>
     </div>
 
     <!-- More Options Popover Menu -->
@@ -832,7 +832,7 @@
     </div>
 
     <!-- WeWatch session leave dialog -->
-    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="hostLeaveModal" style="display:none;">
+    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="hostLeaveModal" style="display:none;" aria-label="Konfirmasi akhir sesi">
         <div class="gmeet-modal-card">
             <h2>Akhiri sesi?</h2>
             <p>Peserta lain dapat melanjutkan sesi, atau Anda dapat mengakhirinya untuk semua peserta.</p>
@@ -845,7 +845,7 @@
     </div>
 
     <!-- WeWatch layout modal -->
-    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="layoutModal" style="display:none;">
+    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="layoutModal" style="display:none;" aria-label="Ubah tata letak">
         <div class="gmeet-modal-card" style="max-width:500px;">
             <h2>Ubah tata letak</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin: 16px 0;">
@@ -873,7 +873,7 @@
     </div>
 
     <!-- WeWatch settings modal -->
-    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="settingsModal" style="display:none;">
+    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="settingsModal" style="display:none;" aria-label="Pengaturan perangkat">
         <div class="gmeet-modal-card" style="max-width:560px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <h2 style="margin:0;">Pengaturan</h2>
@@ -890,7 +890,7 @@
                 
                 <div style="margin-bottom:10px;">
                     <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Microphone Input</label>
-                    <select id="settingsMicSelect" onchange="changeAudioInput(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                    <select id="settingsMicSelect" onchange="changeAudioInput(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;" aria-label="Perangkat mikrofon">
                         <option value="default">Default - System Microphone</option>
                     </select>
                 </div>
@@ -907,7 +907,7 @@
                 <div>
                     <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Speakers / Audio Output</label>
                     <div style="display:flex; gap:8px;">
-                        <select id="settingsSpeakerSelect" onchange="changeAudioOutput(this.value)" style="flex:1; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                        <select id="settingsSpeakerSelect" onchange="changeAudioOutput(this.value)" style="flex:1; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;" aria-label="Perangkat speaker">
                             <option value="default">Default - System Speakers</option>
                         </select>
                         <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; display:flex; align-items:center; gap:4px;" onclick="testSpeakerSound()">
@@ -925,7 +925,7 @@
                 
                 <div style="margin-bottom:10px;">
                     <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Camera Device</label>
-                    <select id="settingsCameraSelect" onchange="changeVideoInput(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                    <select id="settingsCameraSelect" onchange="changeVideoInput(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;" aria-label="Perangkat kamera">
                         <option value="default">Default - HD Web Camera / Watcher Feed</option>
                     </select>
                 </div>
@@ -933,14 +933,14 @@
                 <div style="display:flex; gap:10px;">
                     <div style="flex:1;">
                         <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Send Resolution</label>
-                        <select id="settingsSendRes" onchange="changeResolution(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                        <select id="settingsSendRes" onchange="changeResolution(this.value)" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;" aria-label="Resolusi video keluar">
                             <option value="720">High definition (720p)</option>
                             <option value="360">Standard definition (360p)</option>
                         </select>
                     </div>
                     <div style="flex:1;">
                         <label style="font-size:11px; color:var(--gmeet-text-muted); display:block; margin-bottom:4px;">Receive Resolution</label>
-                        <select id="settingsRecvRes" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
+                        <select id="settingsRecvRes" style="width:100%; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;" aria-label="Resolusi video masuk">
                             <option value="720">High definition (720p)</option>
                             <option value="360">Standard definition (360p)</option>
                             <option value="audio">Audio only</option>
@@ -1748,6 +1748,8 @@
 
             drawer.classList.add('open');
             document.getElementById('monitoringWorkspace').classList.add('drawer-open');
+            const activeButton = {activities: btnActivities, people: btnPeople, chat: btnChat, host: btnHost, details: btnDetails}[tabName];
+            if (activeButton) activeButton.setAttribute('aria-expanded', 'true');
             activeDrawer = tabName;
             adminConfig.activeTab = tabName;
             saveConfig();
@@ -1769,6 +1771,10 @@
             document.getElementById('btnChatDrawer').classList.remove('active');
             document.getElementById('btnHostDrawer').classList.remove('active');
             document.getElementById('btnInfoDrawer').classList.remove('active');
+            ['btnActivitiesDrawer','btnPeopleDrawer','btnChatDrawer','btnHostDrawer','btnInfoDrawer'].forEach(id => {
+                const button = document.getElementById(id);
+                if (button) button.setAttribute('aria-expanded', 'false');
+            });
         }
 
         // Start on the monitoring overview; drawers open only when requested.
@@ -3531,7 +3537,7 @@
     </script>
 
     <!-- Collaborative Whiteboard Modal -->
-    <div class="wb-modal-overlay" id="whiteboardModal">
+    <div class="wb-modal-overlay" id="whiteboardModal" role="dialog" aria-modal="true" aria-label="Papan kolaborasi">
         <div class="wb-modal-window">
             <div class="wb-header">
                 <div class="wb-header-title">
@@ -3575,7 +3581,7 @@
         </div>
     </div>
     <!-- Host Remote Control & Assistance Modal -->
-    <div class="gmeet-modal-backdrop" id="remoteControlModal" style="display:none;">
+    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="remoteControlModal" style="display:none;" aria-label="Remote control peserta">
         <div class="gmeet-modal-card" style="max-width:820px; width:95%; max-height:90vh; overflow-y:auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px;">
                 <div style="display:flex; align-items:center; gap:10px;">
@@ -3703,7 +3709,7 @@
                     </div>
                     <div style="font-size:12px; color:var(--gmeet-text-muted); margin-bottom:8px;">Terminate unauthorized processes on client machine:</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
-                        <input type="text" id="killProcessInput" placeholder="e.g. discord.exe, steam.exe, chrome.exe" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
+                        <input type="text" id="killProcessInput" placeholder="e.g. discord.exe, steam.exe, chrome.exe" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;" aria-label="Nama proses yang akan dihentikan">
                         <button type="button" class="btn-gmeet btn-gmeet-danger" style="font-size:12px; padding:6px 14px;" onclick="sendKillProcess()">Kill Process</button>
                     </div>
                     <div style="font-size:11px; color:var(--gmeet-text-muted); margin-bottom:4px;">QUICK TERMINATE CHIPS:</div>
@@ -3726,7 +3732,7 @@
                     </div>
                     <div style="font-size:12px; color:var(--gmeet-text-muted); margin-bottom:8px;">Spawn modal Windows MessageBox directly on client desktop:</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
-                        <input type="text" id="hrAlertInput" placeholder="Type compliance alert message..." value="Peringatan HR: Anda terdeteksi tidak fokus pada aktivitas kerja / ujian. Mohon segera kembali ke tugas Anda!" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
+                        <input type="text" id="hrAlertInput" placeholder="Type compliance alert message..." value="Peringatan HR: Anda terdeteksi tidak fokus pada aktivitas kerja / ujian. Mohon segera kembali ke tugas Anda!" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;" aria-label="Pesan peringatan kepatuhan">
                         <button type="button" class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 14px;" onclick="sendHrWindowsAlert()">Send Pop-up</button>
                     </div>
                     <div style="font-size:11px; color:var(--gmeet-text-muted); margin-bottom:4px;">PRESET MESSAGES:</div>
@@ -3745,7 +3751,7 @@
                     </div>
                     <div style="font-size:12px; color:var(--gmeet-text-muted); margin-bottom:6px;">Launch web URL directly in client browser:</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
-                        <input type="text" id="remoteUrlInput" placeholder="https://..." value="https://google.com" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
+                        <input type="text" id="remoteUrlInput" placeholder="https://..." value="https://google.com" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;" aria-label="URL yang dibuka pada perangkat peserta">
                         <button type="button" class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 14px;" onclick="sendRemoteLaunchUrl()">Open URL</button>
                     </div>
                     <div style="font-size:11px; color:var(--gmeet-text-muted); margin-bottom:4px;">QUICK LAUNCH SITES:</div>
@@ -3758,7 +3764,7 @@
 
                     <div style="font-size:12px; color:var(--gmeet-text-muted); margin-bottom:6px;">Inject text into client Windows Clipboard:</div>
                     <div style="display:flex; gap:6px;">
-                        <input type="text" id="remoteClipboardInput" placeholder="Paste or type text to copy into client clipboard..." style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
+                        <input type="text" id="remoteClipboardInput" placeholder="Paste or type text to copy into client clipboard..." style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;" aria-label="Teks clipboard untuk perangkat peserta">
                         <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 14px;" onclick="sendRemoteClipboardInject()">Inject</button>
                     </div>
                 </div>
@@ -3796,7 +3802,7 @@
                     
                     <div style="font-size:11px; font-weight:600; color:var(--gmeet-text-muted); margin-bottom:4px;">REMOTE KEYBOARD TYPE SENDER:</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
-                        <input type="text" id="desktopTextInput" placeholder="Type text to write on client desktop..." style="flex:1; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
+                        <input type="text" id="desktopTextInput" placeholder="Type text to write on client desktop..." style="flex:1; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;" aria-label="Teks yang diketik pada perangkat peserta">
                         <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px;" onclick="sendDesktopTextInput()">Send Text</button>
                     </div>
 
@@ -3861,7 +3867,7 @@
                         
                         <div style="margin-top:6px;">
                             <div style="font-size:11px; font-weight:600; color:var(--gmeet-text-muted); margin-bottom:4px;">REMOTE JARVIS VOICE (TTS)</div>
-                            <input type="text" id="remoteTtsText" placeholder="Type announcement to speak..." style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:6px;">
+                            <input type="text" id="remoteTtsText" placeholder="Type announcement to speak..." style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:6px;" aria-label="Pengumuman suara untuk peserta">
                             <div style="display:flex; gap:6px;">
                                 <button type="button" class="btn-gmeet btn-gmeet-primary" style="flex:1; font-size:11px; padding:4px 8px;" onclick="sendRemoteTts()">
                                     <span class="material-symbols-outlined" style="font-size:14px; vertical-align:middle;">volume_up</span> Speak
@@ -3907,5 +3913,55 @@
             </div>
         </div>
     </div>
+
+    <script>
+        (() => {
+            let lastDialogTrigger = null;
+            const dialogCloseHandlers = {
+                hostLeaveModal: () => closeHostLeaveModal(),
+                layoutModal: () => closeLayoutModal(),
+                settingsModal: () => closeSettingsModal(),
+                whiteboardModal: () => closeWhiteboard(),
+                remoteControlModal: () => closeRemoteControlModal()
+            };
+            const focusableSelector = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+            const visibleDialog = () => [...document.querySelectorAll('[role="dialog"]')].reverse().find(dialog => getComputedStyle(dialog).display !== 'none');
+
+            document.addEventListener('click', event => {
+                const trigger = event.target.closest('button, a');
+                if (trigger) lastDialogTrigger = trigger;
+            }, true);
+
+            document.querySelectorAll('[role="dialog"]').forEach(dialog => {
+                new MutationObserver(() => {
+                    const isOpen = getComputedStyle(dialog).display !== 'none';
+                    dialog.setAttribute('aria-hidden', String(!isOpen));
+                    if (isOpen) requestAnimationFrame(() => dialog.querySelector(focusableSelector)?.focus());
+                }).observe(dialog, { attributes: true, attributeFilter: ['style', 'class'] });
+                dialog.setAttribute('aria-hidden', String(getComputedStyle(dialog).display === 'none'));
+            });
+
+            document.addEventListener('keydown', event => {
+                const dialog = visibleDialog();
+                if (event.key === 'Escape') {
+                    if (dialog && dialogCloseHandlers[dialog.id]) {
+                        event.preventDefault();
+                        dialogCloseHandlers[dialog.id]();
+                        lastDialogTrigger?.focus();
+                        return;
+                    }
+                    const drawer = document.getElementById('sideDrawer');
+                    if (drawer?.classList.contains('open')) { event.preventDefault(); closeDrawer(); }
+                    return;
+                }
+                if (event.key !== 'Tab' || !dialog) return;
+                const items = [...dialog.querySelectorAll(focusableSelector)].filter(el => el.offsetParent !== null);
+                if (!items.length) return;
+                const first = items[0], last = items[items.length - 1];
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+            });
+        })();
+    </script>
 </body>
 </html>
