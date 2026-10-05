@@ -3,23 +3,44 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Masuk Admin | WeWatch</title>
+    <title>Masuk | WeWatch</title>
     <link rel="stylesheet" href="/static/wewatch-shell.css">
 </head>
 <body>
-    <main class="login-layout">
-        <form class="surface login-card" method="post" autocomplete="off">
+    <main class="login-layout auth-layout">
+        <section class="surface login-card" aria-labelledby="loginTitle">
             <div class="brand">
                 <span class="brand-mark" aria-hidden="true">W</span>
                 <div><strong>WeWatch</strong><span>AI security & productivity</span></div>
             </div>
-            <h1>Masuk sebagai admin</h1>
-            <p class="muted">Gunakan token admin untuk membuka dashboard monitoring.</p>
-            <label for="adminToken">Token admin</label>
-            <input id="adminToken" type="password" name="token" autocomplete="current-password" required autofocus>
-            <button class="button primary" type="submit">Buka dashboard</button>
+            <h1 id="loginTitle">Selamat datang kembali</h1>
+            <p class="muted">Masuk menggunakan akun WeWatch Anda.</p>
+            {% if registered %}<div class="success" role="status">Registrasi berhasil. Silakan masuk.</div>{% endif %}
             {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
-        </form>
+
+            <form method="post" autocomplete="on" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="auth_method" value="user">
+                <label for="loginEmail">Email</label>
+                <input id="loginEmail" type="email" name="email" autocomplete="email" maxlength="254" required>
+                <label for="loginPassword">Password</label>
+                <input id="loginPassword" type="password" name="password" autocomplete="current-password" maxlength="128" required>
+                <button class="button primary" type="submit">Masuk ke akun</button>
+            </form>
+
+            <p class="auth-switch">Belum memiliki akun? <a href="/auth/register">Daftar sekarang</a></p>
+
+            <details class="admin-login">
+                <summary>Masuk sebagai administrator</summary>
+                <form method="post" autocomplete="off" class="auth-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="auth_method" value="admin">
+                    <label for="adminToken">Token admin</label>
+                    <input id="adminToken" type="password" name="token" autocomplete="current-password" required>
+                    <button class="button" type="submit">Buka dashboard admin</button>
+                </form>
+            </details>
+        </section>
     </main>
 </body>
 </html>

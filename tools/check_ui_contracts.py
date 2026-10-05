@@ -11,6 +11,8 @@ import re
 TEMPLATES = (
     Path("templates/index.html"),
     Path("templates/login.html"),
+    Path("templates/register.html"),
+    Path("templates/account.html"),
     Path("templates/gallery.html"),
 )
 VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Registrasi | WeWatch</title>
+    <link rel="stylesheet" href="/static/wewatch-shell.css">
+</head>
+<body>
+    <main class="login-layout auth-layout">
+        <section class="surface login-card" aria-labelledby="registerTitle">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true">W</span>
+                <div><strong>WeWatch</strong><span>AI security & productivity</span></div>
+            </div>
+            <h1 id="registerTitle">Buat akun WeWatch</h1>
+            <p class="muted">Data akun disimpan dengan aman dan password tidak pernah disimpan sebagai teks biasa.</p>
+            {% if errors.get('form') %}<div class="error" role="alert">{{ errors.get('form') }}</div>{% endif %}
+
+            <form method="post" autocomplete="on" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <label for="displayName">Nama lengkap</label>
+                <input id="displayName" name="display_name" autocomplete="name" minlength="2" maxlength="100" value="{{ values.get('display_name', '') }}" aria-describedby="displayNameError" required>
+                {% if errors.get('display_name') %}<p class="field-error" id="displayNameError">{{ errors.get('display_name') }}</p>{% endif %}
+
+                <label for="registerEmail">Email</label>
+                <input id="registerEmail" type="email" name="email" autocomplete="email" maxlength="254" value="{{ values.get('email', '') }}" aria-describedby="emailError" required>
+                {% if errors.get('email') %}<p class="field-error" id="emailError">{{ errors.get('email') }}</p>{% endif %}
+
+                <label for="registerPassword">Password</label>
+                <input id="registerPassword" type="password" name="password" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="passwordHint passwordError" required>
+                <p class="field-hint" id="passwordHint">Minimal 12 karakter, mengandung huruf dan angka.</p>
+                {% if errors.get('password') %}<p class="field-error" id="passwordError">{{ errors.get('password') }}</p>{% endif %}
+
+                <label for="passwordConfirmation">Konfirmasi password</label>
+                <input id="passwordConfirmation" type="password" name="password_confirmation" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="passwordConfirmationError" required>
+                {% if errors.get('password_confirmation') %}<p class="field-error" id="passwordConfirmationError">{{ errors.get('password_confirmation') }}</p>{% endif %}
+
+                <button class="button primary" type="submit">Buat akun</button>
+            </form>
+            <p class="auth-switch">Sudah memiliki akun? <a href="/auth/login">Masuk</a></p>
+        </section>
+    </main>
+</body>
+</html>

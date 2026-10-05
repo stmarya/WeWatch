@@ -7,6 +7,7 @@ import uuid
 import hmac
 import secrets
 from pathlib import Path
+from datetime import timedelta
 from flask import Flask, render_template, Response, request, jsonify, redirect, session, url_for
 from dotenv import load_dotenv
 
@@ -21,6 +22,7 @@ from camera import AICamera, FEATURES, STATUS
 from services.jarvis import start_jarvis
 from services.database import init_db, init_attendance_db
 from services.room_auth import issue_room_token
+from services.user_store import DuplicateEmailError, UserStore, validate_registration
 from utils.security import SlidingWindowRateLimiter, safe_face_name
 
 app = Flask(__name__)
@@ -31,11 +33,16 @@ app.config['SECRET_KEY'] = os.getenv(
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('WEBWATCH_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)
 
 BASE_DIR = Path(__file__).resolve().parent
 GALLERY_FOLDER = str(BASE_DIR / 'static' / 'gallery')
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
+USERS_DB = Path(os.getenv('WEBWATCH_USERS_DB', 'users.db'))
+if not USERS_DB.is_absolute():
+    USERS_DB = BASE_DIR / USERS_DB
 os.makedirs(GALLERY_FOLDER, exist_ok=True)
+user_store = UserStore(USERS_DB)
 
 init_db()
 init_attendance_db()
@@ -43,27 +50,60 @@ init_attendance_db()
 # Initialize Camera with AI processing in background
 camera = AICamera(FEATURES, STATUS)
 login_limiter = SlidingWindowRateLimiter(max_events=8, window_seconds=60)
+registration_limiter = SlidingWindowRateLimiter(max_events=5, window_seconds=600)
 face_limiter = SlidingWindowRateLimiter(max_events=6, window_seconds=60)
 snapshot_limiter = SlidingWindowRateLimiter(max_events=20, window_seconds=60)
 
 # Mulai pendengar Jarvis di background
 start_jarvis(camera)
 
+def _preauth_csrf_token():
+    token = session.get('preauth_csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['preauth_csrf_token'] = token
+    return token
+
+
+def _valid_csrf(expected_key='csrf_token'):
+    expected = session.get(expected_key, '')
+    supplied = request.headers.get('X-CSRF-Token', '') or request.form.get('csrf_token', '')
+    return bool(expected and supplied and hmac.compare_digest(expected, supplied))
+
+
+def _start_authenticated_session(**values):
+    session.clear()
+    session.update(values)
+    session['csrf_token'] = secrets.token_urlsafe(32)
+    session.permanent = True
+
+
 @app.before_request
-def require_admin_session():
-    allowed = {'auth_login', 'manifest'}
+def require_authenticated_session():
+    public_endpoints = {'auth_login', 'auth_register', 'manifest'}
     public_static = request.path.startswith('/static/') and not request.path.startswith('/static/gallery/')
-    if request.endpoint in allowed or public_static:
+    if request.endpoint in public_endpoints or public_static:
         return None
-    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.endpoint not in {'auth_login', 'auth_logout'}:
-        expected = session.get('csrf_token', '')
-        supplied = request.headers.get('X-CSRF-Token', '')
-        if not expected or not hmac.compare_digest(supplied, expected):
-            return jsonify(error='invalid csrf token'), 403
+
+    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and not _valid_csrf():
+        return jsonify(error='invalid csrf token'), 403
+
+    if request.endpoint == 'account':
+        if session.get('user_id'):
+            return None
+        return redirect(url_for('auth_login'))
+
+    if request.endpoint == 'auth_logout':
+        if session.get('user_id') or session.get('admin_authenticated'):
+            return None
+        return redirect(url_for('auth_login'))
+
+    # The camera, gallery, AI controls, and remote-control surface remain
+    # admin-only. A newly registered user receives a separate account page.
     if not session.get('admin_authenticated'):
         if request.path == '/':
             return redirect(url_for('auth_login'))
-        return jsonify(error='authentication required'), 401
+        return jsonify(error='admin authentication required'), 403
     return None
 
 
@@ -76,30 +116,97 @@ def add_security_headers(response):
         'Permissions-Policy',
         'camera=(self), microphone=(self), geolocation=(), payment=()',
     )
+    response.headers.setdefault(
+        'Content-Security-Policy',
+        "frame-ancestors 'self'; base-uri 'self'; form-action 'self'",
+    )
     if request.is_secure:
         response.headers.setdefault(
             'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
         )
     return response
 
+
 @app.route('/auth/login', methods=['GET', 'POST'])
 def auth_login():
     error = None
+    registered = request.args.get('registered') == '1'
+    csrf_token = _preauth_csrf_token()
     if request.method == 'POST':
+        if not _valid_csrf('preauth_csrf_token'):
+            return render_template('login.html', error='Sesi formulir kedaluwarsa. Muat ulang halaman.', csrf_token=csrf_token, registered=False), 403
         if not login_limiter.allow(request.remote_addr or 'unknown'):
             return render_template(
-                'login.html',
-                error='Terlalu banyak percobaan login. Coba lagi nanti.',
+                'login.html', error='Terlalu banyak percobaan login. Coba lagi nanti.',
+                csrf_token=csrf_token, registered=False,
             ), 429
-        supplied = (request.form.get('token') or '').strip()
-        if ADMIN_TOKEN and hmac.compare_digest(supplied, ADMIN_TOKEN):
-            session.clear()
-            session['admin_authenticated'] = True
-            session['csrf_token'] = secrets.token_urlsafe(32)
-            session.permanent = True
-            return redirect(url_for('index'))
-        error = 'Token admin tidak valid atau belum dikonfigurasi.'
-    return render_template('login.html', error=error)
+
+        auth_method = request.form.get('auth_method', 'user')
+        if auth_method == 'admin':
+            supplied = (request.form.get('token') or '').strip()
+            if ADMIN_TOKEN and hmac.compare_digest(supplied, ADMIN_TOKEN):
+                _start_authenticated_session(admin_authenticated=True, role='admin')
+                return redirect(url_for('index'))
+        else:
+            email = (request.form.get('email') or '').strip()
+            password = request.form.get('password') or ''
+            user = user_store.authenticate(email, password)
+            if user:
+                _start_authenticated_session(
+                    user_id=user.id,
+                    user_email=user.email,
+                    display_name=user.display_name,
+                    role=user.role,
+                )
+                return redirect(url_for('account'))
+        # Do not disclose whether an email exists or which credential failed.
+        error = 'Email/password atau token admin tidak valid.'
+
+    return render_template('login.html', error=error, csrf_token=csrf_token, registered=registered)
+
+
+@app.route('/auth/register', methods=['GET', 'POST'])
+def auth_register():
+    errors = {}
+    values = {'display_name': '', 'email': ''}
+    csrf_token = _preauth_csrf_token()
+    if request.method == 'POST':
+        values = {
+            'display_name': (request.form.get('display_name') or '').strip(),
+            'email': (request.form.get('email') or '').strip(),
+        }
+        if not _valid_csrf('preauth_csrf_token'):
+            errors['form'] = 'Sesi formulir kedaluwarsa. Muat ulang halaman.'
+            return render_template('register.html', errors=errors, values=values, csrf_token=csrf_token), 403
+        if not registration_limiter.allow(request.remote_addr or 'unknown'):
+            errors['form'] = 'Terlalu banyak percobaan registrasi. Coba lagi nanti.'
+            return render_template('register.html', errors=errors, values=values, csrf_token=csrf_token), 429
+
+        password = request.form.get('password') or ''
+        confirmation = request.form.get('password_confirmation') or ''
+        errors = validate_registration(values['display_name'], values['email'], password)
+        if password != confirmation:
+            errors['password_confirmation'] = 'Konfirmasi password tidak sama.'
+        if not errors:
+            try:
+                user_store.create_user(values['display_name'], values['email'], password)
+                return redirect(url_for('auth_login', registered='1'))
+            except DuplicateEmailError:
+                errors['email'] = 'Email sudah terdaftar. Silakan masuk.'
+            except ValueError as exc:
+                errors['form'] = str(exc)
+
+    return render_template('register.html', errors=errors, values=values, csrf_token=csrf_token)
+
+
+@app.route('/account')
+def account():
+    user = user_store.get_user(session.get('user_id', ''))
+    if user is None:
+        session.clear()
+        return redirect(url_for('auth_login'))
+    return render_template('account.html', user=user, csrf_token=session.get('csrf_token', ''))
+
 
 @app.post('/auth/logout')
 def auth_logout():
@@ -122,15 +229,8 @@ def index():
 @app.route('/manifest.json')
 def manifest():
     return jsonify({
-        "short_name": "Google Meet",
-        "name": "Google Meet Admin",
-        "icons": [
-            {
-                "src": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-512dp/logo_meet_2020q4_color_2x_web_512dp.png",
-                "type": "image/png",
-                "sizes": "512x512"
-            }
-        ],
+        "short_name": "WeWatch",
+        "name": "WeWatch Monitoring",
         "start_url": "/",
         "background_color": "#202124",
         "theme_color": "#202124",
