@@ -22,3 +22,5 @@ Thumbs.db
 *.db
 temp_voice_*.mp3
 gallery/
+# User-uploaded media
+uploads/

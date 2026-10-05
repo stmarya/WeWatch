@@ -22,7 +22,23 @@ def _secret() -> bytes:
     return secret.encode("utf-8")
 
 
-def issue_room_token(room: str, identity: str, role: str = "client", ttl: int = 3600) -> str:
+def _clean_profile(profile: dict | None) -> dict:
+    """Keep only bounded display fields; avatar must be an http(s) URL."""
+    if not profile:
+        return {}
+    clean = {}
+    name = " ".join(str(profile.get("name") or "").split())[:100]
+    if name:
+        clean["name"] = name
+    avatar = str(profile.get("avatar") or "").strip()
+    if avatar.startswith(("https://", "http://")) and len(avatar) <= 512:
+        clean["avatar"] = avatar
+    return clean
+
+
+def issue_room_token(
+    room: str, identity: str, role: str = "client", ttl: int = 3600, profile: dict | None = None
+) -> str:
     if role not in {"admin", "client", "agent"}:
         raise ValueError("Unsupported room role")
     now = int(time.time())
@@ -33,6 +49,9 @@ def issue_room_token(room: str, identity: str, role: str = "client", ttl: int = 
         "iat": now,
         "exp": now + max(60, min(ttl, 86400)),
     }
+    clean_profile = _clean_profile(profile)
+    if clean_profile:
+        payload["profile"] = clean_profile
     raw = base64.urlsafe_b64encode(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
     ).decode().rstrip("=")

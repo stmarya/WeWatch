@@ -56,14 +56,19 @@ class UserProfileStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.update_profile(self.user.id, "Desti", "x" * 281, None)
 
-    def test_change_email_requires_password_and_unique_email(self):
+    def test_email_change_requires_password_unique_email_and_confirmation(self):
         self.store.create_user("Other", "other@example.com", PASSWORD)
         with self.assertRaises(InvalidCurrentPasswordError):
-            self.store.change_email(self.user.id, "wrong-password", "new@example.com")
+            self.store.request_email_change(self.user.id, "wrong-password", "new@example.com")
         with self.assertRaises(DuplicateEmailError):
-            self.store.change_email(self.user.id, PASSWORD, "OTHER@example.com")
-        updated = self.store.change_email(self.user.id, PASSWORD, "New@Example.com")
-        self.assertEqual(updated.email, "new@example.com")
+            self.store.request_email_change(self.user.id, PASSWORD, "OTHER@example.com")
+        token = self.store.request_email_change(self.user.id, PASSWORD, "New@Example.com")
+        # Not applied until the link from the new mailbox is opened.
+        self.assertEqual(self.store.get_user(self.user.id).email, "desti@example.com")
+        self.assertEqual(self.store.pending_email_change(self.user.id), "new@example.com")
+        updated, previous = self.store.confirm_email_change(token)
+        self.assertEqual((updated.email, previous), ("new@example.com", "desti@example.com"))
+        self.assertTrue(updated.email_verified)
         self.assertIsNotNone(self.store.authenticate("new@example.com", PASSWORD))
 
     def test_change_password_rotates_epoch_and_hash(self):
@@ -92,6 +97,8 @@ class UserProfileStoreTests(unittest.TestCase):
         self.assertIsNone(user.avatar)
         self.assertEqual(user.bio, "")
         self.assertTrue(user.avatar_url.startswith("/static/avatars/"))
+        # Accounts that existed before verification was introduced are grandfathered.
+        self.assertTrue(user.email_verified)
 
 
 class AccountRouteTests(registration_tests.RegistrationRouteTests):

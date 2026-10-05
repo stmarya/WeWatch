@@ -16,6 +16,8 @@ import re
 
 AVATAR_DIR = Path(__file__).resolve().parent.parent / "static" / "avatars"
 AVATAR_ID_RE = re.compile(r"^[a-z0-9-]{1,48}$")
+UPLOAD_PREFIX = "upload:"
+UPLOAD_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 
 # (style id, display label). Every style listed here must be CC0 on DiceBear.
 AVATAR_STYLES: tuple[tuple[str, str], ...] = (
@@ -69,7 +71,19 @@ def default_avatar_for(seed: str) -> str | None:
     return AVATARS[int.from_bytes(digest[:4], "big") % len(AVATARS)].id
 
 
+def upload_id(avatar_value: str | None) -> str | None:
+    """Return the uploaded-photo ID for ``upload:<id>`` values, else None."""
+    if avatar_value and avatar_value.startswith(UPLOAD_PREFIX):
+        candidate = avatar_value[len(UPLOAD_PREFIX):]
+        if UPLOAD_ID_RE.fullmatch(candidate):
+            return candidate
+    return None
+
+
 def avatar_url(avatar_id: str | None, seed: str = "") -> str:
+    uploaded = upload_id(avatar_id)
+    if uploaded:
+        return f"/media/avatars/{uploaded}.webp"
     chosen = avatar_id if is_valid_avatar(avatar_id) else default_avatar_for(seed)
     return _BY_ID[chosen].url if chosen else ""
 

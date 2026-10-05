@@ -67,3 +67,16 @@ textarea:focus-visible { outline:3px solid var(--ww-blue); outline-offset:2px; }
 .avatar-option:has(input:focus-visible) { outline:3px solid var(--ww-blue); outline-offset:2px; }
 @media(max-width:560px){.profile-summary{flex-direction:column;align-items:flex-start}.avatar-grid{grid-template-columns:repeat(auto-fill,minmax(56px,1fr))}.avatar-option img{width:48px;height:48px}}
 .account-shell > .success { margin:0 0 16px; }
+.account-card h3 { margin:20px 0 4px; font-size:17px; }
+.badge-verified { display:inline-block; margin-left:6px; padding:1px 8px; border-radius:999px; background:rgba(114,188,143,.15); color:#a8dfba; font-size:12px; font-weight:700; }
+.meeting-button { margin-top:14px; }
+.verify-banner { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 16px; border-color:rgba(233,186,102,.4); background:rgba(233,186,102,.08); }
+.flash-error { margin:0 0 16px; }
+.upload-block { margin-top:24px; padding-top:8px; border-top:1px solid var(--ww-border); }
+.upload-form { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:12px 0; }
+.upload-form label { font-weight:700; }
+.upload-form input[type=file] { flex:1 1 220px; min-height:44px; padding:8px; }
+.danger-zone { margin-top:28px; padding:16px; border:1px solid rgba(233,115,102,.4); border-radius:10px; }
+.danger-zone h3 { margin-top:0; color:#ffb4ab; }
+.button.danger { background:var(--ww-red); border-color:var(--ww-red); color:#2b0a06; }
+@media(max-width:560px){.verify-banner{flex-direction:column;align-items:flex-start}}

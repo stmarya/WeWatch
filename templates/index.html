@@ -1813,6 +1813,24 @@
 
         let currentParticipants = [];
 
+        // Only http(s) avatar URLs issued by the server are rendered as images.
+        function safeAvatarUrl(value) {
+            try {
+                const url = new URL(String(value || ''), window.location.href);
+                return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+            } catch (err) {
+                return '';
+            }
+        }
+
+        function participantAvatarHtml(u, color, initial) {
+            const avatar = safeAvatarUrl(u.avatar);
+            if (avatar) {
+                return `<div class="participant-avatar participant-avatar-img"><img src="${escapeHtml(avatar)}" alt="" width="32" height="32" referrerpolicy="no-referrer"></div>`;
+            }
+            return `<div class="participant-avatar" style="background:${color};">${escapeHtml(initial)}</div>`;
+        }
+
         function renderParticipants(list) {
             currentParticipants = list;
             const container = document.getElementById('peopleList');
@@ -1850,10 +1868,10 @@
                 }
 
                 item.innerHTML = `
-                    <div class="participant-avatar" style="background:${color};">${escapeHtml(initial)}</div>
+                    ${participantAvatarHtml(u, color, initial)}
                     <div class="participant-info">
                     <div class="participant-name">${escapeHtml(u.name || 'Participant')} ${isMe ? '(You)' : ''}</div>
-                        <div class="participant-sub">${u.role === 'admin' ? 'Meeting host' : 'Client Participant'}</div>
+                        <div class="participant-sub">${u.role === 'admin' ? 'Meeting host' : (u.verified ? 'WeWatch account' : 'Guest participant')}</div>
                     </div>
                     <div class="participant-icons">
                         ${hostActions}
