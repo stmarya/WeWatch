@@ -18,6 +18,8 @@ import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
+from services.avatars import avatar_url, default_avatar_for, is_valid_avatar
+
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 SCRYPT_N = 2**15
@@ -25,6 +27,7 @@ SCRYPT_R = 8
 SCRYPT_P = 1
 SCRYPT_DKLEN = 64
 SCRYPT_MAXMEM = 64 * 1024 * 1024
+BIO_MAX_LENGTH = 280
 
 
 def _b64encode(value: bytes) -> str:
@@ -67,6 +70,10 @@ class DuplicateEmailError(ValueError):
     pass
 
 
+class InvalidCurrentPasswordError(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class PublicUser:
     id: str
@@ -75,6 +82,14 @@ class PublicUser:
     role: str
     created_at: str
     last_login_at: str | None
+    avatar: str | None = None
+    bio: str = ""
+    updated_at: str | None = None
+    session_epoch: int = 0
+
+    @property
+    def avatar_url(self) -> str:
+        return avatar_url(self.avatar, self.id)
 
 
 def utc_now() -> str:
@@ -89,20 +104,57 @@ def normalize_display_name(value: str) -> str:
     return " ".join(str(value or "").strip().split())
 
 
+def normalize_bio(value: str) -> str:
+    # Keep intentional line breaks but trim trailing whitespace on each line.
+    lines = [line.rstrip() for line in str(value or "").replace("\r\n", "\n").split("\n")]
+    return "\n".join(lines).strip()
+
+
+def _display_name_error(display_name: str) -> str | None:
+    name = normalize_display_name(display_name)
+    if len(name) < 2 or len(name) > 100:
+        return "Nama harus terdiri dari 2–100 karakter."
+    return None
+
+
+def _email_error(email: str) -> str | None:
+    normalized_email = normalize_email(email)
+    if len(normalized_email) > 254 or not EMAIL_RE.fullmatch(normalized_email):
+        return "Masukkan alamat email yang valid."
+    return None
+
+
+def password_error(password: str) -> str | None:
+    if len(password) < 12:
+        return "Password minimal 12 karakter."
+    if len(password) > 128:
+        return "Password maksimal 128 karakter."
+    if not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        return "Password harus mengandung huruf dan angka."
+    return None
+
+
 def validate_registration(display_name: str, email: str, password: str) -> dict[str, str]:
     errors: dict[str, str] = {}
-    name = normalize_display_name(display_name)
-    normalized_email = normalize_email(email)
-    if len(name) < 2 or len(name) > 100:
-        errors["display_name"] = "Nama harus terdiri dari 2–100 karakter."
-    if len(normalized_email) > 254 or not EMAIL_RE.fullmatch(normalized_email):
-        errors["email"] = "Masukkan alamat email yang valid."
-    if len(password) < 12:
-        errors["password"] = "Password minimal 12 karakter."
-    elif len(password) > 128:
-        errors["password"] = "Password maksimal 128 karakter."
-    elif not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
-        errors["password"] = "Password harus mengandung huruf dan angka."
+    for field, error in (
+        ("display_name", _display_name_error(display_name)),
+        ("email", _email_error(email)),
+        ("password", password_error(password)),
+    ):
+        if error:
+            errors[field] = error
+    return errors
+
+
+def validate_profile(display_name: str, bio: str, avatar: str | None) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    name_error = _display_name_error(display_name)
+    if name_error:
+        errors["display_name"] = name_error
+    if len(normalize_bio(bio)) > BIO_MAX_LENGTH:
+        errors["bio"] = f"Bio maksimal {BIO_MAX_LENGTH} karakter."
+    if avatar and not is_valid_avatar(avatar):
+        errors["avatar"] = "Pilih avatar dari daftar yang tersedia."
     return errors
 
 
@@ -133,17 +185,47 @@ class UserStore:
                     is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    last_login_at TEXT
+                    last_login_at TEXT,
+                    avatar TEXT,
+                    bio TEXT NOT NULL DEFAULT '',
+                    session_epoch INTEGER NOT NULL DEFAULT 0
                 )
                 """
             )
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email COLLATE NOCASE)")
+            # Lightweight forward-only migration for databases created before
+            # profile fields existed.
+            existing = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+            for column, ddl in (
+                ("avatar", "ALTER TABLE users ADD COLUMN avatar TEXT"),
+                ("bio", "ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''"),
+                ("session_epoch", "ALTER TABLE users ADD COLUMN session_epoch INTEGER NOT NULL DEFAULT 0"),
+            ):
+                if column not in existing:
+                    conn.execute(ddl)
 
-    def create_user(self, display_name: str, email: str, password: str) -> PublicUser:
+    _PUBLIC_COLUMNS = (
+        "id, display_name, email, role, created_at, last_login_at, avatar, bio, updated_at, session_epoch"
+    )
+
+    @staticmethod
+    def _public(row: sqlite3.Row) -> PublicUser:
+        return PublicUser(
+            row["id"], row["display_name"], row["email"], row["role"],
+            row["created_at"], row["last_login_at"], row["avatar"], row["bio"] or "",
+            row["updated_at"], int(row["session_epoch"] or 0),
+        )
+
+    def create_user(
+        self, display_name: str, email: str, password: str, avatar: str | None = None
+    ) -> PublicUser:
         errors = validate_registration(display_name, email, password)
+        if avatar and not is_valid_avatar(avatar):
+            errors["avatar"] = "Pilih avatar dari daftar yang tersedia."
         if errors:
             raise ValueError(next(iter(errors.values())))
         user_id = uuid4().hex
+        avatar = avatar or default_avatar_for(user_id)
         name = normalize_display_name(display_name)
         normalized_email = normalize_email(email)
         password_hash = hash_password(password)
@@ -153,23 +235,24 @@ class UserStore:
                 conn.execute(
                     """
                     INSERT INTO users
-                        (id, display_name, email, password_hash, role, is_active, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, 'user', 1, ?, ?)
+                        (id, display_name, email, password_hash, role, is_active, created_at, updated_at, avatar)
+                    VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)
                     """,
-                    (user_id, name, normalized_email, password_hash, now, now),
+                    (user_id, name, normalized_email, password_hash, now, now, avatar),
                 )
         except sqlite3.IntegrityError as exc:
             if "email" in str(exc).lower() or "unique" in str(exc).lower():
                 raise DuplicateEmailError("Email sudah terdaftar.") from exc
             raise
-        return PublicUser(user_id, name, normalized_email, "user", now, None)
+        return PublicUser(user_id, name, normalized_email, "user", now, None, avatar, "", now, 0)
 
     def authenticate(self, email: str, password: str) -> PublicUser | None:
         normalized_email = normalize_email(email)
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, display_name, email, password_hash, role, created_at, last_login_at, is_active
+                SELECT id, display_name, email, password_hash, role, created_at, last_login_at,
+                       is_active, avatar, bio, updated_at, session_epoch
                 FROM users WHERE email = ? COLLATE NOCASE
                 """,
                 (normalized_email,),
@@ -185,21 +268,72 @@ class UserStore:
                 (now, now, row["id"]),
             )
         return PublicUser(
-            row["id"], row["display_name"], row["email"], row["role"], row["created_at"], now
+            row["id"], row["display_name"], row["email"], row["role"], row["created_at"], now,
+            row["avatar"], row["bio"] or "", now, int(row["session_epoch"] or 0),
         )
 
     def get_user(self, user_id: str) -> PublicUser | None:
         with self._connect() as conn:
             row = conn.execute(
-                """
-                SELECT id, display_name, email, role, created_at, last_login_at
-                FROM users WHERE id = ? AND is_active = 1
-                """,
+                f"SELECT {self._PUBLIC_COLUMNS} FROM users WHERE id = ? AND is_active = 1",
                 (user_id,),
             ).fetchone()
-        if row is None:
-            return None
-        return PublicUser(
-            row["id"], row["display_name"], row["email"], row["role"],
-            row["created_at"], row["last_login_at"],
-        )
+        return self._public(row) if row else None
+
+    def _require_current_password(self, conn: sqlite3.Connection, user_id: str, password: str) -> None:
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE id = ? AND is_active = 1", (user_id,)
+        ).fetchone()
+        stored = row["password_hash"] if row else DUMMY_PASSWORD_HASH
+        if not verify_password(stored, password) or row is None:
+            raise InvalidCurrentPasswordError("Password saat ini tidak sesuai.")
+
+    def update_profile(self, user_id: str, display_name: str, bio: str, avatar: str | None) -> PublicUser:
+        errors = validate_profile(display_name, bio, avatar)
+        if errors:
+            raise ValueError(next(iter(errors.values())))
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE users
+                SET display_name = ?, bio = ?, avatar = COALESCE(?, avatar), updated_at = ?
+                WHERE id = ? AND is_active = 1
+                """,
+                (normalize_display_name(display_name), normalize_bio(bio), avatar or None, utc_now(), user_id),
+            )
+            if cursor.rowcount != 1:
+                raise LookupError("Akun tidak ditemukan.")
+        return self.get_user(user_id)
+
+    def change_email(self, user_id: str, current_password: str, new_email: str) -> PublicUser:
+        error = _email_error(new_email)
+        if error:
+            raise ValueError(error)
+        normalized_email = normalize_email(new_email)
+        try:
+            with self._connect() as conn:
+                self._require_current_password(conn, user_id, current_password)
+                conn.execute(
+                    "UPDATE users SET email = ?, updated_at = ? WHERE id = ? AND is_active = 1",
+                    (normalized_email, utc_now(), user_id),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise DuplicateEmailError("Email sudah digunakan akun lain.") from exc
+        return self.get_user(user_id)
+
+    def change_password(self, user_id: str, current_password: str, new_password: str) -> PublicUser:
+        error = password_error(new_password)
+        if error:
+            raise ValueError(error)
+        with self._connect() as conn:
+            self._require_current_password(conn, user_id, current_password)
+            # Bumping the epoch invalidates every other session for this user.
+            conn.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, session_epoch = session_epoch + 1, updated_at = ?
+                WHERE id = ? AND is_active = 1
+                """,
+                (hash_password(new_password), utc_now(), user_id),
+            )
+        return self.get_user(user_id)

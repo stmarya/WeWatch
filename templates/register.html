@@ -1,3 +1,4 @@
+{% from "_avatar_picker.html" import avatar_picker %}
 <!doctype html>
 <html lang="id">
 <head>
@@ -36,6 +37,9 @@
                 <label for="passwordConfirmation">Konfirmasi password</label>
                 <input id="passwordConfirmation" type="password" name="password_confirmation" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="passwordConfirmationError" required>
                 {% if errors.get('password_confirmation') %}<p class="field-error" id="passwordConfirmationError">{{ errors.get('password_confirmation') }}</p>{% endif %}
+
+                {{ avatar_picker(avatar_groups, values.get('avatar', ''), 'register', errors.get('avatar')) }}
+                <p class="field-hint">Tidak memilih? Kami pilihkan avatar acak, dan kamu bisa menggantinya di halaman akun.</p>
 
                 <button class="button primary" type="submit">Buat akun</button>
             </form>

@@ -4,7 +4,10 @@
 
 - `GET|POST /auth/register` — create a standard user account.
 - `GET|POST /auth/login` — user email/password login and backward-compatible admin-token login.
-- `GET /account` — authenticated user account page.
+- `GET /account` — authenticated account page: view profile, avatar, and account details.
+- `POST /account/profile` — update display name, bio (max 280 chars), and avatar.
+- `POST /account/email` — change login email; requires the current password.
+- `POST /account/password` — change password; requires the current password and revokes all other sessions.
 - `POST /auth/logout` — CSRF-protected logout.
 - `/` and all monitoring, gallery, AI, and remote-control endpoints remain admin-only.
 
@@ -21,6 +24,15 @@ The default database is `users.db` in the repository root and can be changed wit
 - Server-assigned `role` (`user` by default).
 - `is_active` status.
 - UTC `created_at`, `updated_at`, and `last_login_at` timestamps.
+- `avatar` — ID from the bundled catalog in `static/avatars/` (see `services/avatars.py`); new users get a stable default.
+- `bio` — optional short profile text.
+- `session_epoch` — incremented on password change; sessions with an older epoch are rejected.
+
+Existing databases are migrated automatically on startup (missing columns are added).
+
+## Avatars
+
+Avatars are CC0 1.0 SVGs generated once with DiceBear (Notionists, Lorelei, Pixel Art, Thumbs) and served locally, so there is no runtime dependency on a third-party API and no tracking of users by an external avatar service. The server only accepts IDs from the catalog, never URLs or paths. See `static/avatars/LICENSE.md` before adding styles; CC BY 4.0 styles require visible attribution.
 
 SQLite uses WAL mode, foreign-key enforcement, parameterized queries, busy timeout, and short-lived connections. For multi-replica production deployments, replace the local SQLite store with a shared transactional database.
 
@@ -37,6 +49,8 @@ SQLite uses WAL mode, foreign-key enforcement, parameterized queries, busy timeo
 - Session rotation after successful authentication.
 - HttpOnly, SameSite=Lax, optional Secure cookies, and 12-hour session expiry.
 - CSRF protection for authenticated state-changing requests, including logout.
+- Email and password changes require the current password and are rate limited per account.
+- Password change rotates the current session and revokes other sessions via `session_epoch`.
 - RBAC separation: registered users cannot access admin camera, AI, gallery, or remote-control endpoints.
 - Security headers include clickjacking, MIME sniffing, referrer, permissions, HSTS on HTTPS, and a restrictive framing/form CSP.
 

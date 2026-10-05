@@ -7,8 +7,8 @@ import uuid
 import hmac
 import secrets
 from pathlib import Path
-from datetime import timedelta
-from flask import Flask, render_template, Response, request, jsonify, redirect, session, url_for
+from datetime import datetime, timedelta
+from flask import Flask, render_template, Response, request, jsonify, redirect, session, url_for, flash, get_flashed_messages
 from dotenv import load_dotenv
 
 # Setup Logging
@@ -22,7 +22,10 @@ from camera import AICamera, FEATURES, STATUS
 from services.jarvis import start_jarvis
 from services.database import init_db, init_attendance_db
 from services.room_auth import issue_room_token
-from services.user_store import DuplicateEmailError, UserStore, validate_registration
+from services.avatars import grouped_avatars, is_valid_avatar
+from services.user_store import (
+    BIO_MAX_LENGTH, DuplicateEmailError, InvalidCurrentPasswordError, UserStore, validate_registration,
+)
 from utils.security import SlidingWindowRateLimiter, safe_face_name
 
 app = Flask(__name__)
@@ -51,6 +54,8 @@ init_attendance_db()
 camera = AICamera(FEATURES, STATUS)
 login_limiter = SlidingWindowRateLimiter(max_events=8, window_seconds=60)
 registration_limiter = SlidingWindowRateLimiter(max_events=5, window_seconds=600)
+# Email/password changes require the current password; throttle guessing per account.
+account_security_limiter = SlidingWindowRateLimiter(max_events=10, window_seconds=600)
 face_limiter = SlidingWindowRateLimiter(max_events=6, window_seconds=60)
 snapshot_limiter = SlidingWindowRateLimiter(max_events=20, window_seconds=60)
 
@@ -78,6 +83,23 @@ def _start_authenticated_session(**values):
     session.permanent = True
 
 
+ACCOUNT_ENDPOINTS = {'account', 'account_profile', 'account_email', 'account_password'}
+_MONTHS_ID = ('Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des')
+
+
+@app.template_filter('datetime_id')
+def format_datetime_id(value):
+    """Render stored UTC ISO timestamps as e.g. '05 Okt 2026, 09:37 UTC'."""
+    if not value:
+        return '-'
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value)
+    return f"{parsed.day:02d} {_MONTHS_ID[parsed.month - 1]} {parsed.year}, {parsed:%H:%M} UTC"
+
+
+
 @app.before_request
 def require_authenticated_session():
     public_endpoints = {'auth_login', 'auth_register', 'manifest'}
@@ -88,7 +110,7 @@ def require_authenticated_session():
     if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and not _valid_csrf():
         return jsonify(error='invalid csrf token'), 403
 
-    if request.endpoint == 'account':
+    if request.endpoint in ACCOUNT_ENDPOINTS:
         if session.get('user_id'):
             return None
         return redirect(url_for('auth_login'))
@@ -157,6 +179,7 @@ def auth_login():
                     user_email=user.email,
                     display_name=user.display_name,
                     role=user.role,
+                    session_epoch=user.session_epoch,
                 )
                 return redirect(url_for('account'))
         # Do not disclose whether an email exists or which credential failed.
@@ -168,44 +191,143 @@ def auth_login():
 @app.route('/auth/register', methods=['GET', 'POST'])
 def auth_register():
     errors = {}
-    values = {'display_name': '', 'email': ''}
+    values = {'display_name': '', 'email': '', 'avatar': ''}
     csrf_token = _preauth_csrf_token()
     if request.method == 'POST':
         values = {
             'display_name': (request.form.get('display_name') or '').strip(),
             'email': (request.form.get('email') or '').strip(),
+            'avatar': (request.form.get('avatar') or '').strip(),
         }
         if not _valid_csrf('preauth_csrf_token'):
             errors['form'] = 'Sesi formulir kedaluwarsa. Muat ulang halaman.'
-            return render_template('register.html', errors=errors, values=values, csrf_token=csrf_token), 403
+            return _render_register(errors, values, csrf_token), 403
         if not registration_limiter.allow(request.remote_addr or 'unknown'):
             errors['form'] = 'Terlalu banyak percobaan registrasi. Coba lagi nanti.'
-            return render_template('register.html', errors=errors, values=values, csrf_token=csrf_token), 429
+            return _render_register(errors, values, csrf_token), 429
 
         password = request.form.get('password') or ''
         confirmation = request.form.get('password_confirmation') or ''
         errors = validate_registration(values['display_name'], values['email'], password)
         if password != confirmation:
             errors['password_confirmation'] = 'Konfirmasi password tidak sama.'
+        if values['avatar'] and not is_valid_avatar(values['avatar']):
+            errors['avatar'] = 'Pilih avatar dari daftar yang tersedia.'
         if not errors:
             try:
-                user_store.create_user(values['display_name'], values['email'], password)
+                user_store.create_user(
+                    values['display_name'], values['email'], password, avatar=values['avatar'] or None
+                )
                 return redirect(url_for('auth_login', registered='1'))
             except DuplicateEmailError:
                 errors['email'] = 'Email sudah terdaftar. Silakan masuk.'
             except ValueError as exc:
                 errors['form'] = str(exc)
 
-    return render_template('register.html', errors=errors, values=values, csrf_token=csrf_token)
+    return _render_register(errors, values, csrf_token)
+
+
+def _render_register(errors, values, csrf_token):
+    return render_template(
+        'register.html', errors=errors, values=values, csrf_token=csrf_token,
+        avatar_groups=grouped_avatars(),
+    )
+
+
+def _current_user():
+    """Return the signed-in user, or None when the session is stale/revoked."""
+    user = user_store.get_user(session.get('user_id', ''))
+    if user is None or session.get('session_epoch', 0) != user.session_epoch:
+        session.clear()
+        return None
+    return user
+
+
+def _render_account(user, errors=None, values=None, status=200):
+    return render_template(
+        'account.html',
+        user=user,
+        errors=errors or {},
+        values=values or {},
+        avatar_groups=grouped_avatars(),
+        bio_max_length=BIO_MAX_LENGTH,
+        messages=get_flashed_messages(),
+        csrf_token=session.get('csrf_token', ''),
+    ), status
+
+
+def _account_security_allowed(user):
+    return account_security_limiter.allow(f"{user.id}:{request.remote_addr or 'unknown'}")
 
 
 @app.route('/account')
 def account():
-    user = user_store.get_user(session.get('user_id', ''))
+    user = _current_user()
     if user is None:
-        session.clear()
         return redirect(url_for('auth_login'))
-    return render_template('account.html', user=user, csrf_token=session.get('csrf_token', ''))
+    return _render_account(user)
+
+
+@app.post('/account/profile')
+def account_profile():
+    user = _current_user()
+    if user is None:
+        return redirect(url_for('auth_login'))
+    values = {
+        'display_name': (request.form.get('display_name') or '').strip(),
+        'bio': request.form.get('bio') or '',
+        'avatar': (request.form.get('avatar') or '').strip(),
+    }
+    try:
+        updated = user_store.update_profile(user.id, values['display_name'], values['bio'], values['avatar'] or None)
+    except ValueError as exc:
+        return _render_account(user, {'profile': str(exc)}, values, 422)
+    session['display_name'] = updated.display_name
+    flash('Profil berhasil diperbarui.')
+    return redirect(url_for('account'))
+
+
+@app.post('/account/email')
+def account_email():
+    user = _current_user()
+    if user is None:
+        return redirect(url_for('auth_login'))
+    if not _account_security_allowed(user):
+        return _render_account(user, {'email': 'Terlalu banyak percobaan. Coba lagi nanti.'}, status=429)
+    new_email = (request.form.get('email') or '').strip()
+    try:
+        updated = user_store.change_email(user.id, request.form.get('current_password') or '', new_email)
+    except (InvalidCurrentPasswordError, DuplicateEmailError, ValueError) as exc:
+        return _render_account(user, {'email': str(exc)}, {'email': new_email}, 422)
+    session['user_email'] = updated.email
+    flash('Email berhasil diperbarui.')
+    return redirect(url_for('account'))
+
+
+@app.post('/account/password')
+def account_password():
+    user = _current_user()
+    if user is None:
+        return redirect(url_for('auth_login'))
+    if not _account_security_allowed(user):
+        return _render_account(user, {'password': 'Terlalu banyak percobaan. Coba lagi nanti.'}, status=429)
+    new_password = request.form.get('new_password') or ''
+    if new_password != (request.form.get('new_password_confirmation') or ''):
+        return _render_account(user, {'password': 'Konfirmasi password baru tidak sama.'}, status=422)
+    try:
+        updated = user_store.change_password(user.id, request.form.get('current_password') or '', new_password)
+    except (InvalidCurrentPasswordError, ValueError) as exc:
+        return _render_account(user, {'password': str(exc)}, status=422)
+    # Rotate this session and keep it valid; all other sessions are revoked by the epoch bump.
+    _start_authenticated_session(
+        user_id=updated.id,
+        user_email=updated.email,
+        display_name=updated.display_name,
+        role=updated.role,
+        session_epoch=updated.session_epoch,
+    )
+    flash('Password berhasil diganti. Sesi di perangkat lain telah dikeluarkan.')
+    return redirect(url_for('account'))
 
 
 @app.post('/auth/logout')

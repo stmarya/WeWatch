@@ -1,3 +1,4 @@
+{% from "_avatar_picker.html" import avatar_picker %}
 <!doctype html>
 <html lang="id">
 <head>
@@ -12,19 +13,85 @@
             <span class="brand-mark" aria-hidden="true">W</span>
             <div><strong>WeWatch</strong><span>Akun pengguna</span></div>
         </div>
-        <section class="surface account-card" aria-labelledby="accountTitle">
+
+        {% for message in messages %}<div class="success" role="status">{{ message }}</div>{% endfor %}
+
+        <section class="surface account-card profile-summary" aria-labelledby="accountTitle">
+            <img class="profile-avatar" src="{{ user.avatar_url }}" alt="Avatar {{ user.display_name }}" width="96" height="96">
             <div>
                 <p class="eyebrow">Akun aktif</p>
                 <h1 id="accountTitle">{{ user.display_name }}</h1>
                 <p class="muted">{{ user.email }}</p>
+                {% if user.bio %}<p class="profile-bio">{{ user.bio }}</p>{% endif %}
             </div>
+        </section>
+
+        <nav class="account-nav" aria-label="Pengaturan akun">
+            <a href="#profileSection">Profil</a>
+            <a href="#emailSection">Email</a>
+            <a href="#passwordSection">Password</a>
+            <a href="#detailsSection">Detail akun</a>
+        </nav>
+
+        <section class="surface account-card" id="profileSection" aria-labelledby="profileTitle">
+            <h2 id="profileTitle">Profil</h2>
+            <p class="muted">Nama, bio, dan avatar terlihat oleh pengguna lain di WeWatch.</p>
+            {% if errors.get('profile') %}<div class="error" role="alert">{{ errors.get('profile') }}</div>{% endif %}
+            <form method="post" action="/account/profile" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="profileName">Nama lengkap</label>
+                <input id="profileName" name="display_name" autocomplete="name" minlength="2" maxlength="100" value="{{ values.get('display_name', user.display_name) }}" required>
+
+                <label for="profileBio">Bio <span class="muted">(opsional)</span></label>
+                <textarea id="profileBio" name="bio" rows="3" maxlength="{{ bio_max_length }}" aria-describedby="profileBioHint">{{ values.get('bio', user.bio) }}</textarea>
+                <p class="field-hint" id="profileBioHint">Maksimal {{ bio_max_length }} karakter.</p>
+
+                {{ avatar_picker(avatar_groups, values.get('avatar') or user.avatar, 'profile') }}
+                <button class="button primary" type="submit">Simpan profil</button>
+            </form>
+        </section>
+
+        <section class="surface account-card" id="emailSection" aria-labelledby="emailTitle">
+            <h2 id="emailTitle">Email</h2>
+            <p class="muted">Email dipakai untuk masuk. Konfirmasi dengan password saat ini.</p>
+            {% if errors.get('email') %}<div class="error" role="alert">{{ errors.get('email') }}</div>{% endif %}
+            <form method="post" action="/account/email" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="newEmail">Email baru</label>
+                <input id="newEmail" type="email" name="email" autocomplete="email" maxlength="254" value="{{ values.get('email', user.email) }}" required>
+                <label for="emailCurrentPassword">Password saat ini</label>
+                <input id="emailCurrentPassword" type="password" name="current_password" autocomplete="current-password" maxlength="128" required>
+                <button class="button" type="submit">Perbarui email</button>
+            </form>
+        </section>
+
+        <section class="surface account-card" id="passwordSection" aria-labelledby="passwordTitle">
+            <h2 id="passwordTitle">Password</h2>
+            <p class="muted">Setelah diganti, sesi di perangkat lain otomatis keluar.</p>
+            {% if errors.get('password') %}<div class="error" role="alert">{{ errors.get('password') }}</div>{% endif %}
+            <form method="post" action="/account/password" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="currentPassword">Password saat ini</label>
+                <input id="currentPassword" type="password" name="current_password" autocomplete="current-password" maxlength="128" required>
+                <label for="newPassword">Password baru</label>
+                <input id="newPassword" type="password" name="new_password" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="newPasswordHint" required>
+                <p class="field-hint" id="newPasswordHint">Minimal 12 karakter, mengandung huruf dan angka.</p>
+                <label for="newPasswordConfirmation">Konfirmasi password baru</label>
+                <input id="newPasswordConfirmation" type="password" name="new_password_confirmation" autocomplete="new-password" minlength="12" maxlength="128" required>
+                <button class="button" type="submit">Ganti password</button>
+            </form>
+        </section>
+
+        <section class="surface account-card" id="detailsSection" aria-labelledby="detailsTitle">
+            <h2 id="detailsTitle">Detail akun</h2>
             <dl class="account-meta">
                 <div><dt>Peran</dt><dd>{{ user.role }}</dd></div>
-                <div><dt>Terdaftar</dt><dd>{{ user.created_at }}</dd></div>
-                <div><dt>Login terakhir</dt><dd>{{ user.last_login_at or 'Login pertama' }}</dd></div>
+                <div><dt>Terdaftar</dt><dd>{{ user.created_at | datetime_id }}</dd></div>
+                <div><dt>Terakhir diperbarui</dt><dd>{{ user.updated_at | datetime_id }}</dd></div>
+                <div><dt>Login terakhir</dt><dd>{{ user.last_login_at | datetime_id if user.last_login_at else 'Login pertama' }}</dd></div>
             </dl>
             <div class="account-notice">
-                <strong>Akun berhasil tercatat</strong>
+                <strong>Akses akun</strong>
                 <p>Fitur monitoring dan remote control tetap dibatasi untuk administrator.</p>
             </div>
             <form method="post" action="/auth/logout">
