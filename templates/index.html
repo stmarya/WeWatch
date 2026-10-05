@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>Google Meet | Admin Monitoring Dashboard</title>
-    <link rel="icon" type="image/x-icon" href="https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-24dp/logo_meet_2020q4_color_2x_web_24dp.png">
+    <title>WeWatch | Dashboard Monitoring AI</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="/static/gmeet.css">
     <script src="/static/vendor/socket.io-4.5.4.js"></script>
@@ -13,8 +13,30 @@
 </head>
 <body>
 
-    <!-- Main Google Meet View -->
-    <div class="meet-app">
+    <header class="app-header" aria-label="Header WeWatch">
+        <div class="app-brand">
+            <span class="app-brand-mark" aria-hidden="true">W</span>
+            <div>
+                <div class="app-brand-name">WeWatch</div>
+                <div class="app-brand-subtitle">AI security & productivity</div>
+            </div>
+        </div>
+        <nav class="app-nav" aria-label="Navigasi dashboard">
+            <button type="button" class="app-nav-item active" id="navOverview" onclick="showOverview()">Overview</button>
+            <button type="button" class="app-nav-item" onclick="toggleDrawer('people')">Participants</button>
+            <button type="button" class="app-nav-item" onclick="toggleDrawer('chat')">Messages</button>
+            <button type="button" class="app-nav-item" onclick="toggleDrawer('activities')">AI Modules</button>
+            <button type="button" class="app-nav-item" onclick="toggleDrawer('host')">Meeting Safety</button>
+        </nav>
+        <div class="app-health" aria-live="polite">
+            <span class="app-health-dot" id="overviewSystemDot" aria-hidden="true"></span>
+            <span id="overviewSystemStatus">Monitoring aktif</span>
+            <span class="app-incident-count" id="overviewIncidentCount">0 insiden</span>
+        </div>
+    </header>
+
+    <!-- Main WeWatch Monitoring View -->
+    <main class="meet-app" id="monitoringWorkspace">
         <!-- Main Video Stage / Grid -->
         <div class="stage-container">
             <div id="videoGrid" class="video-grid grid-1">
@@ -34,7 +56,7 @@
 
                     <!-- Tile Action Controls -->
                     <div class="tile-actions">
-                        <button class="tile-action-btn" title="Pin Admin Tile" onclick="togglePin('adminTile')">
+                        <button type="button" class="tile-action-btn" title="Pin Admin Tile" onclick="togglePin('adminTile')">
                             <span class="material-symbols-outlined">push_pin</span>
                         </button>
                     </div>
@@ -65,11 +87,60 @@
             </div>
         </div>
 
+
+        <aside class="overview-panel" id="overviewPanel" aria-labelledby="overviewTitle">
+            <div class="overview-heading">
+                <div>
+                    <p class="overview-eyebrow">Live monitoring</p>
+                    <h1 id="overviewTitle">Monitoring normal</h1>
+                </div>
+                <span class="status-pill status-safe" id="overviewOverallStatus">Aman</span>
+            </div>
+            <p class="overview-support" id="overviewSupportText">Tidak ada kondisi kritis yang memerlukan tindakan.</p>
+
+            <section class="risk-summary" aria-labelledby="riskSummaryTitle">
+                <div class="section-heading-row">
+                    <h2 id="riskSummaryTitle">Risk summary</h2>
+                    <span id="overviewUpdatedAt">Baru diperbarui</span>
+                </div>
+                <div class="risk-list">
+                    <div class="risk-row"><span class="risk-icon" aria-hidden="true">●</span><span>Presence</span><strong id="summaryPresence">At desk</strong></div>
+                    <div class="risk-row"><span class="risk-icon" aria-hidden="true">●</span><span>Focus</span><strong id="summaryFocus">Centered</strong></div>
+                    <div class="risk-row"><span class="risk-icon" aria-hidden="true">●</span><span>Drowsiness</span><strong id="summaryDrowsiness">Alert</strong></div>
+                    <div class="risk-row"><span class="risk-icon" aria-hidden="true">●</span><span>Security</span><strong id="summarySecurity">No threat</strong></div>
+                    <div class="risk-row"><span class="risk-icon" aria-hidden="true">●</span><span>Posture</span><strong id="summaryPosture">Upright</strong></div>
+                </div>
+            </section>
+
+            <section class="incident-summary" aria-labelledby="incidentSummaryTitle">
+                <div class="section-heading-row">
+                    <h2 id="incidentSummaryTitle">Latest incident</h2>
+                    <span id="overviewIncidentTime">—</span>
+                </div>
+                <div class="incident-empty" id="overviewIncidentCard">
+                    <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+                    <div>
+                        <strong id="overviewIncidentTitle">Tidak ada insiden aktif</strong>
+                        <p id="overviewIncidentBody">WeWatch akan menampilkan deteksi yang perlu ditinjau di sini.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="overview-actions" aria-labelledby="quickActionsTitle">
+                <h2 id="quickActionsTitle">Quick actions</h2>
+                <div class="overview-action-grid">
+                    <button type="button" class="overview-action primary" onclick="takeSnapshot()"><span class="material-symbols-outlined" aria-hidden="true">photo_camera</span>Ambil snapshot</button>
+                    <button type="button" class="overview-action" onclick="toggleDrawer('activities')"><span class="material-symbols-outlined" aria-hidden="true">tune</span>Atur modul AI</button>
+                    <a class="overview-action" href="/gallery" target="_blank" rel="noopener"><span class="material-symbols-outlined" aria-hidden="true">photo_library</span>Buka galeri</a>
+                </div>
+            </section>
+        </aside>
+
         <!-- Floating Side Drawer (People, Chat, Activities/AI, Host Controls) -->
-        <div class="side-drawer" id="sideDrawer">
+        <aside class="side-drawer" id="sideDrawer" aria-labelledby="drawerTitle">
             <div class="drawer-header">
-                <h3 id="drawerTitle">Activities</h3>
-                <button class="drawer-close-btn" onclick="closeDrawer()">
+                <h2 id="drawerTitle">AI Modules</h2>
+                <button type="button" class="drawer-close-btn" onclick="closeDrawer()">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -87,7 +158,7 @@
                             <div style="font-size:12px; color:var(--gmeet-text-muted);">Real-time shared canvas (Jamboard)</div>
                         </div>
                     </div>
-                    <button class="btn-gmeet btn-gmeet-primary" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="openWhiteboard()">
+                    <button type="button" class="btn-gmeet btn-gmeet-primary" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="openWhiteboard()">
                         <span class="material-symbols-outlined" style="font-size:18px;">brush</span> Open Shared Whiteboard
                     </button>
                 </div>
@@ -105,7 +176,7 @@
                     </div>
                     
                     <div id="adminPollContainer" style="margin-top:10px;">
-                        <button class="btn-gmeet btn-gmeet-outline" id="btnShowCreatePoll" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="togglePollCreationForm()">
+                        <button type="button" class="btn-gmeet btn-gmeet-outline" id="btnShowCreatePoll" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="togglePollCreationForm()">
                             <span class="material-symbols-outlined" style="font-size:16px;">add</span> Launch a poll
                         </button>
                         <div id="pollCreateForm" style="display:none; margin-top:10px;">
@@ -114,8 +185,8 @@
                             <input type="text" class="poll-opt-input" placeholder="Option 2" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:6px;">
                             <input type="text" class="poll-opt-input" placeholder="Option 3 (optional)" style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:8px;">
                             <div style="display:flex; gap:8px;">
-                                <button class="btn-gmeet btn-gmeet-primary" style="flex:1; font-size:12px;" onclick="submitNewPoll()">Launch Poll</button>
-                                <button class="btn-gmeet btn-gmeet-text" style="font-size:12px;" onclick="togglePollCreationForm()">Cancel</button>
+                                <button type="button" class="btn-gmeet btn-gmeet-primary" style="flex:1; font-size:12px;" onclick="submitNewPoll()">Launch Poll</button>
+                                <button type="button" class="btn-gmeet btn-gmeet-text" style="font-size:12px;" onclick="togglePollCreationForm()">Cancel</button>
                             </div>
                         </div>
                         <div id="activePollDisplay" style="margin-top:10px;"></div>
@@ -181,10 +252,10 @@
 
                     <!-- Quick Action Buttons -->
                     <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
-                        <button class="btn-gmeet btn-gmeet-primary" style="flex:1; min-width:90px; font-size:12px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;" onclick="takeSnapshot()">
+                        <button type="button" class="btn-gmeet btn-gmeet-primary" style="flex:1; min-width:90px; font-size:12px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;" onclick="takeSnapshot()">
                             <span class="material-symbols-outlined" style="font-size:16px;">photo_camera</span> Snapshot
                         </button>
-                        <button class="btn-gmeet btn-gmeet-outline" style="flex:1; min-width:90px; font-size:12px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;" onclick="toggleFaceRegisterForm()">
+                        <button type="button" class="btn-gmeet btn-gmeet-outline" style="flex:1; min-width:90px; font-size:12px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;" onclick="toggleFaceRegisterForm()">
                             <span class="material-symbols-outlined" style="font-size:16px;">face</span> Face ID
                         </button>
                         <a href="/gallery" target="_blank" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px; text-decoration:none;">
@@ -200,7 +271,7 @@
                         </div>
                         <div style="display:flex; gap:6px;">
                             <input type="text" id="faceRegisterName" placeholder="Enter person name..." style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
-                            <button class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 12px;" onclick="submitRegisterFace()">Register</button>
+                            <button type="button" class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 12px;" onclick="submitRegisterFace()">Register</button>
                         </div>
                         <div id="faceRegisterStatus" style="font-size:11px; color:var(--gmeet-text-muted); margin-top:6px;"></div>
                     </div>
@@ -211,7 +282,7 @@
                         <img id="snapshotPreviewThumb" src="" style="width:100%; max-height:120px; object-fit:cover; border-radius:6px; margin-bottom:6px; border:1px solid rgba(255,255,255,0.1);">
                         <div style="display:flex; gap:8px; justify-content:center;">
                             <a id="snapshotDownloadBtn" href="#" target="_blank" class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 10px; text-decoration:none;">View in Gallery</a>
-                            <button class="btn-gmeet btn-gmeet-text" style="font-size:11px; padding:4px 8px;" onclick="document.getElementById('snapshotPreviewCard').style.display='none'">Dismiss</button>
+                            <button type="button" class="btn-gmeet btn-gmeet-text" style="font-size:11px; padding:4px 8px;" onclick="document.getElementById('snapshotPreviewCard').style.display='none'">Dismiss</button>
                         </div>
                     </div>
                 </div>
@@ -268,8 +339,16 @@
                 </div>
 
                 <!-- Comprehensive AI Modules Switchboard (All 20 Capabilities) -->
-                <div class="module-switch-group">
-                    <h4>💼 Productivity & Ergonomics</h4>
+
+                <nav class="module-category-nav" aria-label="Kategori modul AI">
+                    <a href="#modulesProductivity">Productivity</a>
+                    <a href="#modulesSecurity">Security</a>
+                    <a href="#modulesHealth">Health</a>
+                    <a href="#modulesGestures">Gestures</a>
+                    <a href="#modulesExtras">Extras</a>
+                </nav>
+                <div class="module-switch-group" id="modulesProductivity">
+                    <h4>Productivity & Ergonomics</h4>
                     <div class="module-toggle-item">
                         <div>
                             <span class="module-toggle-label">Virtual Boss (Anti-Phone)</span>
@@ -312,8 +391,8 @@
                     </div>
                 </div>
 
-                <div class="module-switch-group">
-                    <h4>🛡️ Security & Biometrics</h4>
+                <div class="module-switch-group" id="modulesSecurity">
+                    <h4>Security & Biometrics</h4>
                     <div class="module-toggle-item">
                         <div>
                             <span class="module-toggle-label">Face ID Recognition</span>
@@ -356,8 +435,8 @@
                     </div>
                 </div>
 
-                <div class="module-switch-group">
-                    <h4>🩺 Health & Fitness</h4>
+                <div class="module-switch-group" id="modulesHealth">
+                    <h4>Health & Fitness</h4>
                     <div class="module-toggle-item">
                         <div>
                             <span class="module-toggle-label">Contactless Heart Rate (rPPG)</span>
@@ -380,8 +459,8 @@
                     </div>
                 </div>
 
-                <div class="module-switch-group">
-                    <h4>🤟 Gestures & Interaction</h4>
+                <div class="module-switch-group" id="modulesGestures">
+                    <h4>Gestures & Interaction</h4>
                     <div class="module-toggle-item">
                         <div>
                             <span class="module-toggle-label">Sign Language Interpreter</span>
@@ -424,8 +503,8 @@
                     </div>
                 </div>
 
-                <div class="module-switch-group">
-                    <h4>🪄 AR Filters & Smart Extras</h4>
+                <div class="module-switch-group" id="modulesExtras">
+                    <h4>AR Filters & Smart Extras</h4>
                     <div class="module-toggle-item">
                         <div>
                             <span class="module-toggle-label">Boss Key (V-Sign Hand Gesture)</span>
@@ -496,7 +575,7 @@
                     <input type="text" id="peopleSearchInput" placeholder="Search for people" oninput="filterPeople()">
                 </div>
                 <div class="people-section-title">In call (<span id="peopleCountBadge">1</span>)</div>
-                <button class="btn-gmeet btn-gmeet-outline" style="width:100%; margin-bottom:12px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gmeet-green); border-color:rgba(129, 201, 149, 0.4);" onclick="exportAttendanceReport()">
+                <button type="button" class="btn-gmeet btn-gmeet-outline" style="width:100%; margin-bottom:12px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gmeet-green); border-color:rgba(129, 201, 149, 0.4);" onclick="exportAttendanceReport()">
                     <span class="material-symbols-outlined" style="font-size:16px;">download</span> Export Attendance (CSV)
                 </button>
                 <div id="peopleList">
@@ -586,10 +665,10 @@
                         </label>
                     </div>
                 </div>
-                <button class="btn-gmeet btn-gmeet-outline" style="width:100%; margin-bottom:8px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gmeet-green); border-color:rgba(129, 201, 149, 0.4);" onclick="exportAttendanceReport()">
+                <button type="button" class="btn-gmeet btn-gmeet-outline" style="width:100%; margin-bottom:8px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gmeet-green); border-color:rgba(129, 201, 149, 0.4);" onclick="exportAttendanceReport()">
                     <span class="material-symbols-outlined" style="font-size:16px;">download</span> Export Attendance (CSV)
                 </button>
-                <button class="btn-gmeet btn-gmeet-outline" style="width:100%; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.3);" onclick="muteAllClients()">
+                <button type="button" class="btn-gmeet btn-gmeet-outline" style="width:100%; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.3);" onclick="muteAllClients()">
                     <span class="material-symbols-outlined" style="font-size:16px; vertical-align:middle;">mic_off</span> Mute all participants
                 </button>
             </div>
@@ -601,12 +680,12 @@
                     Admin Page: http://localhost:5000/<br>
                     Client Page: http://localhost:5001/
                 </div>
-                <button class="btn-gmeet btn-gmeet-outline" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="copyJoinInfo()">
+                <button type="button" class="btn-gmeet btn-gmeet-outline" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="copyJoinInfo()">
                     <span class="material-symbols-outlined">content_copy</span> Copy joining info
                 </button>
             </div>
-        </div>
-    </div>
+        </aside>
+    </main>
 
     <!-- Bottom Controls Bar -->
     <div class="bottom-bar">
@@ -623,82 +702,88 @@
         <!-- Center: Action Controls -->
         <div class="bar-center">
             <!-- Mic Button -->
-            <button class="control-btn" id="btnMic" onclick="toggleAdminMic()" data-tooltip="Turn off microphone (Ctrl + d)">
+            <button type="button" class="control-btn" id="btnMic" onclick="toggleAdminMic()" data-tooltip="Turn off microphone (Ctrl + d)">
                 <span class="material-symbols-outlined" id="iconMic">mic</span>
             </button>
 
             <!-- Camera Button -->
-            <button class="control-btn" id="btnCam" onclick="toggleAdminCam()" data-tooltip="Turn off camera (Ctrl + e)">
+            <button type="button" class="control-btn" id="btnCam" onclick="toggleAdminCam()" data-tooltip="Turn off camera (Ctrl + e)">
                 <span class="material-symbols-outlined" id="iconCam">videocam</span>
             </button>
 
+            <button type="button" class="control-btn" id="btnSnapshot" onclick="takeSnapshot()" data-tooltip="Ambil snapshot" aria-label="Ambil snapshot">
+                <span class="material-symbols-outlined">photo_camera</span>
+            </button>
+
             <!-- Captions Button -->
-            <button class="control-btn" id="btnCaptions" onclick="toggleCaptions()" data-tooltip="Turn on captions (c)">
+            <button type="button" class="control-btn control-secondary" id="btnCaptions" onclick="toggleCaptions()" data-tooltip="Turn on captions (c)">
                 <span class="material-symbols-outlined">closed_caption</span>
             </button>
 
             <!-- Raise Hand Button -->
-            <button class="control-btn" id="btnHand" onclick="toggleRaiseHand()" data-tooltip="Raise hand (Ctrl + h)">
+            <button type="button" class="control-btn control-secondary" id="btnHand" onclick="toggleRaiseHand()" data-tooltip="Raise hand (Ctrl + h)">
                 <span class="material-symbols-outlined" id="iconHand">back_hand</span>
             </button>
 
             <!-- Reaction Emojis Button -->
-            <button class="control-btn" id="btnReaction" onclick="toggleReactionTray()" data-tooltip="Send a reaction">
+            <button type="button" class="control-btn control-secondary" id="btnReaction" onclick="toggleReactionTray()" data-tooltip="Send a reaction">
                 <span class="material-symbols-outlined">add_reaction</span>
             </button>
 
             <!-- Whiteboard Button -->
-            <button class="control-btn" id="btnWhiteboard" onclick="openWhiteboard()" data-tooltip="Collaborative Whiteboard">
+            <button type="button" class="control-btn control-secondary" id="btnWhiteboard" onclick="openWhiteboard()" data-tooltip="Collaborative Whiteboard">
                 <span class="material-symbols-outlined" style="color:#fdd663;">draw</span>
             </button>
 
             <!-- Present Screen Button -->
-            <button class="control-btn" id="btnScreen" onclick="toggleScreenShare()" data-tooltip="Present now">
+            <button type="button" class="control-btn control-secondary" id="btnScreen" onclick="toggleScreenShare()" data-tooltip="Present now">
                 <span class="material-symbols-outlined" id="iconScreen">present_to_all</span>
             </button>
 
             <!-- Record Meeting Button -->
-            <button class="control-btn" id="btnRecord" onclick="toggleMeetingRecording()" data-tooltip="Record meeting">
+            <button type="button" class="control-btn control-secondary" id="btnRecord" onclick="toggleMeetingRecording()" data-tooltip="Record meeting">
                 <span class="material-symbols-outlined" id="iconRecord" style="color:var(--gmeet-red);">fiber_manual_record</span>
             </button>
 
             <!-- More Options Button -->
-            <button class="control-btn" id="btnMore" onclick="showMoreOptions()" data-tooltip="More options">
+            <button type="button" class="control-btn" id="btnMore" onclick="showMoreOptions()" data-tooltip="More options">
                 <span class="material-symbols-outlined">more_vert</span>
             </button>
 
             <!-- Leave Call Button (Red Pill) -->
-            <button class="control-btn btn-hangup" id="btnLeave" onclick="leaveCall()" data-tooltip="Leave call">
+            <button type="button" class="control-btn btn-hangup" id="btnLeave" onclick="leaveCall()" data-tooltip="Leave call">
                 <span class="material-symbols-outlined">call_end</span>
             </button>
         </div>
 
         <!-- Right: Info, People, Chat, Activities (AI), Host Controls -->
         <div class="bar-right">
-            <button class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Meeting details">
+            <button type="button" class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Meeting details">
                 <span class="material-symbols-outlined">info</span>
             </button>
 
-            <button class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Show everyone">
+            <button type="button" class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Show everyone">
                 <span class="material-symbols-outlined">group</span>
                 <span class="badge-count" id="badgePeopleCount">1</span>
             </button>
 
-            <button class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Chat with everyone">
+            <button type="button" class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Chat with everyone">
                 <span class="material-symbols-outlined">chat</span>
                 <span class="badge-count" id="badgeChatUnread" style="display:none;">0</span>
             </button>
 
             <!-- Activities Button (Watcher AI Telemetry & Modules) -->
-            <button class="icon-toggle-btn active" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Activities & AI Tools">
+            <button type="button" class="icon-toggle-btn active" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Activities & AI Tools">
                 <span class="material-symbols-outlined">shapes</span>
             </button>
 
             <!-- Host Controls -->
-            <button class="icon-toggle-btn" id="btnHostDrawer" onclick="toggleDrawer('host')" data-tooltip="Host controls">
+            <button type="button" class="icon-toggle-btn" id="btnHostDrawer" onclick="toggleDrawer('host')" data-tooltip="Host controls">
                 <span class="material-symbols-outlined">shield_person</span>
             </button>
         </div>
+    </div>
+
     <!-- Live Recording Badge -->
     <div class="rec-badge" id="recBadge">
         <div class="rec-dot"></div>
@@ -707,86 +792,92 @@
 
     <!-- Reaction Tray Popover -->
     <div class="reaction-tray" id="reactionTray">
-        <button class="reaction-btn" onclick="sendReaction('💖')">💖</button>
-        <button class="reaction-btn" onclick="sendReaction('👍')">👍</button>
-        <button class="reaction-btn" onclick="sendReaction('🎉')">🎉</button>
-        <button class="reaction-btn" onclick="sendReaction('👏')">👏</button>
-        <button class="reaction-btn" onclick="sendReaction('😂')">😂</button>
-        <button class="reaction-btn" onclick="sendReaction('😮')">😮</button>
+        <button type="button" class="reaction-btn" onclick="sendReaction('💖')">💖</button>
+        <button type="button" class="reaction-btn" onclick="sendReaction('👍')">👍</button>
+        <button type="button" class="reaction-btn" onclick="sendReaction('🎉')">🎉</button>
+        <button type="button" class="reaction-btn" onclick="sendReaction('👏')">👏</button>
+        <button type="button" class="reaction-btn" onclick="sendReaction('😂')">😂</button>
+        <button type="button" class="reaction-btn" onclick="sendReaction('😮')">😮</button>
     </div>
 
     <!-- More Options Popover Menu -->
     <div class="gmeet-menu-popover" id="moreMenuPopover">
-        <button class="gmeet-menu-item" onclick="openLayoutModal()">
+        <button type="button" class="gmeet-menu-item" onclick="openLayoutModal()">
             <span class="material-symbols-outlined">dashboard</span>
             <span>Change layout</span>
         </button>
-        <button class="gmeet-menu-item" onclick="toggleFullscreen()">
+        <button type="button" class="gmeet-menu-item" onclick="toggleFullscreen()">
             <span class="material-symbols-outlined">fullscreen</span>
             <span>Full screen</span>
         </button>
-        <button class="gmeet-menu-item" onclick="openSettingsModal()">
+        <button type="button" class="gmeet-menu-item" onclick="toggleCaptions()"><span class="material-symbols-outlined">closed_caption</span><span>Live captions</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="toggleReactionTray()"><span class="material-symbols-outlined">add_reaction</span><span>Send reaction</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="openWhiteboard()"><span class="material-symbols-outlined">draw</span><span>Collaborative whiteboard</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="toggleScreenShare()"><span class="material-symbols-outlined">present_to_all</span><span>Present screen</span></button>
+        <button type="button" class="gmeet-menu-item" onclick="toggleMeetingRecording()"><span class="material-symbols-outlined">fiber_manual_record</span><span>Record meeting</span></button>
+        <div class="gmeet-menu-divider"></div>
+        <button type="button" class="gmeet-menu-item" onclick="openSettingsModal()">
             <span class="material-symbols-outlined">settings</span>
             <span>Settings</span>
         </button>
-        <button class="gmeet-menu-item" onclick="togglePip()">
+        <button type="button" class="gmeet-menu-item" onclick="togglePip()">
             <span class="material-symbols-outlined">picture_in_picture_alt</span>
             <span>Picture-in-picture</span>
         </button>
         <div class="gmeet-menu-divider"></div>
-        <button class="gmeet-menu-item" id="btnInstallApp" onclick="triggerPwaInstall()">
+        <button type="button" class="gmeet-menu-item" id="btnInstallApp" onclick="triggerPwaInstall()">
             <span class="material-symbols-outlined">install_desktop</span>
-            <span>Install Google Meet App</span>
+            <span>Install WeWatch App</span>
         </button>
     </div>
 
     <!-- Authentic Google Meet Host Leave Dialog Modal -->
-    <div class="gmeet-modal-backdrop" id="hostLeaveModal" style="display:none;">
+    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="hostLeaveModal" style="display:none;">
         <div class="gmeet-modal-card">
             <h2>Leave call?</h2>
             <p>Others will be able to continue without you, or you can end the call for everyone.</p>
             <div class="gmeet-modal-actions">
-                <button class="btn-gmeet btn-gmeet-outline" onclick="closeHostLeaveModal()">Cancel</button>
-                <button class="btn-gmeet btn-gmeet-text" onclick="justLeaveCall()">Just leave the call</button>
-                <button class="btn-gmeet btn-gmeet-danger" onclick="endCallForEveryone()">End the call for everyone</button>
+                <button type="button" class="btn-gmeet btn-gmeet-outline" onclick="closeHostLeaveModal()">Cancel</button>
+                <button type="button" class="btn-gmeet btn-gmeet-text" onclick="justLeaveCall()">Just leave the call</button>
+                <button type="button" class="btn-gmeet btn-gmeet-danger" onclick="endCallForEveryone()">End the call for everyone</button>
             </div>
         </div>
     </div>
 
     <!-- Google Meet Change Layout Modal -->
-    <div class="gmeet-modal-backdrop" id="layoutModal" style="display:none;">
+    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="layoutModal" style="display:none;">
         <div class="gmeet-modal-card" style="max-width:500px;">
             <h2>Change layout</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin: 16px 0;">
-                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('auto')">
+                <button type="button" class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('auto')">
                     <span class="material-symbols-outlined" style="font-size:28px;">auto_awesome</span>
                     <span>Auto (Dynamic)</span>
                 </button>
-                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('tiled')">
+                <button type="button" class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('tiled')">
                     <span class="material-symbols-outlined" style="font-size:28px;">grid_view</span>
                     <span>Tiled (Grid)</span>
                 </button>
-                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('spotlight')">
+                <button type="button" class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('spotlight')">
                     <span class="material-symbols-outlined" style="font-size:28px;">crop_portrait</span>
                     <span>Spotlight</span>
                 </button>
-                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('sidebar')">
+                <button type="button" class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('sidebar')">
                     <span class="material-symbols-outlined" style="font-size:28px;">view_sidebar</span>
                     <span>Sidebar</span>
                 </button>
             </div>
             <div class="gmeet-modal-actions">
-                <button class="btn-gmeet btn-gmeet-primary" onclick="closeLayoutModal()">Done</button>
+                <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="closeLayoutModal()">Done</button>
             </div>
         </div>
     </div>
 
     <!-- Google Meet Functional Settings Modal -->
-    <div class="gmeet-modal-backdrop" id="settingsModal" style="display:none;">
+    <div class="gmeet-modal-backdrop" role="dialog" aria-modal="true" id="settingsModal" style="display:none;">
         <div class="gmeet-modal-card" style="max-width:560px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <h2 style="margin:0;">Settings</h2>
-                <button class="drawer-close-btn" onclick="closeSettingsModal()">
+                <button type="button" class="drawer-close-btn" onclick="closeSettingsModal()">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -819,7 +910,7 @@
                         <select id="settingsSpeakerSelect" onchange="changeAudioOutput(this.value)" style="flex:1; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
                             <option value="default">Default - System Speakers</option>
                         </select>
-                        <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; display:flex; align-items:center; gap:4px;" onclick="testSpeakerSound()">
+                        <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; display:flex; align-items:center; gap:4px;" onclick="testSpeakerSound()">
                             <span class="material-symbols-outlined" style="font-size:16px;">volume_up</span> Test
                         </button>
                     </div>
@@ -883,7 +974,7 @@
             </div>
 
             <div class="gmeet-modal-actions">
-                <button class="btn-gmeet btn-gmeet-primary" onclick="closeSettingsModal()">Done</button>
+                <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="closeSettingsModal()">Done</button>
             </div>
         </div>
     </div>
@@ -893,7 +984,7 @@
         <h1>You've left the meeting</h1>
         <p>Your session has ended.</p>
         <div class="ended-buttons">
-            <button class="btn-gmeet btn-gmeet-primary" onclick="window.location.reload()">Rejoin</button>
+            <button type="button" class="btn-gmeet btn-gmeet-primary" onclick="window.location.reload()">Rejoin</button>
         </div>
     </div>
 
@@ -974,7 +1065,7 @@
         let isCaptionsOn = false;
         let isScreenSharing = false;
         let screenStream = null;
-        let activeDrawer = 'activities';
+        let activeDrawer = null;
         let unreadChatCount = 0;
         let peerConnections = {}; // clientId -> RTCPeerConnection
         const rtcConfig = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] };
@@ -1188,6 +1279,7 @@
             // Proctoring & Focus Alert from Client
             socket.on('admin_proctor_alert', (data) => {
                 showToast(`⚠️ Alert: ${data.name} ${data.event}! (${data.time})`);
+                setOverviewIncident(`Alert: ${data.name}`, `${data.event} · ${data.time}`, 'danger');
                 playChime('hand');
             });
 
@@ -1295,19 +1387,19 @@
 
                 <!-- Admin Monitoring Quick Action Controls -->
                 <div class="tile-actions">
-                    <button class="tile-action-btn" style="color:var(--gmeet-primary);" title="Remote Control & Assist Client" onclick="openRemoteControlModal(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
+                    <button type="button" class="tile-action-btn" style="color:var(--gmeet-primary);" title="Remote Control & Assist Client" onclick="openRemoteControlModal(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
                         <span class="material-symbols-outlined">settings_remote</span>
                     </button>
-                    <button class="tile-action-btn" title="Capture Snapshot Evidence" onclick="captureClientSnapshot(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
+                    <button type="button" class="tile-action-btn" title="Capture Snapshot Evidence" onclick="captureClientSnapshot(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
                         <span class="material-symbols-outlined">photo_camera</span>
                     </button>
-                    <button class="tile-action-btn" title="Spotlight / Pin" onclick="togglePin('tile-${clientId}')">
+                    <button type="button" class="tile-action-btn" title="Spotlight / Pin" onclick="togglePin('tile-${clientId}')">
                         <span class="material-symbols-outlined">push_pin</span>
                     </button>
-                    <button class="tile-action-btn" title="Mute Participant" onclick="remoteMuteClient('${clientId}')">
+                    <button type="button" class="tile-action-btn" title="Mute Participant" onclick="remoteMuteClient('${clientId}')">
                         <span class="material-symbols-outlined">mic_off</span>
                     </button>
-                    <button class="tile-action-btn" style="color:var(--gmeet-red);" title="Remove Participant" onclick="remoteKickClient(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
+                    <button type="button" class="tile-action-btn" style="color:var(--gmeet-red);" title="Remove Participant" onclick="remoteKickClient(${escapeJsString(clientId)}, ${escapeJsString(clientName)})">
                         <span class="material-symbols-outlined">person_remove</span>
                     </button>
                 </div>
@@ -1631,37 +1723,46 @@
             btnDetails.classList.remove('active');
 
             if (tabName === 'activities') {
-                drawerTitle.innerText = 'Activities (AI Watcher)';
+                drawerTitle.innerText = 'AI Modules';
                 tabActivities.style.display = 'flex';
                 btnActivities.classList.add('active');
             } else if (tabName === 'people') {
-                drawerTitle.innerText = 'People';
+                drawerTitle.innerText = 'Participants';
                 tabPeople.style.display = 'flex';
                 btnPeople.classList.add('active');
             } else if (tabName === 'chat') {
-                drawerTitle.innerText = 'In-call messages';
+                drawerTitle.innerText = 'Messages';
                 tabChat.style.display = 'flex';
                 btnChat.classList.add('active');
                 unreadChatCount = 0;
                 document.getElementById('badgeChatUnread').style.display = 'none';
             } else if (tabName === 'host') {
-                drawerTitle.innerText = 'Host controls';
+                drawerTitle.innerText = 'Meeting Safety';
                 tabHost.style.display = 'flex';
                 btnHost.classList.add('active');
             } else if (tabName === 'details') {
-                drawerTitle.innerText = 'Meeting details';
+                drawerTitle.innerText = 'Session Details';
                 tabDetails.style.display = 'flex';
                 btnDetails.classList.add('active');
             }
 
             drawer.classList.add('open');
+            document.getElementById('monitoringWorkspace').classList.add('drawer-open');
             activeDrawer = tabName;
             adminConfig.activeTab = tabName;
             saveConfig();
         }
 
+
+        function showOverview() {
+            closeDrawer();
+            const overview = document.getElementById('overviewPanel');
+            if (overview) overview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
         function closeDrawer() {
             document.getElementById('sideDrawer').classList.remove('open');
+            document.getElementById('monitoringWorkspace').classList.remove('drawer-open');
             activeDrawer = null;
             document.getElementById('btnActivitiesDrawer').classList.remove('active');
             document.getElementById('btnPeopleDrawer').classList.remove('active');
@@ -1670,12 +1771,8 @@
             document.getElementById('btnInfoDrawer').classList.remove('active');
         }
 
-        // Open activities drawer by default for admin
-        if (adminConfig.activeTab) {
-            toggleDrawer(adminConfig.activeTab);
-        } else {
-            toggleDrawer('activities');
-        }
+        // Start on the monitoring overview; drawers open only when requested.
+        closeDrawer();
 
         // 10. Chat Message Sending
         function sendChatMessage(e) {
@@ -1714,13 +1811,13 @@
                 let hostActions = '';
                 if (!isMe) {
                     hostActions = `
-                        <button class="p-action-btn" title="Mute participant" onclick="remoteMuteClient(${escapeJsString(u.id)})">
+                        <button type="button" class="p-action-btn" title="Mute participant" onclick="remoteMuteClient(${escapeJsString(u.id)})">
                             <span class="material-symbols-outlined" style="font-size:18px;">${u.mic ? 'mic' : 'mic_off'}</span>
                         </button>
-                        <button class="p-action-btn" title="Pin to screen" onclick="togglePin(${escapeJsString(`tile-${u.id}`)})">
+                        <button type="button" class="p-action-btn" title="Pin to screen" onclick="togglePin(${escapeJsString(`tile-${u.id}`)})">
                             <span class="material-symbols-outlined" style="font-size:18px;">push_pin</span>
                         </button>
-                        <button class="p-action-btn danger" title="Remove from call" onclick="remoteKickClient(${escapeJsString(u.id)}, ${escapeJsString(u.name)})">
+                        <button type="button" class="p-action-btn danger" title="Remove from call" onclick="remoteKickClient(${escapeJsString(u.id)}, ${escapeJsString(u.name)})">
                             <span class="material-symbols-outlined" style="font-size:18px;">person_remove</span>
                         </button>
                     `;
@@ -2338,6 +2435,69 @@
         updateMoodAnalytics();
 
         // 12. Polling Watcher AI Telemetry & Status
+
+        function setOverviewIncident(title, body, severity = 'warning') {
+            const card = document.getElementById('overviewIncidentCard');
+            const titleEl = document.getElementById('overviewIncidentTitle');
+            const bodyEl = document.getElementById('overviewIncidentBody');
+            const timeEl = document.getElementById('overviewIncidentTime');
+            const countEl = document.getElementById('overviewIncidentCount');
+            if (!card || !titleEl || !bodyEl) return;
+            card.className = `incident-empty incident-${severity}`;
+            titleEl.innerText = title;
+            bodyEl.innerText = body;
+            if (timeEl) timeEl.innerText = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            if (countEl) countEl.innerText = '1 insiden';
+        }
+
+        function updateOverviewSummary(st, ft) {
+            const presence = st.kehadiran === 'AWAY' ? 'Away' : 'At desk';
+            const focus = st.gaze_direction || 'Centered';
+            const drowsiness = st.kantuk ? 'Drowsy' : 'Alert';
+            const phoneRisk = st.main_hp === 'TERCYDUK';
+            const unknownUser = ft.identitas && st.identitas === 'Tidak Dikenal';
+            const posture = st.postur ? 'Slouching' : 'Upright';
+            const risks = [];
+            if (presence === 'Away') risks.push(['Pengguna meninggalkan meja', 'Presence berubah menjadi Away.', 'warning']);
+            if (st.kantuk) risks.push(['Risiko kantuk terdeteksi', 'Mata tertutup atau tanda kelelahan terdeteksi.', 'danger']);
+            if (phoneRisk) risks.push(['Penggunaan ponsel terdeteksi', 'Tinjau aktivitas pengguna dan bukti terbaru.', 'danger']);
+            if (unknownUser) risks.push(['Wajah tidak dikenal', 'Identitas aktif tidak cocok dengan wajah tepercaya.', 'danger']);
+            if (st.postur) risks.push(['Postur perlu diperbaiki', 'Pengguna terdeteksi membungkuk.', 'warning']);
+
+            const setText = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
+            setText('summaryPresence', presence);
+            setText('summaryFocus', focus);
+            setText('summaryDrowsiness', drowsiness);
+            setText('summarySecurity', phoneRisk || unknownUser ? 'Review needed' : 'No threat');
+            setText('summaryPosture', posture);
+            setText('overviewUpdatedAt', new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+
+            const title = document.getElementById('overviewTitle');
+            const support = document.getElementById('overviewSupportText');
+            const pill = document.getElementById('overviewOverallStatus');
+            const count = document.getElementById('overviewIncidentCount');
+            const dot = document.getElementById('overviewSystemDot');
+            if (risks.length) {
+                if (title) title.innerText = risks[0][0];
+                if (support) support.innerText = `${risks.length} kondisi memerlukan perhatian.`;
+                if (pill) { pill.innerText = risks.some(r => r[2] === 'danger') ? 'Critical' : 'Perhatian'; pill.className = `status-pill ${risks.some(r => r[2] === 'danger') ? 'status-danger' : 'status-warning'}`; }
+                if (count) count.innerText = `${risks.length} insiden`;
+                if (dot) dot.className = 'app-health-dot has-risk';
+                setOverviewIncident(...risks[0]);
+            } else {
+                if (title) title.innerText = 'Monitoring normal';
+                if (support) support.innerText = 'Tidak ada kondisi kritis yang memerlukan tindakan.';
+                if (pill) { pill.innerText = 'Aman'; pill.className = 'status-pill status-safe'; }
+                if (count) count.innerText = '0 insiden';
+                if (dot) dot.className = 'app-health-dot';
+                const card = document.getElementById('overviewIncidentCard');
+                if (card) card.className = 'incident-empty';
+                setText('overviewIncidentTitle', 'Tidak ada insiden aktif');
+                setText('overviewIncidentBody', 'WeWatch akan menampilkan deteksi yang perlu ditinjau di sini.');
+                setText('overviewIncidentTime', '—');
+            }
+        }
+
         let currentMood = "";
         let moodFrames = 0;
         let lastPlayedUrl = "";
@@ -2361,6 +2521,7 @@
                 .then(data => {
                     const st = data.status || {};
                     const ft = data.features || {};
+                    updateOverviewSummary(st, ft);
 
                     // 1. Emotion
                     const eksp = st.ekspresi || '-';
@@ -2931,7 +3092,7 @@
                 <div class="poll-card">
                     <div class="poll-card-header">
                         <span class="poll-status-tag ${currentPoll.active ? 'live' : 'ended'}">${currentPoll.active ? '● LIVE' : 'ENDED'}</span>
-                        ${currentPoll.active ? `<button class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:3px 8px; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.4);" onclick="endPoll()">End poll</button>` : ''}
+                        ${currentPoll.active ? `<button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:3px 8px; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.4);" onclick="endPoll()">End poll</button>` : ''}
                     </div>
                     <div class="poll-question">${escapeHtml(currentPoll.question)}</div>
                     <div>${optionsHtml}</div>
@@ -3379,23 +3540,23 @@
                     <span style="font-size:12px; color:var(--gmeet-text-muted); margin-left:8px;">(Live Synced)</span>
                 </div>
                 <div class="wb-header-actions">
-                    <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;" onclick="exportWhiteboardPNG()">
+                    <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;" onclick="exportWhiteboardPNG()">
                         <span class="material-symbols-outlined" style="font-size:16px;">download</span> Save PNG
                     </button>
-                    <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.3);" onclick="clearWhiteboard()">
+                    <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.3);" onclick="clearWhiteboard()">
                         <span class="material-symbols-outlined" style="font-size:16px;">delete</span> Clear
                     </button>
-                    <button class="drawer-close-btn" onclick="closeWhiteboard()">
+                    <button type="button" class="drawer-close-btn" onclick="closeWhiteboard()">
                         <span class="material-symbols-outlined">close</span>
                     </button>
                 </div>
             </div>
             <div class="wb-body">
                 <div class="wb-toolbar">
-                    <button class="wb-tool-btn active" id="wbToolPen" title="Pen Tool" onclick="setWbTool('pen')">
+                    <button type="button" class="wb-tool-btn active" id="wbToolPen" title="Pen Tool" onclick="setWbTool('pen')">
                         <span class="material-symbols-outlined">edit</span>
                     </button>
-                    <button class="wb-tool-btn" id="wbToolEraser" title="Eraser Tool" onclick="setWbTool('eraser')">
+                    <button type="button" class="wb-tool-btn" id="wbToolEraser" title="Eraser Tool" onclick="setWbTool('eraser')">
                         <span class="material-symbols-outlined">ink_eraser</span>
                     </button>
                     <div class="wb-color-picker">
@@ -3427,7 +3588,7 @@
                         <div style="font-size:12px; color:var(--gmeet-text-muted);">Real-time desktop automation, monitoring, and compliance actions</div>
                     </div>
                 </div>
-                <button class="drawer-close-btn" onclick="closeRemoteControlModal()">
+                <button type="button" class="drawer-close-btn" onclick="closeRemoteControlModal()">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -3440,91 +3601,91 @@
                         <span>🏢 HR & Manager Direct Desktop Actions (Takeover & Enforcement)</span>
                     </div>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px;">
-                        <button class="remote-action-btn danger" onclick="sendHrDesktopAction('lock_workstation')">
+                        <button type="button" class="remote-action-btn danger" onclick="sendHrDesktopAction('lock_workstation')">
                             <span class="material-symbols-outlined">lock</span>
                             <div>
                                 <div style="font-weight:600;">Lock Workstation</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Instantly lock Windows PC</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrDesktopAction('show_desktop')">
+                        <button type="button" class="remote-action-btn" onclick="sendHrDesktopAction('show_desktop')">
                             <span class="material-symbols-outlined">desktop_access_disabled</span>
                             <div>
                                 <div style="font-weight:600;">Show Desktop (Win+D)</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Minimize distracting apps</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrDesktopAction('open_task_manager')">
+                        <button type="button" class="remote-action-btn" onclick="sendHrDesktopAction('open_task_manager')">
                             <span class="material-symbols-outlined">analytics</span>
                             <div>
                                 <div style="font-weight:600;">Open Task Manager</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Inspect active processes</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrDesktopAction('open_explorer')">
+                        <button type="button" class="remote-action-btn" onclick="sendHrDesktopAction('open_explorer')">
                             <span class="material-symbols-outlined">folder_open</span>
                             <div>
                                 <div style="font-weight:600;">Open File Explorer</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Access directory files (Win+E)</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn danger" onclick="sendHrDesktopAction('close_active_window')">
+                        <button type="button" class="remote-action-btn danger" onclick="sendHrDesktopAction('close_active_window')">
                             <span class="material-symbols-outlined">close_fullscreen</span>
                             <div>
                                 <div style="font-weight:600;">Close Active App (Alt+F4)</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Terminate current window</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn gold" onclick="sendHrInAppBanner()">
+                        <button type="button" class="remote-action-btn gold" onclick="sendHrInAppBanner()">
                             <span class="material-symbols-outlined">warning</span>
                             <div>
                                 <div style="font-weight:600;">In-App HR Warning Banner</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Broadcast high-priority siren</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" style="color:#8ab4f8;" onclick="sendHrSessionLock(true)">
+                        <button type="button" class="remote-action-btn" style="color:#8ab4f8;" onclick="sendHrSessionLock(true)">
                             <span class="material-symbols-outlined">shield</span>
                             <div>
                                 <div style="font-weight:600;">Freeze / Lock Client App</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Display curtain takeover screen</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrSessionLock(false)">
+                        <button type="button" class="remote-action-btn" onclick="sendHrSessionLock(false)">
                             <span class="material-symbols-outlined">lock_open</span>
                             <div>
                                 <div style="font-weight:600;">Unlock Client App</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Restore participant access</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrDesktopAction('capture_screen')">
+                        <button type="button" class="remote-action-btn" onclick="sendHrDesktopAction('capture_screen')">
                             <span class="material-symbols-outlined">screenshot_monitor</span>
                             <div>
                                 <div style="font-weight:600;">Capture Client Screen</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Real-time desktop snapshot</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrDesktopAction('system_telemetry')">
+                        <button type="button" class="remote-action-btn" onclick="sendHrDesktopAction('system_telemetry')">
                             <span class="material-symbols-outlined">memory</span>
                             <div>
                                 <div style="font-weight:600;">Client RAM & Health</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Inspect memory usage & OS</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrDesktopAction('volume_mute')">
+                        <button type="button" class="remote-action-btn" onclick="sendHrDesktopAction('volume_mute')">
                             <span class="material-symbols-outlined">volume_off</span>
                             <div>
                                 <div style="font-weight:600;">Mute Client Audio</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Silence PC speakers</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrDesktopAction('volume_down')">
+                        <button type="button" class="remote-action-btn" onclick="sendHrDesktopAction('volume_down')">
                             <span class="material-symbols-outlined">volume_down</span>
                             <div>
                                 <div style="font-weight:600;">Volume Down (-10%)</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Lower sound level</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="sendHrDesktopAction('volume_up')">
+                        <button type="button" class="remote-action-btn" onclick="sendHrDesktopAction('volume_up')">
                             <span class="material-symbols-outlined">volume_up</span>
                             <div>
                                 <div style="font-weight:600;">Volume Up (+10%)</div>
@@ -3543,17 +3704,17 @@
                     <div style="font-size:12px; color:var(--gmeet-text-muted); margin-bottom:8px;">Terminate unauthorized processes on client machine:</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
                         <input type="text" id="killProcessInput" placeholder="e.g. discord.exe, steam.exe, chrome.exe" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
-                        <button class="btn-gmeet btn-gmeet-danger" style="font-size:12px; padding:6px 14px;" onclick="sendKillProcess()">Kill Process</button>
+                        <button type="button" class="btn-gmeet btn-gmeet-danger" style="font-size:12px; padding:6px 14px;" onclick="sendKillProcess()">Kill Process</button>
                     </div>
                     <div style="font-size:11px; color:var(--gmeet-text-muted); margin-bottom:4px;">QUICK TERMINATE CHIPS:</div>
                     <div class="chips-container">
-                        <button class="action-chip danger" onclick="sendKillProcess('discord.exe')">Discord</button>
-                        <button class="action-chip danger" onclick="sendKillProcess('steam.exe')">Steam</button>
-                        <button class="action-chip danger" onclick="sendKillProcess('spotify.exe')">Spotify</button>
-                        <button class="action-chip danger" onclick="sendKillProcess('telegram.exe')">Telegram</button>
-                        <button class="action-chip danger" onclick="sendKillProcess('chrome.exe')">Chrome</button>
-                        <button class="action-chip danger" onclick="sendKillProcess('vlc.exe')">VLC Media</button>
-                        <button class="action-chip danger" onclick="sendKillProcess('game.exe')">Game.exe</button>
+                        <button type="button" class="action-chip danger" onclick="sendKillProcess('discord.exe')">Discord</button>
+                        <button type="button" class="action-chip danger" onclick="sendKillProcess('steam.exe')">Steam</button>
+                        <button type="button" class="action-chip danger" onclick="sendKillProcess('spotify.exe')">Spotify</button>
+                        <button type="button" class="action-chip danger" onclick="sendKillProcess('telegram.exe')">Telegram</button>
+                        <button type="button" class="action-chip danger" onclick="sendKillProcess('chrome.exe')">Chrome</button>
+                        <button type="button" class="action-chip danger" onclick="sendKillProcess('vlc.exe')">VLC Media</button>
+                        <button type="button" class="action-chip danger" onclick="sendKillProcess('game.exe')">Game.exe</button>
                     </div>
                 </div>
 
@@ -3566,13 +3727,13 @@
                     <div style="font-size:12px; color:var(--gmeet-text-muted); margin-bottom:8px;">Spawn modal Windows MessageBox directly on client desktop:</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
                         <input type="text" id="hrAlertInput" placeholder="Type compliance alert message..." value="Peringatan HR: Anda terdeteksi tidak fokus pada aktivitas kerja / ujian. Mohon segera kembali ke tugas Anda!" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
-                        <button class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 14px;" onclick="sendHrWindowsAlert()">Send Pop-up</button>
+                        <button type="button" class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 14px;" onclick="sendHrWindowsAlert()">Send Pop-up</button>
                     </div>
                     <div style="font-size:11px; color:var(--gmeet-text-muted); margin-bottom:4px;">PRESET MESSAGES:</div>
                     <div class="chips-container">
-                        <button class="action-chip" onclick="sendHrWindowsAlert('Peringatan: Mohon tetap fokus dan jangan membuka aplikasi lain!')">Fokus Kerja / Ujian</button>
-                        <button class="action-chip" onclick="sendHrWindowsAlert('Aktivitas Anda sedang dipantau oleh HR & Manager. Harap patuhi SOP.')">Audit Kepatuhan HR</button>
-                        <button class="action-chip" onclick="sendHrWindowsAlert('Panggilan Manager: Mohon buka mikrofon dan konfirmasi kehadiran Anda.')">Panggilan Manager</button>
+                        <button type="button" class="action-chip" onclick="sendHrWindowsAlert('Peringatan: Mohon tetap fokus dan jangan membuka aplikasi lain!')">Fokus Kerja / Ujian</button>
+                        <button type="button" class="action-chip" onclick="sendHrWindowsAlert('Aktivitas Anda sedang dipantau oleh HR & Manager. Harap patuhi SOP.')">Audit Kepatuhan HR</button>
+                        <button type="button" class="action-chip" onclick="sendHrWindowsAlert('Panggilan Manager: Mohon buka mikrofon dan konfirmasi kehadiran Anda.')">Panggilan Manager</button>
                     </div>
                 </div>
 
@@ -3585,20 +3746,20 @@
                     <div style="font-size:12px; color:var(--gmeet-text-muted); margin-bottom:6px;">Launch web URL directly in client browser:</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
                         <input type="text" id="remoteUrlInput" placeholder="https://..." value="https://google.com" style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
-                        <button class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 14px;" onclick="sendRemoteLaunchUrl()">Open URL</button>
+                        <button type="button" class="btn-gmeet btn-gmeet-primary" style="font-size:12px; padding:6px 14px;" onclick="sendRemoteLaunchUrl()">Open URL</button>
                     </div>
                     <div style="font-size:11px; color:var(--gmeet-text-muted); margin-bottom:4px;">QUICK LAUNCH SITES:</div>
                     <div class="chips-container" style="margin-bottom:12px;">
-                        <button class="action-chip" onclick="sendRemoteLaunchUrl('https://docs.google.com')">Google Docs</button>
-                        <button class="action-chip" onclick="sendRemoteLaunchUrl('https://github.com')">GitHub</button>
-                        <button class="action-chip" onclick="sendRemoteLaunchUrl('https://jira.atlassian.com')">Jira</button>
-                        <button class="action-chip" onclick="sendRemoteLaunchUrl('https://trello.com')">Trello</button>
+                        <button type="button" class="action-chip" onclick="sendRemoteLaunchUrl('https://docs.google.com')">Google Docs</button>
+                        <button type="button" class="action-chip" onclick="sendRemoteLaunchUrl('https://github.com')">GitHub</button>
+                        <button type="button" class="action-chip" onclick="sendRemoteLaunchUrl('https://jira.atlassian.com')">Jira</button>
+                        <button type="button" class="action-chip" onclick="sendRemoteLaunchUrl('https://trello.com')">Trello</button>
                     </div>
 
                     <div style="font-size:12px; color:var(--gmeet-text-muted); margin-bottom:6px;">Inject text into client Windows Clipboard:</div>
                     <div style="display:flex; gap:6px;">
                         <input type="text" id="remoteClipboardInput" placeholder="Paste or type text to copy into client clipboard..." style="flex:1; padding:7px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
-                        <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 14px;" onclick="sendRemoteClipboardInject()">Inject</button>
+                        <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 14px;" onclick="sendRemoteClipboardInject()">Inject</button>
                     </div>
                 </div>
 
@@ -3610,8 +3771,8 @@
                             <span>📸 Live Client Desktop Screenshot Preview</span>
                         </div>
                         <div style="display:flex; gap:8px;">
-                            <button class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 10px;" onclick="sendHrDesktopAction('capture_screen')">Refresh</button>
-                            <button class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 10px; color:var(--gmeet-red);" onclick="document.getElementById('remoteScreenshotCard').style.display='none'">Close</button>
+                            <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 10px;" onclick="sendHrDesktopAction('capture_screen')">Refresh</button>
+                            <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 10px; color:var(--gmeet-red);" onclick="document.getElementById('remoteScreenshotCard').style.display='none'">Close</button>
                         </div>
                     </div>
                     <div style="background:#121314; border-radius:8px; padding:6px; text-align:center; overflow:hidden;">
@@ -3625,7 +3786,7 @@
                         <span class="material-symbols-outlined">mouse</span>
                         <span>🎮 Live Interactive Mouse & Click Takeover</span>
                     </div>
-                    <button class="remote-action-btn" id="btnToggleDesktopMouse" onclick="toggleDesktopMouseControl()" style="width:100%; margin-bottom:10px;">
+                    <button type="button" class="remote-action-btn" id="btnToggleDesktopMouse" onclick="toggleDesktopMouseControl()" style="width:100%; margin-bottom:10px;">
                         <span class="material-symbols-outlined">ads_click</span>
                         <div>
                             <div style="font-weight:600;">Activate Live Mouse Takeover</div>
@@ -3636,19 +3797,19 @@
                     <div style="font-size:11px; font-weight:600; color:var(--gmeet-text-muted); margin-bottom:4px;">REMOTE KEYBOARD TYPE SENDER:</div>
                     <div style="display:flex; gap:6px; margin-bottom:8px;">
                         <input type="text" id="desktopTextInput" placeholder="Type text to write on client desktop..." style="flex:1; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px;">
-                        <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px;" onclick="sendDesktopTextInput()">Send Text</button>
+                        <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px;" onclick="sendDesktopTextInput()">Send Text</button>
                     </div>
 
                     <div style="font-size:11px; color:var(--gmeet-text-muted); margin-bottom:4px;">QUICK HOTKEYS:</div>
                     <div class="chips-container">
-                        <button class="action-chip" onclick="sendDesktopKey('key', 'enter')">Enter ↵</button>
-                        <button class="action-chip" onclick="sendDesktopKey('key', 'esc')">Esc</button>
-                        <button class="action-chip" onclick="sendDesktopKey('key', 'tab')">Tab ⇥</button>
-                        <button class="action-chip" onclick="sendDesktopKey('hotkey', ['win', 'd'])">Win + D</button>
-                        <button class="action-chip" onclick="sendDesktopKey('hotkey', ['alt', 'tab'])">Alt + Tab</button>
-                        <button class="action-chip" onclick="sendDesktopKey('hotkey', ['ctrl', 'w'])">Ctrl + W</button>
-                        <button class="action-chip" onclick="sendDesktopKey('hotkey', ['ctrl', 'shift', 'esc'])">Task Manager</button>
-                        <button class="action-chip" onclick="sendDesktopKey('hotkey', ['alt', 'f4'])">Alt + F4</button>
+                        <button type="button" class="action-chip" onclick="sendDesktopKey('key', 'enter')">Enter ↵</button>
+                        <button type="button" class="action-chip" onclick="sendDesktopKey('key', 'esc')">Esc</button>
+                        <button type="button" class="action-chip" onclick="sendDesktopKey('key', 'tab')">Tab ⇥</button>
+                        <button type="button" class="action-chip" onclick="sendDesktopKey('hotkey', ['win', 'd'])">Win + D</button>
+                        <button type="button" class="action-chip" onclick="sendDesktopKey('hotkey', ['alt', 'tab'])">Alt + Tab</button>
+                        <button type="button" class="action-chip" onclick="sendDesktopKey('hotkey', ['ctrl', 'w'])">Ctrl + W</button>
+                        <button type="button" class="action-chip" onclick="sendDesktopKey('hotkey', ['ctrl', 'shift', 'esc'])">Task Manager</button>
+                        <button type="button" class="action-chip" onclick="sendDesktopKey('hotkey', ['alt', 'f4'])">Alt + F4</button>
                     </div>
                 </div>
 
@@ -3659,21 +3820,21 @@
                         <span>Visual Guidance & Pointer</span>
                     </div>
                     <div class="remote-btn-group">
-                        <button class="remote-action-btn" id="btnToggleLaser" onclick="toggleActiveLaserPointer()">
+                        <button type="button" class="remote-action-btn" id="btnToggleLaser" onclick="toggleActiveLaserPointer()">
                             <span class="material-symbols-outlined">my_location</span>
                             <div>
                                 <div style="font-weight:600;">Remote Laser Pointer</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Track cursor directly on client screen</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" id="btnToggleAnnotate" onclick="toggleRemoteAnnotationMode()">
+                        <button type="button" class="remote-action-btn" id="btnToggleAnnotate" onclick="toggleRemoteAnnotationMode()">
                             <span class="material-symbols-outlined">gesture</span>
                             <div>
                                 <div style="font-weight:600;">Draw on Client Screen</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Live highlight & markup stream</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="clearRemoteAnnotations()">
+                        <button type="button" class="remote-action-btn" onclick="clearRemoteAnnotations()">
                             <span class="material-symbols-outlined">layers_clear</span>
                             <div>
                                 <div style="font-weight:600;">Clear Annotations</div>
@@ -3690,7 +3851,7 @@
                         <span>Alerts & Voice Command</span>
                     </div>
                     <div class="remote-btn-group">
-                        <button class="remote-action-btn" onclick="sendRemoteAttentionBell()">
+                        <button type="button" class="remote-action-btn" onclick="sendRemoteAttentionBell()">
                             <span class="material-symbols-outlined" style="color:#fdd663;">notifications_active</span>
                             <div>
                                 <div style="font-weight:600;">Ring Attention Siren</div>
@@ -3702,10 +3863,10 @@
                             <div style="font-size:11px; font-weight:600; color:var(--gmeet-text-muted); margin-bottom:4px;">REMOTE JARVIS VOICE (TTS)</div>
                             <input type="text" id="remoteTtsText" placeholder="Type announcement to speak..." style="width:100%; padding:6px 10px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:12px; margin-bottom:6px;">
                             <div style="display:flex; gap:6px;">
-                                <button class="btn-gmeet btn-gmeet-primary" style="flex:1; font-size:11px; padding:4px 8px;" onclick="sendRemoteTts()">
+                                <button type="button" class="btn-gmeet btn-gmeet-primary" style="flex:1; font-size:11px; padding:4px 8px;" onclick="sendRemoteTts()">
                                     <span class="material-symbols-outlined" style="font-size:14px; vertical-align:middle;">volume_up</span> Speak
                                 </button>
-                                <button class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 8px;" onclick="sendPresetTts('Perhatian, mohon kembali fokus ke layar.')">
+                                <button type="button" class="btn-gmeet btn-gmeet-outline" style="font-size:11px; padding:4px 8px;" onclick="sendPresetTts('Perhatian, mohon kembali fokus ke layar.')">
                                     Fokus!
                                 </button>
                             </div>
@@ -3720,21 +3881,21 @@
                         <span>Proctoring & Device Administration</span>
                     </div>
                     <div class="remote-btn-group">
-                        <button class="remote-action-btn" onclick="requestClientFullscreen()">
+                        <button type="button" class="remote-action-btn" onclick="requestClientFullscreen()">
                             <span class="material-symbols-outlined">fullscreen</span>
                             <div>
                                 <div style="font-weight:600;">Enforce Fullscreen Mode</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Prevent tab-switching / cheating</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn" onclick="remoteToggleClientCam()">
+                        <button type="button" class="remote-action-btn" onclick="remoteToggleClientCam()">
                             <span class="material-symbols-outlined">videocam</span>
                             <div>
                                 <div style="font-weight:600;">Request / Toggle Camera</div>
                                 <div style="font-size:11px; color:var(--gmeet-text-muted);">Turn video on or off</div>
                             </div>
                         </button>
-                        <button class="remote-action-btn danger" onclick="sendRemoteReload()">
+                        <button type="button" class="remote-action-btn danger" onclick="sendRemoteReload()">
                             <span class="material-symbols-outlined">refresh</span>
                             <div>
                                 <div style="font-weight:600;">Remote Reload Client</div>

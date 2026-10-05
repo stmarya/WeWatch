@@ -1846,3 +1846,142 @@ input:checked + .slider:before {
     box-shadow: 0 2px 8px rgba(0,0,0,0.5);
     letter-spacing: 0.5px;
 }
+
+
+/* ==========================================================================
+   WEWATCH DASHBOARD HIERARCHY — UI/UX PHASES 0–3
+   ========================================================================== */
+:root {
+    --ww-canvas: #191919;
+    --ww-surface: #202020;
+    --ww-raised: #2a2a29;
+    --ww-hover: #383836;
+    --ww-border: rgba(255, 255, 255, 0.16);
+    --ww-blue: #5e9fe8;
+    --ww-green: #72bc8f;
+    --ww-orange: #de9255;
+    --ww-red: #e97366;
+}
+
+body { background: var(--ww-canvas); }
+button, input, select, textarea { font: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 3px solid var(--ww-blue);
+    outline-offset: 2px;
+}
+
+.app-header {
+    min-height: 64px;
+    display: grid;
+    grid-template-columns: minmax(220px, auto) 1fr auto;
+    align-items: center;
+    gap: 24px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--ww-border);
+    background: var(--ww-canvas);
+    z-index: 30;
+}
+.app-brand { display:flex; align-items:center; gap:12px; min-width:0; }
+.app-brand-mark { width:36px; height:36px; display:grid; place-items:center; border-radius:10px; background:var(--ww-blue); color:#071b31; font-weight:800; }
+.app-brand-name { font-size:16px; font-weight:700; }
+.app-brand-subtitle { color:var(--gmeet-text-muted); font-size:12px; margin-top:2px; }
+.app-nav { display:flex; align-items:center; gap:4px; min-width:0; }
+.app-nav-item { min-height:40px; padding:0 12px; border:0; border-radius:8px; color:var(--gmeet-text-muted); background:transparent; cursor:pointer; white-space:nowrap; }
+.app-nav-item:hover, .app-nav-item.active { color:var(--gmeet-text); background:var(--ww-raised); }
+.app-health { display:flex; align-items:center; gap:8px; color:var(--gmeet-text-muted); font-size:13px; white-space:nowrap; }
+.app-health-dot { width:9px; height:9px; border-radius:50%; background:var(--ww-green); box-shadow:0 0 0 4px rgba(114,188,143,.12); }
+.app-health-dot.has-risk { background:var(--ww-red); box-shadow:0 0 0 4px rgba(233,115,102,.12); }
+.app-incident-count { padding:5px 9px; border-radius:7px; background:var(--ww-raised); color:var(--gmeet-text); }
+
+.meet-app { height:calc(100vh - 144px); background:var(--ww-canvas); }
+.overview-panel {
+    width:320px;
+    flex:0 0 320px;
+    height:100%;
+    overflow-y:auto;
+    padding:18px;
+    border:1px solid var(--ww-border);
+    border-radius:14px;
+    background:var(--ww-surface);
+}
+.meet-app.drawer-open .overview-panel { display:none; }
+.overview-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.overview-eyebrow { margin:0 0 6px; color:var(--gmeet-text-muted); font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
+.overview-heading h1 { margin:0; font-size:21px; line-height:1.25; font-weight:650; }
+.overview-support { margin:9px 0 18px; color:var(--gmeet-text-muted); font-size:14px; line-height:1.45; }
+.status-pill { flex:none; padding:5px 8px; border:1px solid transparent; border-radius:7px; font-size:12px; font-weight:700; }
+.status-safe { color:var(--ww-green); background:rgba(114,188,143,.10); border-color:rgba(114,188,143,.3); }
+.status-warning { color:var(--ww-orange); background:rgba(222,146,85,.10); border-color:rgba(222,146,85,.3); }
+.status-danger { color:var(--ww-red); background:rgba(233,115,102,.10); border-color:rgba(233,115,102,.3); }
+.risk-summary, .incident-summary, .overview-actions { padding-top:16px; margin-top:16px; border-top:1px solid var(--ww-border); }
+.section-heading-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.section-heading-row h2, .overview-actions h2 { margin:0; font-size:15px; font-weight:650; }
+.section-heading-row span { color:var(--gmeet-text-muted); font-size:12px; }
+.risk-list { display:flex; flex-direction:column; }
+.risk-row { min-height:42px; display:grid; grid-template-columns:12px 1fr auto; align-items:center; gap:9px; border-bottom:1px solid rgba(255,255,255,.07); font-size:14px; }
+.risk-row:last-child { border-bottom:0; }
+.risk-row .risk-icon { color:var(--ww-green); font-size:9px; }
+.risk-row strong { font-size:13px; font-weight:600; }
+.incident-empty { display:flex; gap:10px; padding:12px; border:1px solid var(--ww-border); border-radius:10px; background:rgba(114,188,143,.06); }
+.incident-empty > .material-symbols-outlined { color:var(--ww-green); }
+.incident-empty strong { display:block; font-size:14px; margin-bottom:4px; }
+.incident-empty p { margin:0; color:var(--gmeet-text-muted); font-size:13px; line-height:1.4; }
+.incident-warning { background:rgba(222,146,85,.08); border-color:rgba(222,146,85,.28); }
+.incident-warning > .material-symbols-outlined { color:var(--ww-orange); }
+.incident-danger { background:rgba(233,115,102,.08); border-color:rgba(233,115,102,.28); }
+.incident-danger > .material-symbols-outlined { color:var(--ww-red); }
+.overview-action-grid { display:grid; grid-template-columns:1fr; gap:8px; margin-top:10px; }
+.overview-action { min-height:44px; display:flex; align-items:center; justify-content:flex-start; gap:9px; padding:0 12px; border:1px solid var(--ww-border); border-radius:9px; background:transparent; color:var(--gmeet-text); text-decoration:none; cursor:pointer; }
+.overview-action:hover { background:var(--ww-hover); }
+.overview-action.primary { background:var(--ww-blue); border-color:var(--ww-blue); color:#071b31; font-weight:700; }
+
+.module-category-nav { position:sticky; top:-16px; z-index:2; display:flex; gap:6px; overflow-x:auto; margin:-4px -4px 12px; padding:8px 4px; background:var(--gmeet-surface); }
+.module-category-nav a { padding:7px 9px; border:1px solid var(--ww-border); border-radius:7px; color:var(--gmeet-text-muted); text-decoration:none; font-size:12px; white-space:nowrap; }
+.module-category-nav a:hover { color:var(--gmeet-text); border-color:var(--ww-blue); }
+.module-switch-group { scroll-margin-top:52px; }
+.control-secondary { display:none; }
+.bottom-bar { height:80px; border-top:1px solid rgba(255,255,255,.06); }
+
+@media (max-width: 1180px) {
+    .app-header { grid-template-columns:auto 1fr; }
+    .app-health { grid-column:2; grid-row:1; justify-self:end; }
+    .app-nav { display:none; }
+    .overview-panel { width:290px; flex-basis:290px; }
+    .bar-left, .bar-right { min-width:170px; }
+}
+
+@media (max-width: 900px) {
+    .app-header { min-height:60px; padding:8px 14px; }
+    .app-brand-subtitle, .app-health > span:not(.app-health-dot):not(.app-incident-count) { display:none; }
+    .meet-app { height:calc(100vh - 132px); flex-direction:column; overflow-y:auto; padding:8px; }
+    .stage-container { min-height:52vh; height:52vh; flex:none; }
+    .overview-panel { width:100%; height:auto; flex:none; overflow:visible; }
+    .meet-app.drawer-open .overview-panel { display:none; }
+    .side-drawer { position:fixed; inset:auto 8px 76px 8px; width:auto; height:min(72vh, 680px); z-index:200; }
+    .bar-left { display:none; }
+    .bar-center { margin:0 auto; gap:10px; }
+    .bar-right { min-width:auto; }
+    .bar-right .icon-toggle-btn:not(#btnActivitiesDrawer) { display:none; }
+    .bottom-bar { height:72px; padding:0 12px; }
+}
+
+@media (max-width: 560px) {
+    .app-health { font-size:12px; }
+    .app-incident-count { padding:4px 7px; }
+    .bar-right { display:none; }
+    .control-btn { width:44px; height:44px; }
+    .control-btn.btn-hangup { width:52px; }
+    .overview-panel { padding:16px; border-radius:12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
+
+/* Keep icon ligatures from expanding controls while web fonts are loading. */
+.material-symbols-outlined {
+    max-width: 1.25em;
+    overflow: hidden;
+    flex: 0 0 auto;
+}
+.bottom-bar > * { min-width: 0; }
