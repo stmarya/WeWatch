@@ -364,14 +364,24 @@ def handle_join(data):
             emit('join_rejected', {'reason': 'Admin token required.'})
             return
     role = requested_role if requested_role in {'admin', 'agent'} else 'client'
-    if REQUIRE_JOIN_TOKEN and role == 'client':
-        try:
-            claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
-            if claims['role'] != 'client':
-                raise ValueError('role mismatch')
-        except ValueError:
+    profile = {}
+    if role == 'client':
+        # A signed ticket from the WeWatch account page carries the verified
+        # identity, display name, and avatar; it overrides client-supplied values.
+        claims = None
+        if data.get('join_token'):
+            try:
+                claims = verify_room_token(data.get('join_token', ''), ROOM_NAME)
+                if claims['role'] != 'client':
+                    claims = None
+            except ValueError:
+                claims = None
+        if REQUIRE_JOIN_TOKEN and claims is None:
             emit('join_rejected', {'reason': 'Valid room token required.'})
             return
+        if claims:
+            identity = str(claims['identity'])[:128]
+            profile = claims.get('profile') or {}
     
     if is_meeting_locked() and role == 'client':
         emit('join_rejected', {'reason': 'This meeting has been locked by the host.'})
@@ -388,7 +398,10 @@ def handle_join(data):
             )
             return
 
-    name = data.get('name', 'Admin (Host)' if role == 'admin' else f'Participant {request.sid[:4]}')
+    name = profile.get('name') or str(
+        data.get('name') or ('Admin (Host)' if role == 'admin' else f'Participant {request.sid[:4]}')
+    )[:100]
+    avatar = profile.get('avatar', '')
     room = ROOM_NAME
     join_room(room)
     
@@ -398,6 +411,8 @@ def handle_join(data):
         'name': name,
         'role': role,
         'identity': identity,
+        'avatar': avatar,
+        'verified': bool(profile),
         'target_identity': str(data.get('target_identity', '')).strip()[:128] if role == 'agent' else '',
         'mic': data.get('mic', True),
         'cam': data.get('cam', True),
@@ -421,7 +436,8 @@ def handle_join(data):
     
     # Specifically inform admin of client joined for WebRTC peering
     if role == 'client':
-        emit('client_joined', {'id': request.sid, 'name': name}, to=room)
+        emit('client_joined', {'id': request.sid, 'name': name, 'avatar': avatar}, to=room)
+    emit('join_accepted', {'id': request.sid, 'name': name, 'avatar': avatar, 'verified': bool(profile)})
 
 
 @socketio.on('presence_ping')

@@ -582,6 +582,50 @@
             avatar.style.display = isCamOn ? 'none' : 'flex';
         }
 
+        // Prefill the lobby from a WeWatch account ticket. This is display-only;
+        // the signaling server verifies the signature and enforces the profile.
+        function readTicketProfile() {
+            const ticket = new URLSearchParams(window.location.search).get('join_token') || '';
+            const raw = ticket.split('.')[0];
+            if (!raw) return null;
+            try {
+                const padded = raw.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((raw.length + 3) % 4);
+                const bytes = Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+                const payload = JSON.parse(new TextDecoder().decode(bytes));
+                return payload && payload.profile ? payload.profile : null;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function applyProfileAvatar(avatarUrl) {
+            const avatar = safeAvatarUrl(avatarUrl);
+            if (!avatar) return;
+            ['lobbyAvatarCircle', 'localAvatarCircle'].forEach(id => {
+                const circle = document.getElementById(id);
+                if (!circle) return;
+                circle.textContent = '';
+                const img = document.createElement('img');
+                img.src = avatar;
+                img.alt = '';
+                img.className = 'avatar-circle-img';
+                img.referrerPolicy = 'no-referrer';
+                circle.appendChild(img);
+            });
+        }
+
+        const ticketProfile = readTicketProfile();
+        if (ticketProfile) {
+            if (ticketProfile.name) {
+                clientName = ticketProfile.name;
+                const input = document.getElementById('lobbyNameInput');
+                input.value = ticketProfile.name;
+                input.readOnly = true;
+                input.title = 'Nama diambil dari akun WeWatch kamu';
+            }
+            applyProfileAvatar(ticketProfile.avatar);
+        }
+
         // Join Meeting from Lobby
         function joinMeetingFromLobby() {
             const nameInput = document.getElementById('lobbyNameInput').value.trim();
@@ -589,7 +633,9 @@
 
             document.getElementById('tileNameLabel').innerText = clientName + ' (You)';
             document.getElementById('drawerYouName').innerText = clientName;
-            document.getElementById('localAvatarCircle').innerText = clientName.charAt(0).toUpperCase();
+            if (!(ticketProfile && safeAvatarUrl(ticketProfile.avatar))) {
+                document.getElementById('localAvatarCircle').innerText = clientName.charAt(0).toUpperCase();
+            }
 
             // Transfer stream to in-call element
             document.getElementById('localVideo').srcObject = localStream;
@@ -1249,6 +1295,24 @@
             showToast(`${user.name} left the meeting`);
         });
 
+        // Only http(s) avatar URLs issued by the server are rendered as images.
+        function safeAvatarUrl(value) {
+            try {
+                const url = new URL(String(value || ''), window.location.href);
+                return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+            } catch (err) {
+                return '';
+            }
+        }
+
+        function participantAvatarHtml(u, color, initial) {
+            const avatar = safeAvatarUrl(u.avatar);
+            if (avatar) {
+                return `<div class="participant-avatar participant-avatar-img"><img src="${escapeHtml(avatar)}" alt="" width="32" height="32" referrerpolicy="no-referrer"></div>`;
+            }
+            return `<div class="participant-avatar" style="background:${color};">${escapeHtml(initial)}</div>`;
+        }
+
         function renderParticipants(list) {
             const container = document.getElementById('peopleList');
             const badge = document.getElementById('peopleCountBadge');
@@ -1265,10 +1329,10 @@
                 const item = document.createElement('div');
                 item.className = 'participant-item';
                 item.innerHTML = `
-                    <div class="participant-avatar" style="background:${color};">${initial}</div>
+                    ${participantAvatarHtml(u, color, initial)}
                     <div class="participant-info">
                     <div class="participant-name">${escapeHtml(u.name || 'Participant')} ${isMe ? '(You)' : ''}</div>
-                        <div class="participant-sub">${u.role === 'admin' ? 'Host / Admin' : 'Client Participant'}</div>
+                        <div class="participant-sub">${u.role === 'admin' ? 'Host / Admin' : (u.verified ? 'WeWatch account' : 'Guest participant')}</div>
                     </div>
                     <div class="participant-icons">
                         <span class="material-symbols-outlined" style="font-size:18px;">${u.mic ? 'mic' : 'mic_off'}</span>
@@ -1352,6 +1416,15 @@
             isMeetingLocked = data.locked;
             const lockBanner = document.getElementById('lobbyLockBanner');
             if (lockBanner) lockBanner.style.display = data.locked ? 'flex' : 'none';
+        });
+
+        socket.on('join_accepted', (data) => {
+            if (data && data.verified && data.name) {
+                clientName = data.name;
+                document.getElementById('tileNameLabel').innerText = clientName + ' (You)';
+                document.getElementById('drawerYouName').innerText = clientName;
+                applyProfileAvatar(data.avatar);
+            }
         });
 
         socket.on('join_rejected', (data) => {

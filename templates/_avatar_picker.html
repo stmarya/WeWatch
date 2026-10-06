@@ -1,0 +1,21 @@
+{# Avatar picker. Expects: avatar_groups, selected (avatar id), id_prefix. #}
+{% macro avatar_picker(avatar_groups, selected, id_prefix, error=None) %}
+<fieldset class="avatar-picker" aria-describedby="{{ id_prefix }}AvatarHint{% if error %} {{ id_prefix }}AvatarError{% endif %}">
+    <legend>Pilih avatar</legend>
+    <p class="field-hint" id="{{ id_prefix }}AvatarHint">Avatar gratis berlisensi CC0. Kamu bisa menggantinya kapan saja.</p>
+    {% for style, label, avatars in avatar_groups %}
+    <div class="avatar-group">
+        <p class="avatar-group-title">{{ label }}</p>
+        <div class="avatar-grid">
+            {% for avatar in avatars %}
+            <label class="avatar-option" title="{{ avatar.label }}">
+                <input type="radio" name="avatar" value="{{ avatar.id }}" {% if avatar.id == selected %}checked{% endif %}>
+                <img src="{{ avatar.url }}" alt="{{ avatar.label }}" width="56" height="56" decoding="async">
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+    {% if error %}<p class="field-error" id="{{ id_prefix }}AvatarError">{{ error }}</p>{% endif %}
+</fieldset>
+{% endmacro %}

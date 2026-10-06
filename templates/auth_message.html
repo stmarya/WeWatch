@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }} | WeWatch</title>
+    <link rel="stylesheet" href="/static/wewatch-shell.css">
+</head>
+<body>
+    <main class="login-layout auth-layout">
+        <section class="surface login-card" aria-labelledby="pageTitle">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true">W</span>
+                <div><strong>WeWatch</strong><span>AI security & productivity</span></div>
+            </div>
+            <h1 id="pageTitle">{{ title }}</h1>
+            <div class="{{ 'success' if ok else 'error' }}" role="{{ 'status' if ok else 'alert' }}">{{ message }}</div>
+            {% if action_url %}<p class="auth-switch"><a href="{{ action_url }}">{{ action_label }}</a></p>{% endif %}
+            <p class="auth-switch"><a href="/auth/login">Ke halaman masuk</a></p>
+        </section>
+    </main>
+</body>
+</html>

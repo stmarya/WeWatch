@@ -15,7 +15,8 @@
             </div>
             <h1 id="loginTitle">Selamat datang kembali</h1>
             <p class="muted">Masuk menggunakan akun WeWatch Anda.</p>
-            {% if registered %}<div class="success" role="status">Registrasi berhasil. Silakan masuk.</div>{% endif %}
+            {% if registered %}<div class="success" role="status">Registrasi berhasil. Cek email kamu untuk link verifikasi, lalu masuk.</div>{% endif %}
+            {% if notice %}<div class="success" role="status">{{ notice }}</div>{% endif %}
             {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
 
             <form method="post" autocomplete="on" class="auth-form">
@@ -27,6 +28,7 @@
                 <input id="loginPassword" type="password" name="password" autocomplete="current-password" maxlength="128" required>
                 <button class="button primary" type="submit">Masuk ke akun</button>
             </form>
+            <p class="auth-switch"><a href="/auth/forgot-password">Lupa password?</a></p>
 
             <p class="auth-switch">Belum memiliki akun? <a href="/auth/register">Daftar sekarang</a></p>
 

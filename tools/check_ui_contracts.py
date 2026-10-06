@@ -13,6 +13,9 @@ TEMPLATES = (
     Path("templates/login.html"),
     Path("templates/register.html"),
     Path("templates/account.html"),
+    Path("templates/forgot_password.html"),
+    Path("templates/reset_password.html"),
+    Path("templates/auth_message.html"),
     Path("templates/gallery.html"),
 )
 VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}

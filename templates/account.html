@@ -1,3 +1,4 @@
+{% from "_avatar_picker.html" import avatar_picker %}
 <!doctype html>
 <html lang="id">
 <head>
@@ -12,25 +13,151 @@
             <span class="brand-mark" aria-hidden="true">W</span>
             <div><strong>WeWatch</strong><span>Akun pengguna</span></div>
         </div>
-        <section class="surface account-card" aria-labelledby="accountTitle">
+
+        {% for message in messages %}<div class="success" role="status">{{ message }}</div>{% endfor %}
+        {% for message in flash_errors %}<div class="error flash-error" role="alert">{{ message }}</div>{% endfor %}
+
+        {% if not user.email_verified %}
+        <div class="account-notice verify-banner" role="status">
+            <div>
+                <strong>Email belum diverifikasi</strong>
+                <p>Cek inbox {{ user.email }} dan buka link verifikasi agar akunmu bisa dipulihkan jika lupa password.</p>
+            </div>
+            <form method="post" action="/account/verify-email/resend">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="button" type="submit">Kirim ulang link</button>
+            </form>
+        </div>
+        {% endif %}
+
+        <section class="surface account-card profile-summary" aria-labelledby="accountTitle">
+            <img class="profile-avatar" src="{{ user.avatar_url }}" alt="Avatar {{ user.display_name }}" width="96" height="96">
             <div>
                 <p class="eyebrow">Akun aktif</p>
                 <h1 id="accountTitle">{{ user.display_name }}</h1>
-                <p class="muted">{{ user.email }}</p>
+                <p class="muted">{{ user.email }}{% if user.email_verified %} <span class="badge-verified">Terverifikasi</span>{% endif %}</p>
+                {% if user.bio %}<p class="profile-bio">{{ user.bio }}</p>{% endif %}
+                <a class="button primary meeting-button" href="/account/meeting">Gabung meeting dengan profil ini</a>
             </div>
+        </section>
+
+        <nav class="account-nav" aria-label="Pengaturan akun">
+            <a href="#profileSection">Profil</a>
+            <a href="#emailSection">Email</a>
+            <a href="#passwordSection">Password</a>
+            <a href="#detailsSection">Detail akun</a>
+            <a href="#privacySection">Data &amp; privasi</a>
+        </nav>
+
+        <section class="surface account-card" id="profileSection" aria-labelledby="profileTitle">
+            <h2 id="profileTitle">Profil</h2>
+            <p class="muted">Nama, bio, dan avatar terlihat oleh pengguna lain di WeWatch.</p>
+            {% if errors.get('profile') %}<div class="error" role="alert">{{ errors.get('profile') }}</div>{% endif %}
+            <form method="post" action="/account/profile" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="profileName">Nama lengkap</label>
+                <input id="profileName" name="display_name" autocomplete="name" minlength="2" maxlength="100" value="{{ values.get('display_name', user.display_name) }}" required>
+
+                <label for="profileBio">Bio <span class="muted">(opsional)</span></label>
+                <textarea id="profileBio" name="bio" rows="3" maxlength="{{ bio_max_length }}" aria-describedby="profileBioHint">{{ values.get('bio', user.bio) }}</textarea>
+                <p class="field-hint" id="profileBioHint">Maksimal {{ bio_max_length }} karakter.</p>
+
+                {{ avatar_picker(avatar_groups, values.get('avatar') or user.avatar, 'profile') }}
+                <button class="button primary" type="submit">Simpan profil</button>
+            </form>
+
+            <div class="upload-block">
+                <h3>Atau unggah foto sendiri</h3>
+                <p class="muted">JPG, PNG, atau WebP, maksimal 2 MB. Foto dipotong persegi 256×256 dan metadata (EXIF/lokasi) dihapus otomatis.</p>
+                {% if errors.get('upload') %}<div class="error" role="alert">{{ errors.get('upload') }}</div>{% endif %}
+                <form method="post" action="/account/avatar/upload" enctype="multipart/form-data" class="upload-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label for="avatarPhoto">Pilih foto</label>
+                    <input id="avatarPhoto" type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
+                    <button class="button" type="submit">Unggah foto</button>
+                </form>
+                {% if has_uploaded_avatar %}
+                <form method="post" action="/account/avatar/remove">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="button" type="submit">Hapus foto, pakai avatar default</button>
+                </form>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="surface account-card" id="emailSection" aria-labelledby="emailTitle">
+            <h2 id="emailTitle">Email</h2>
+            <p class="muted">Email dipakai untuk masuk. Email baru aktif setelah kamu membuka link konfirmasi yang kami kirim ke alamat tersebut.</p>
+            {% if pending_email %}<div class="account-notice" role="status"><strong>Menunggu konfirmasi</strong><p>Link konfirmasi sudah dikirim ke {{ pending_email }}.</p></div>{% endif %}
+            {% if errors.get('email') %}<div class="error" role="alert">{{ errors.get('email') }}</div>{% endif %}
+            <form method="post" action="/account/email" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="newEmail">Email baru</label>
+                <input id="newEmail" type="email" name="email" autocomplete="email" maxlength="254" value="{{ values.get('email', user.email) }}" required>
+                <label for="emailCurrentPassword">Password saat ini</label>
+                <input id="emailCurrentPassword" type="password" name="current_password" autocomplete="current-password" maxlength="128" required>
+                <button class="button" type="submit">Perbarui email</button>
+            </form>
+        </section>
+
+        <section class="surface account-card" id="passwordSection" aria-labelledby="passwordTitle">
+            <h2 id="passwordTitle">Password</h2>
+            <p class="muted">Setelah diganti, sesi di perangkat lain otomatis keluar.</p>
+            {% if errors.get('password') %}<div class="error" role="alert">{{ errors.get('password') }}</div>{% endif %}
+            <form method="post" action="/account/password" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label for="currentPassword">Password saat ini</label>
+                <input id="currentPassword" type="password" name="current_password" autocomplete="current-password" maxlength="128" required>
+                <label for="newPassword">Password baru</label>
+                <input id="newPassword" type="password" name="new_password" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="newPasswordHint" required>
+                <p class="field-hint" id="newPasswordHint">Minimal 12 karakter, mengandung huruf dan angka.</p>
+                <label for="newPasswordConfirmation">Konfirmasi password baru</label>
+                <input id="newPasswordConfirmation" type="password" name="new_password_confirmation" autocomplete="new-password" minlength="12" maxlength="128" required>
+                <button class="button" type="submit">Ganti password</button>
+            </form>
+        </section>
+
+        <section class="surface account-card" id="detailsSection" aria-labelledby="detailsTitle">
+            <h2 id="detailsTitle">Detail akun</h2>
             <dl class="account-meta">
                 <div><dt>Peran</dt><dd>{{ user.role }}</dd></div>
-                <div><dt>Terdaftar</dt><dd>{{ user.created_at }}</dd></div>
-                <div><dt>Login terakhir</dt><dd>{{ user.last_login_at or 'Login pertama' }}</dd></div>
+                <div><dt>Status email</dt><dd>{{ 'Terverifikasi ' ~ (user.email_verified_at | datetime_id) if user.email_verified else 'Belum diverifikasi' }}</dd></div>
+                <div><dt>Terdaftar</dt><dd>{{ user.created_at | datetime_id }}</dd></div>
+                <div><dt>Terakhir diperbarui</dt><dd>{{ user.updated_at | datetime_id }}</dd></div>
+                <div><dt>Login terakhir</dt><dd>{{ user.last_login_at | datetime_id if user.last_login_at else 'Login pertama' }}</dd></div>
             </dl>
             <div class="account-notice">
-                <strong>Akun berhasil tercatat</strong>
+                <strong>Akses akun</strong>
                 <p>Fitur monitoring dan remote control tetap dibatasi untuk administrator.</p>
             </div>
             <form method="post" action="/auth/logout">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button class="button" type="submit">Keluar</button>
             </form>
+        </section>
+
+        <section class="surface account-card" id="privacySection" aria-labelledby="privacyTitle">
+            <h2 id="privacyTitle">Data &amp; privasi</h2>
+            <h3>Unduh data saya</h3>
+            <p class="muted">Dapatkan salinan data akunmu dalam format JSON.</p>
+            <form method="post" action="/account/export">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="button" type="submit">Unduh data (JSON)</button>
+            </form>
+
+            <div class="danger-zone">
+                <h3>Hapus akun</h3>
+                <p class="muted">Akun, profil, dan foto akan dihapus permanen dan tidak dapat dipulihkan.</p>
+                {% if errors.get('delete') %}<div class="error" role="alert">{{ errors.get('delete') }}</div>{% endif %}
+                <form method="post" action="/account/delete" class="auth-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label for="deletePassword">Password saat ini</label>
+                    <input id="deletePassword" type="password" name="current_password" autocomplete="current-password" maxlength="128" required>
+                    <label for="deleteConfirm">Ketik <strong>HAPUS</strong> untuk konfirmasi</label>
+                    <input id="deleteConfirm" name="confirm" autocomplete="off" pattern="[Hh][Aa][Pp][Uu][Ss]" required>
+                    <button class="button danger" type="submit">Hapus akun permanen</button>
+                </form>
+            </div>
         </section>
     </main>
 </body>
