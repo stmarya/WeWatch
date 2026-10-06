@@ -24,3 +24,6 @@ temp_voice_*.mp3
 gallery/
 # User-uploaded media
 uploads/
+
+# Local deploy runner state and logs
+.local-run/
