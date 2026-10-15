@@ -26,7 +26,7 @@ class RoomAuthTests(unittest.TestCase):
             verify_room_token(token, "room-2")
 
     def test_agent_role_is_supported(self):
-        token = issue_room_token("room-1", "workstation-1", "agent")
+        token = issue_room_token("room-1", "workstation-1", "agent", target_identity="client-1")
         claims = verify_room_token(token, "room-1", "workstation-1")
         self.assertEqual(claims["role"], "agent")
 

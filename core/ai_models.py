@@ -1,6 +1,6 @@
 import os
 import cv2
-import face_recognition
+from core.face_backend import face_recognition
 import logging
 from pathlib import Path
 from mediapipe.tasks import python
@@ -18,26 +18,47 @@ class AIModelManager:
         self.mustache_img = None
         self.tophat_img = None
         self.base_dir = Path(__file__).resolve().parent.parent
+        self.model_health = {}
         try:
             self.face_detector = vision.FaceLandmarker.create_from_options(vision.FaceLandmarkerOptions(
-                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'face_landmarker.task')),
-                output_face_blendshapes=True, output_facial_transformation_matrixes=True, num_faces=1))
-            
+                    base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'face_landmarker.task')),
+                    output_face_blendshapes=True, output_facial_transformation_matrixes=True, num_faces=1))
+            self.model_health["face_detector"] = "ready"
+        except Exception:
+            self.model_health["face_detector"] = "unavailable"
+            logging.exception("Could not load face_detector")
+
+        try:
             self.hands_detector = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
-                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'hand_landmarker.task')), num_hands=2))
-            
+                    base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'hand_landmarker.task')), num_hands=2))
+            self.model_health["hands_detector"] = "ready"
+        except Exception:
+            self.model_health["hands_detector"] = "unavailable"
+            logging.exception("Could not load hands_detector")
+
+        try:
             self.pose_detector = vision.PoseLandmarker.create_from_options(vision.PoseLandmarkerOptions(
-                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'pose_landmarker.task'))))
-            
+                    base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'pose_landmarker.task'))))
+            self.model_health["pose_detector"] = "ready"
+        except Exception:
+            self.model_health["pose_detector"] = "unavailable"
+            logging.exception("Could not load pose_detector")
+
+        try:
             self.segmenter = vision.ImageSegmenter.create_from_options(vision.ImageSegmenterOptions(
-                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'selfie_segmenter.tflite')), output_category_mask=True))
-                
+                    base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'selfie_segmenter.tflite')), output_category_mask=True))
+            self.model_health["segmenter"] = "ready"
+        except Exception:
+            self.model_health["segmenter"] = "unavailable"
+            logging.exception("Could not load segmenter")
+
+        try:
             self.object_detector = vision.ObjectDetector.create_from_options(vision.ObjectDetectorOptions(
-                base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'efficientdet_lite0.tflite')), max_results=5, score_threshold=0.3))
-                
-            logging.info("All MediaPipe Models Loaded Successfully.")
-        except Exception as e:
-            logging.error(f"Failed to load MediaPipe models: {e}")
+                    base_options=python.BaseOptions(model_asset_path=str(self.base_dir / 'efficientdet_lite0.tflite')), max_results=5, score_threshold=0.3))
+            self.model_health["object_detector"] = "ready"
+        except Exception:
+            self.model_health["object_detector"] = "unavailable"
+            logging.exception("Could not load object_detector")
 
         # Identitas Face Recognition
         self.known_face_encodings = []
@@ -53,12 +74,12 @@ class AIModelManager:
                     name = os.path.splitext(filename)[0].split('__', 1)[0]
                     img_ref = face_recognition.load_image_file(faces_dir / filename)
                     encodings = face_recognition.face_encodings(img_ref, num_jitters=2)
-                    if encodings:
+                    if len(encodings) == 1:
                         self.known_face_encodings.append(encodings[0])
                         self.known_face_names.append(name)
                         logging.info(f"Face Identity '{name}' loaded.")
                     else:
-                        logging.warning(f"No face found in {filename}.")
+                        logging.warning(f"Enrollment rejected (expected exactly one face): {filename}.")
                 except Exception as e:
                     logging.warning(f"Could not load {filename}: {e}")
                     
@@ -68,7 +89,7 @@ class AIModelManager:
             try:
                 img_ref = face_recognition.load_image_file(legacy_face)
                 encodings = face_recognition.face_encodings(img_ref)
-                if not encodings:
+                if len(encodings) != 1:
                     raise ValueError("no face found")
                 self.known_face_encodings.append(encodings[0])
                 self.known_face_names.append("Altar (Legacy)")

@@ -10,6 +10,5 @@ rtc:
 redis:
   address: redis:6379
 
-# Replace these values before exposing the service.
-keys:
-  change-me: change-me-to-a-long-random-secret
+# API keys are supplied by required LIVEKIT_KEYS environment variable.
+# Never put default or production credentials in this file.

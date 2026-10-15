@@ -32,7 +32,7 @@ Semua fitur ini dapat dikontrol melalui:
 ---
 
 ## 🛠️ Persyaratan Sistem
-- Python 3.9 - 3.14
+- Python 3.11–3.13 (CI); kompatibilitas kamera/desktop perlu diuji per OS
 - Kamera Web (Webcam)
 - Koneksi Internet (Untuk Bot Telegram)
 
@@ -127,3 +127,24 @@ menyetujui clipboard injection, workstation lock, atau process control.
 
 ---
 *Dibangun dengan ❤️ menggunakan MediaPipe, OpenCV, Flask, dan CustomTkinter.*
+
+## Audit keamanan & AI — 15 Oktober 2026
+
+Lihat [laporan lengkap](docs/AUDIT_2026-10-15.md),
+[inventaris setiap kontrol UI](docs/UI_CONTROL_INVENTORY.json), dan
+[panduan migrasi aman](docs/SECURE_PILOT_SETUP.md).
+
+Default baru: bind loopback, client wajib token undangan, preview media opt-in,
+kontrol remote memerlukan consent 10 menit dan policy lokal workstation.
+Audio cloud, foto alert/upload Telegram, log mood, dan rPPG eksperimental
+default nonaktif. Ini breaking change yang disengaja untuk privacy-by-default.
+
+Install signaling/tests tanpa dependency kamera/Windows:
+
+```bash
+python -m pip install -r requirements-signaling.txt
+PYTHONPATH=. python -m unittest discover -s tests -v
+```
+
+Untuk seluruh aplikasi gunakan `requirements.txt`; compiler dlib, hardware
+kamera/mikrofon, dan desktop session tetap diperlukan.

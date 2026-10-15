@@ -88,7 +88,7 @@ WEBRTC_ALLOWED_ORIGINS=http://localhost:5000,http://localhost:5001
 WEBRTC_ROOM_NAME=gmeet_room
 WEBRTC_MAX_PARTICIPANTS=600
 WEBRTC_ALLOW_UNSAFE_WERKZEUG=true
-WEBRTC_REQUIRE_JOIN_TOKEN=false
+WEBRTC_REQUIRE_JOIN_TOKEN=true
 WEBRTC_REQUIRE_SHARED_STATE=false
 ```
 
@@ -133,7 +133,7 @@ Endpoint penting:
 - Dashboard: `http://localhost:5000/`
 - Client meeting: `http://localhost:5001/`
 - Opt-in LiveKit media room:
-  `http://localhost:5001/livekit?join_token=<CLIENT_JOIN_TOKEN>`
+  `http://localhost:5001/livekit (tempel token pada input, bukan URL)`
 - Health check signaling: `http://localhost:5001/healthz`
 - Readiness check signaling: `http://localhost:5001/readyz`
 - LiveKit token exchange: `POST http://localhost:5001/api/livekit-token`
@@ -311,3 +311,14 @@ Jika Face ID lambat:
 2. Gunakan pencahayaan frontal dan satu wajah saat enrollment.
 3. Periksa `faces/` dan log startup.
 4. Uji ulang threshold dengan data internal, bukan hanya satu foto.
+
+## 10. Pembaruan 15 Oktober 2026 (menggantikan default lama)
+
+Lihat `AUDIT_2026-10-15.md` dan `SECURE_PILOT_SETUP.md`. Agent memerlukan
+ticket role=agent yang terikat target_identity; static token hanya development
+dengan opt-in eksplisit. Semua remote actions memerlukan consent client yang
+aktif dan `DESKTOP_AGENT_ALLOW_REMOTE_CONTROL=true` pada workstation.
+Token media tidak boleh melebihi expiry undangan. Client dan admin di room
+yang belum menerima join tidak dapat mengirim event room. Endpoint bind
+loopback secara default. Upload/audio cloud/log mood tidak otomatis aktif.
+Status tetap **pilot terbatas**, bukan production-ready.

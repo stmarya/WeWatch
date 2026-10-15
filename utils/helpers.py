@@ -61,25 +61,40 @@ def is_v_sign(hl):
     # Jari telunjuk dan tengah ke atas, jari manis dan kelingking ke bawah
     return (hl[8].y < hl[5].y and hl[12].y < hl[9].y and hl[16].y > hl[13].y and hl[20].y > hl[17].y)
 
-def calculate_bpm(buffer, fps=15):
-    # rPPG: Menghitung Detak Jantung berdasarkan perubahan warna (zero-crossing)
-    if len(buffer) < fps * 4: 
+def calculate_bpm(buffer, fps=15, timestamps=None):
+    """Experimental pulse estimate, NOT medical measurement; 0 = insufficient data.
+
+    Reject low-quality/flat signals, gaps and impossible sampling instead of
+    clamping noise to a plausible-looking 50–180 BPM.
+    """
+    values = np.asarray(buffer, dtype=float)
+    if len(values) < 60 or not np.all(np.isfinite(values)):
         return 0
-    mean_val = np.mean(buffer)
-    centered = buffer - mean_val
-    smoothed = np.convolve(centered, np.ones(5)/5, mode='valid')
-    zero_crossings = np.where(np.diff(np.sign(smoothed)))[0]
-    
-    if len(zero_crossings) < 2: 
+    times = np.asarray(timestamps, dtype=float) if timestamps is not None else np.arange(len(values)) / fps
+    if len(times) != len(values) or not np.all(np.isfinite(times)):
         return 0
-        
-    time_diff = (zero_crossings[-1] - zero_crossings[0]) / fps
-    beats = len(zero_crossings) / 2
-    if time_diff == 0: 
+    delta = np.diff(times)
+    if np.any(delta <= 0) or np.max(delta) > 0.5 or times[-1] - times[0] < 10:
         return 0
-        
-    # Membatasi nilai BPM agar masuk akal untuk manusia
-    return min(max(int((beats / time_diff) * 60), 50), 180)
+    rate = (len(times) - 1) / (times[-1] - times[0])
+    if rate < 6:
+        return 0
+    uniform = np.linspace(times[0], times[-1], len(times))
+    signal = np.interp(uniform, times, values)
+    # Remove mean and linear lighting drift before spectral estimation.
+    signal -= np.polyval(np.polyfit(uniform - uniform[0], signal, 1), uniform - uniform[0])
+    if np.std(signal) < 0.05:
+        return 0
+    power = np.abs(np.fft.rfft(signal * np.hanning(len(signal)))) ** 2
+    frequencies = np.fft.rfftfreq(len(signal), d=1 / rate)
+    band = (frequencies >= 0.75) & (frequencies <= 3.0)
+    band_power = power[band]
+    if not len(band_power) or np.sum(band_power) <= 0:
+        return 0
+    peak = int(np.argmax(band_power))
+    if band_power[peak] / np.sum(band_power) < 0.35:
+        return 0
+    return int(round(frequencies[band][peak] * 60))
 
 def overlay_transparent(bg, overlay, x, y):
     # Menempelkan gambar PNG (Kacamata) dengan transparansi (Alpha channel)

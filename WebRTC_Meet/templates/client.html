@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Meet | client-room</title>
+    <title>WeWatch | Meeting</title>
     <link rel="icon" type="image/x-icon" href="https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-24dp/logo_meet_2020q4_color_2x_web_24dp.png">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="/static/gmeet.css">
     <script src="/static/vendor/socket.io-4.5.4.js"></script>
 </head>
-<body>
+<body class="prejoin">
 
     <!-- 1. GOOGLE MEET LOBBY / PRE-JOIN GREEN ROOM -->
     <div class="lobby-screen" id="lobbyScreen">
@@ -22,10 +22,10 @@
                 </div>
                 
                 <div class="lobby-controls-bar">
-                    <button class="lobby-control-btn" id="lobbyBtnMic" onclick="toggleLobbyMic()" title="Toggle microphone">
+                    <button class="lobby-control-btn" id="lobbyBtnMic" onclick="toggleLobbyMic()" title="Toggle microphone" aria-label="Toggle microphone">
                         <span class="material-symbols-outlined" id="lobbyIconMic">mic</span>
                     </button>
-                    <button class="lobby-control-btn" id="lobbyBtnCam" onclick="toggleLobbyCam()" title="Toggle camera">
+                    <button class="lobby-control-btn" id="lobbyBtnCam" onclick="toggleLobbyCam()" title="Toggle camera" aria-label="Toggle camera">
                         <span class="material-symbols-outlined" id="lobbyIconCam">videocam</span>
                     </button>
                 </div>
@@ -39,13 +39,23 @@
                     <span class="material-symbols-outlined" style="font-size:16px;">lock</span>
                     <span>This meeting is locked by the host</span>
                 </div>
+                <label for="lobbyNameInput">Nama tampilan</label>
                 <input type="text" class="lobby-input-field" id="lobbyNameInput" placeholder="Enter your name" value="Client Participant">
-                <button class="lobby-btn-join" id="lobbyJoinBtn" onclick="joinMeetingFromLobby()">Join now</button>
+                <label for="joinTokenInput">Token undangan dari host (tidak disimpan)</label>
+                <input type="password" class="lobby-input-field" id="joinTokenInput" autocomplete="off" placeholder="Tempel token undangan">
+                <p>Kamera/mikrofon hanya diakses setelah Anda mengaktifkan preview. Kontrol jarak jauh memerlukan persetujuan terpisah dan dapat dicabut.</p>
+                <button type="button" class="lobby-btn-join" id="previewButton" onclick="initLobbyPreview()" aria-label="Aktifkan preview kamera &amp; mikrofon">Aktifkan preview kamera & mikrofon</button>
+                <p id="joinStatus" role="status" aria-live="polite">Belum terhubung ke room.</p>
+                <button class="lobby-btn-join" id="lobbyJoinBtn" onclick="joinMeetingFromLobby()" aria-label="Join now">Join now</button>
             </div>
         </div>
     </div>
 
     <!-- 2. IN-MEETING MAIN STAGE -->
+    <div id="remoteConsentPanel" style="position:fixed;top:8px;left:8px;z-index:100001;background:#202124;padding:10px;border:1px solid #8ab4f8;border-radius:8px;max-width:calc(100vw - 40px)">
+        <label><input type="checkbox" id="remoteConsent" onchange="setRemoteConsent(this.checked)"> Izinkan bantuan jarak jauh selama 10 menit (mouse, keyboard, screenshot & perintah host)</label>
+        <span id="remoteConsentStatus" role="status">Tidak diizinkan</span>
+    </div>
     <div class="meet-app">
         <!-- Main Video Stage -->
         <div class="stage-container" id="clientStageContainer">
@@ -67,7 +77,7 @@
 
                     <!-- Tile Action Controls (Top Right Hover) -->
                     <div class="tile-actions">
-                        <button class="tile-action-btn" title="Pin to screen" onclick="togglePin('localTile')">
+                        <button class="tile-action-btn" title="Pin to screen" onclick="togglePin('localTile')" aria-label="Pin to screen">
                             <span class="material-symbols-outlined">push_pin</span>
                         </button>
                     </div>
@@ -92,7 +102,7 @@
         <div class="side-drawer" id="sideDrawer">
             <div class="drawer-header">
                 <h3 id="drawerTitle">In-call messages</h3>
-                <button class="drawer-close-btn" onclick="closeDrawer()">
+                <button class="drawer-close-btn" onclick="closeDrawer()" aria-label="close">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -126,7 +136,7 @@
                 <div class="chat-messages" id="chatMessages">
                     <div class="chat-msg">
                         <div class="chat-msg-header">
-                            <span class="chat-msg-author">Google Meet</span>
+                            <span class="chat-msg-author">WeWatch</span>
                             <span class="chat-msg-time" id="chatWelcomeTime">--:--</span>
                         </div>
                         <div class="chat-msg-body" style="color:var(--gmeet-text-muted);">
@@ -136,7 +146,7 @@
                 </div>
                 <form class="chat-input-wrapper" onsubmit="sendChatMessage(event)">
                     <input type="text" id="chatInput" placeholder="Send a message to everyone" autocomplete="off">
-                    <button type="submit" class="chat-send-btn" id="chatSendBtn">
+                    <button type="submit" class="chat-send-btn" id="chatSendBtn" aria-label="send">
                         <span class="material-symbols-outlined">send</span>
                     </button>
                 </form>
@@ -155,7 +165,7 @@
                             <div style="font-size:12px; color:var(--gmeet-text-muted);">Draw together in real-time</div>
                         </div>
                     </div>
-                    <button class="btn-gmeet btn-gmeet-primary" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="openWhiteboard()">
+                    <button class="btn-gmeet btn-gmeet-primary" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="openWhiteboard()" aria-label="brush Open Whiteboard">
                         <span class="material-symbols-outlined" style="font-size:18px;">brush</span> Open Whiteboard
                     </button>
                 </div>
@@ -185,7 +195,7 @@
                 <div style="font-size:14px; margin-bottom:12px; color:var(--gmeet-text);">
                     http://localhost:5001/
                 </div>
-                <button class="btn-gmeet btn-gmeet-outline" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="copyJoinInfo()">
+                <button class="btn-gmeet btn-gmeet-outline" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="copyJoinInfo()" aria-label="content_copy Copy joining info">
                     <span class="material-symbols-outlined">content_copy</span> Copy joining info
                 </button>
             </div>
@@ -207,68 +217,68 @@
         <!-- Center: Action Controls -->
         <div class="bar-center">
             <!-- Mic Button -->
-            <button class="control-btn" id="btnMic" onclick="toggleMic()" data-tooltip="Turn off microphone (Ctrl + d)">
+            <button class="control-btn" id="btnMic" onclick="toggleMic()" data-tooltip="Turn off microphone (Ctrl + d)" aria-label="Turn off microphone (Ctrl + d)">
                 <span class="material-symbols-outlined" id="iconMic">mic</span>
             </button>
 
             <!-- Camera Button -->
-            <button class="control-btn" id="btnCam" onclick="toggleCam()" data-tooltip="Turn off camera (Ctrl + e)">
+            <button class="control-btn" id="btnCam" onclick="toggleCam()" data-tooltip="Turn off camera (Ctrl + e)" aria-label="Turn off camera (Ctrl + e)">
                 <span class="material-symbols-outlined" id="iconCam">videocam</span>
             </button>
 
             <!-- Captions Button -->
-            <button class="control-btn" id="btnCaptions" onclick="toggleCaptions()" data-tooltip="Turn on captions (c)">
+            <button class="control-btn" id="btnCaptions" onclick="toggleCaptions()" data-tooltip="Turn on captions (c)" aria-label="Turn on captions (c)">
                 <span class="material-symbols-outlined">closed_caption</span>
             </button>
 
             <!-- Raise Hand Button -->
-            <button class="control-btn" id="btnHand" onclick="toggleRaiseHand()" data-tooltip="Raise hand (Ctrl + h)">
+            <button class="control-btn" id="btnHand" onclick="toggleRaiseHand()" data-tooltip="Raise hand (Ctrl + h)" aria-label="Raise hand (Ctrl + h)">
                 <span class="material-symbols-outlined" id="iconHand">back_hand</span>
             </button>
 
             <!-- Reaction Button -->
-            <button class="control-btn" id="btnReaction" onclick="toggleReactionTray()" data-tooltip="Send a reaction">
+            <button class="control-btn" id="btnReaction" onclick="toggleReactionTray()" data-tooltip="Send a reaction" aria-label="Send a reaction">
                 <span class="material-symbols-outlined">add_reaction</span>
             </button>
 
             <!-- Whiteboard Button -->
-            <button class="control-btn" id="btnWhiteboard" onclick="openWhiteboard()" data-tooltip="Collaborative Whiteboard">
+            <button class="control-btn" id="btnWhiteboard" onclick="openWhiteboard()" data-tooltip="Collaborative Whiteboard" aria-label="Collaborative Whiteboard">
                 <span class="material-symbols-outlined" style="color:#fdd663;">draw</span>
             </button>
 
             <!-- Present Screen Button -->
-            <button class="control-btn" id="btnScreen" onclick="toggleScreenShare()" data-tooltip="Present now">
+            <button class="control-btn" id="btnScreen" onclick="toggleScreenShare()" data-tooltip="Present now" aria-label="Present now">
                 <span class="material-symbols-outlined" id="iconScreen">present_to_all</span>
             </button>
 
             <!-- More Options Button -->
-            <button class="control-btn" id="btnMore" onclick="showMoreOptions()" data-tooltip="More options">
+            <button class="control-btn" id="btnMore" onclick="showMoreOptions()" data-tooltip="More options" aria-label="More options">
                 <span class="material-symbols-outlined">more_vert</span>
             </button>
 
             <!-- Leave Call Button (Red Pill) -->
-            <button class="control-btn btn-hangup" id="btnLeave" onclick="leaveCall()" data-tooltip="Leave call">
+            <button class="control-btn btn-hangup" id="btnLeave" onclick="leaveCall()" data-tooltip="Leave call" aria-label="Leave call">
                 <span class="material-symbols-outlined">call_end</span>
             </button>
         </div>
 
         <!-- Right: Info, People, Chat, Activities -->
         <div class="bar-right">
-            <button class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Meeting details">
+            <button class="icon-toggle-btn" id="btnInfoDrawer" onclick="toggleDrawer('details')" data-tooltip="Meeting details" aria-label="Meeting details">
                 <span class="material-symbols-outlined">info</span>
             </button>
 
-            <button class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Show everyone">
+            <button class="icon-toggle-btn" id="btnPeopleDrawer" onclick="toggleDrawer('people')" data-tooltip="Show everyone" aria-label="Show everyone">
                 <span class="material-symbols-outlined">group</span>
                 <span class="badge-count" id="badgePeopleCount">1</span>
             </button>
 
-            <button class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Chat with everyone">
+            <button class="icon-toggle-btn" id="btnChatDrawer" onclick="toggleDrawer('chat')" data-tooltip="Chat with everyone" aria-label="Chat with everyone">
                 <span class="material-symbols-outlined">chat</span>
                 <span class="badge-count" id="badgeChatUnread" style="display:none;">0</span>
             </button>
 
-            <button class="icon-toggle-btn" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Activities & Polls">
+            <button class="icon-toggle-btn" id="btnActivitiesDrawer" onclick="toggleDrawer('activities')" data-tooltip="Activities & Polls" aria-label="Activities &amp; Polls">
                 <span class="material-symbols-outlined">shapes</span>
             </button>
         </div>
@@ -282,73 +292,73 @@
 
     <!-- Reaction Tray Popover -->
     <div class="reaction-tray" id="reactionTray">
-        <button class="reaction-btn" onclick="sendReaction('💖')">💖</button>
-        <button class="reaction-btn" onclick="sendReaction('👍')">👍</button>
-        <button class="reaction-btn" onclick="sendReaction('🎉')">🎉</button>
-        <button class="reaction-btn" onclick="sendReaction('👏')">👏</button>
-        <button class="reaction-btn" onclick="sendReaction('😂')">😂</button>
-        <button class="reaction-btn" onclick="sendReaction('😮')">😮</button>
+        <button class="reaction-btn" onclick="sendReaction('❤️')" aria-label="💖">💖</button>
+        <button class="reaction-btn" onclick="sendReaction('👍')" aria-label="👍">👍</button>
+        <button class="reaction-btn" onclick="sendReaction('🎉')" aria-label="🎉">🎉</button>
+        <button class="reaction-btn" onclick="sendReaction('👏')" aria-label="👏">👏</button>
+        <button class="reaction-btn" onclick="sendReaction('😂')" aria-label="😂">😂</button>
+        <button class="reaction-btn" onclick="sendReaction('😮')" aria-label="😮">😮</button>
     </div>
 
     <!-- More Options Popover Menu -->
     <div class="gmeet-menu-popover" id="moreMenuPopover">
-        <button class="gmeet-menu-item" onclick="openLayoutModal()">
+        <button class="gmeet-menu-item" onclick="openLayoutModal()" aria-label="dashboard Change layout">
             <span class="material-symbols-outlined">dashboard</span>
             <span>Change layout</span>
         </button>
-        <button class="gmeet-menu-item" onclick="toggleFullscreen()">
+        <button class="gmeet-menu-item" onclick="toggleFullscreen()" aria-label="fullscreen Full screen">
             <span class="material-symbols-outlined">fullscreen</span>
             <span>Full screen</span>
         </button>
-        <button class="gmeet-menu-item" onclick="openSettingsModal()">
+        <button class="gmeet-menu-item" onclick="openSettingsModal()" aria-label="settings Settings">
             <span class="material-symbols-outlined">settings</span>
             <span>Settings</span>
         </button>
-        <button class="gmeet-menu-item" onclick="togglePip()">
+        <button class="gmeet-menu-item" onclick="togglePip()" aria-label="picture_in_picture_alt Picture-in-picture">
             <span class="material-symbols-outlined">picture_in_picture_alt</span>
             <span>Picture-in-picture</span>
         </button>
         <div class="gmeet-menu-divider"></div>
-        <button class="gmeet-menu-item" id="btnInstallApp" onclick="triggerPwaInstall()">
+        <button class="gmeet-menu-item" id="btnInstallApp" onclick="triggerPwaInstall()" aria-label="install_desktop Install WeWatch App">
             <span class="material-symbols-outlined">install_desktop</span>
-            <span>Install Google Meet App</span>
+            <span>Install WeWatch App</span>
         </button>
     </div>
 
-    <!-- Google Meet Change Layout Modal -->
+    <!-- WeWatch Change Layout Modal -->
     <div class="gmeet-modal-backdrop" id="layoutModal" style="display:none;">
         <div class="gmeet-modal-card" style="max-width:500px;">
             <h2>Change layout</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin: 16px 0;">
-                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('auto')">
+                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('auto')" aria-label="auto_awesome Auto (Dynamic)">
                     <span class="material-symbols-outlined" style="font-size:28px;">auto_awesome</span>
                     <span>Auto (Dynamic)</span>
                 </button>
-                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('tiled')">
+                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('tiled')" aria-label="grid_view Tiled (Grid)">
                     <span class="material-symbols-outlined" style="font-size:28px;">grid_view</span>
                     <span>Tiled (Grid)</span>
                 </button>
-                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('spotlight')">
+                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('spotlight')" aria-label="crop_portrait Spotlight">
                     <span class="material-symbols-outlined" style="font-size:28px;">crop_portrait</span>
                     <span>Spotlight</span>
                 </button>
-                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('sidebar')">
+                <button class="btn-gmeet btn-gmeet-outline" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:8px;" onclick="applyLayout('sidebar')" aria-label="view_sidebar Sidebar">
                     <span class="material-symbols-outlined" style="font-size:28px;">view_sidebar</span>
                     <span>Sidebar</span>
                 </button>
             </div>
             <div class="gmeet-modal-actions">
-                <button class="btn-gmeet btn-gmeet-primary" onclick="closeLayoutModal()">Done</button>
+                <button class="btn-gmeet btn-gmeet-primary" onclick="closeLayoutModal()" aria-label="Done">Done</button>
             </div>
         </div>
     </div>
 
-    <!-- Google Meet Functional Settings Modal -->
+    <!-- WeWatch Functional Settings Modal -->
     <div class="gmeet-modal-backdrop" id="settingsModal" style="display:none;">
         <div class="gmeet-modal-card" style="max-width:560px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <h2 style="margin:0;">Settings</h2>
-                <button class="drawer-close-btn" onclick="closeSettingsModal()">
+                <button class="drawer-close-btn" onclick="closeSettingsModal()" aria-label="close">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
@@ -381,7 +391,7 @@
                         <select id="settingsSpeakerSelect" onchange="changeAudioOutput(this.value)" style="flex:1; padding:8px 12px; border-radius:6px; background:#202124; border:1px solid var(--gmeet-border); color:#fff; font-size:13px;">
                             <option value="default">Default - System Speakers</option>
                         </select>
-                        <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; display:flex; align-items:center; gap:4px;" onclick="testSpeakerSound()">
+                        <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; display:flex; align-items:center; gap:4px;" onclick="testSpeakerSound()" aria-label="volume_up Test">
                             <span class="material-symbols-outlined" style="font-size:16px;">volume_up</span> Test
                         </button>
                     </div>
@@ -445,7 +455,7 @@
             </div>
 
             <div class="gmeet-modal-actions">
-                <button class="btn-gmeet btn-gmeet-primary" onclick="closeSettingsModal()">Done</button>
+                <button class="btn-gmeet btn-gmeet-primary" onclick="closeSettingsModal()" aria-label="Done">Done</button>
             </div>
         </div>
     </div>
@@ -455,8 +465,8 @@
         <h1>You've left the meeting</h1>
         <p>Your camera and microphone have been stopped.</p>
         <div class="ended-buttons">
-            <button class="btn-gmeet btn-gmeet-primary" onclick="rejoinMeeting()">Rejoin</button>
-            <button class="btn-gmeet btn-gmeet-outline" onclick="window.location.reload()">Return to home</button>
+            <button class="btn-gmeet btn-gmeet-primary" onclick="rejoinMeeting()" aria-label="Rejoin">Rejoin</button>
+            <button class="btn-gmeet btn-gmeet-outline" onclick="window.location.reload()" aria-label="Return to home">Return to home</button>
         </div>
     </div>
 
@@ -522,8 +532,8 @@
         // State variables
         let localStream = null;
         let screenStream = null;
-        let isMicOn = true;
-        let isCamOn = true;
+        let isMicOn = false;
+        let isCamOn = false;
         let isHandRaised = false;
         let isCaptionsOn = false;
         let isScreenSharing = false;
@@ -533,29 +543,45 @@
         let clientName = 'Client Participant';
         let inMeeting = false;
         let presenceTimer = null;
+        let joinPending = false;
+        let joinTimeout = null;
+        let remoteConsentTimer = null;
+        // Compatibility import is memory-only; remove bearer tokens from the address.
+        const initialParams = new URLSearchParams(window.location.search);
+        let inviteToken = initialParams.get('join_token') || '';
+        if (initialParams.has('join_token')) {
+            initialParams.delete('join_token');
+            history.replaceState(null, '', location.pathname + (initialParams.size ? '?' + initialParams : '') + location.hash);
+        }
+        document.getElementById('joinTokenInput').value = inviteToken;
 
         const config = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] };
         const socket = io();
 
         // 1. Lobby Media Preview (Tests Camera & Mic before entering)
         async function initLobbyPreview() {
+            if (localStream) return;
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
                     audio: true 
                 });
+                isMicOn = true; isCamOn = true;
                 document.getElementById('lobbyPreviewVideo').srcObject = localStream;
+                updateMicUI(); updateCamUI();
             } catch (err) {
                 console.warn("Hardware camera in use or not found. Using Virtual Fallback Stream:", err.message);
-                localStream = createVirtualStream("Client Participant");
-                document.getElementById('lobbyPreviewVideo').srcObject = localStream;
-                showToast("Using Virtual Video Stream (Webcam in use by Watcher)");
+                localStream = null; isMicOn = false; isCamOn = false;
+                document.getElementById('lobbyAvatar').style.display = 'flex';
+                document.getElementById('lobbyStatusText').textContent = 'Kamera/mikrofon tidak tersedia atau ditolak. Anda dapat bergabung tanpa media.';
+                showToast("Media tidak tersedia; tidak ada kamera/mikrofon yang dikirim.");
             }
         }
-        initLobbyPreview();
+        // Preview must be explicitly requested by the participant.
 
         // Lobby Toggle Functions
         function toggleLobbyMic() {
+            if (!localStream) { showToast('Aktifkan preview terlebih dahulu.'); return; }
             isMicOn = !isMicOn;
             if (localStream) {
                 localStream.getAudioTracks().forEach(t => t.enabled = isMicOn);
@@ -567,6 +593,7 @@
         }
 
         function toggleLobbyCam() {
+            if (!localStream) { showToast('Aktifkan preview terlebih dahulu.'); return; }
             isCamOn = !isCamOn;
             if (localStream) {
                 localStream.getVideoTracks().forEach(t => t.enabled = isCamOn);
@@ -584,6 +611,13 @@
 
         // Join Meeting from Lobby
         function joinMeetingFromLobby() {
+            if (joinPending) return;
+            if (!socket.connected) { showToast('Server belum terhubung; coba lagi.'); return; }
+            inviteToken = document.getElementById('joinTokenInput').value.trim();
+            joinPending = true;
+            document.getElementById('lobbyJoinBtn').disabled = true;
+            document.getElementById('joinStatus').textContent = 'Menunggu verifikasi server…';
+            joinTimeout = setTimeout(() => resetJoin('Server tidak merespons; coba lagi.'), 10000);
             const nameInput = document.getElementById('lobbyNameInput').value.trim();
             if (nameInput) clientName = nameInput;
 
@@ -596,30 +630,60 @@
             updateCamUI();
             updateMicUI();
 
-            // Hide Lobby with smooth fade
-            const lobby = document.getElementById('lobbyScreen');
-            lobby.style.transition = 'opacity 0.3s ease';
-            lobby.style.opacity = '0';
-            setTimeout(() => lobby.style.display = 'none', 300);
-
-            inMeeting = true;
-            playChime('join');
-
             // Join signaling room
             socket.emit('join', { 
                 role: 'client', 
                 name: clientName, 
-                identity: clientName,
-                join_token: new URLSearchParams(window.location.search).get('join_token') || '',
+                join_token: inviteToken,
                 mic: isMicOn, 
                 cam: isCamOn 
             });
-            if (!presenceTimer) {
-                presenceTimer = setInterval(() => socket.emit('presence_ping'), 60000);
-            }
-
-            showToast("Connected to Google Meet room");
         }
+
+        function resetJoin(message) {
+            joinPending = false; inMeeting = false;
+            document.body.classList.add('prejoin');
+            clearTimeout(joinTimeout); clearInterval(presenceTimer); presenceTimer = null;
+            document.getElementById('lobbyJoinBtn').disabled = false;
+            document.getElementById('joinStatus').textContent = message;
+            const lobby = document.getElementById('lobbyScreen');
+            lobby.style.display = 'flex'; lobby.style.opacity = '1';
+            setRemoteConsent(false);
+        }
+
+        socket.on('join_accepted', () => {
+            clearTimeout(joinTimeout); joinPending = false; inMeeting = true;
+            document.body.classList.remove('prejoin');
+            document.getElementById('lobbyScreen').style.display = 'none';
+            document.getElementById('lobbyJoinBtn').disabled = false;
+            document.getElementById('joinStatus').textContent = 'Terhubung ke room.';
+            if (!presenceTimer) presenceTimer = setInterval(() => socket.emit('presence_ping'), 60000);
+            playChime('join'); showToast('Terhubung ke WeWatch room.');
+        });
+        socket.on('disconnect', () => {
+            for (const pc of Object.values(peerConnections)) pc.close();
+            peerConnections = {};
+            resetJoin('Koneksi terputus. Setelah server tersambung, klik Join kembali.');
+        });
+        socket.on('connect_error', () => resetJoin('Tidak dapat menghubungi server.'));
+
+        function setRemoteConsent(granted) {
+            if (granted && !inMeeting) {
+                document.getElementById('remoteConsent').checked = false;
+                showToast('Bergabung ke room terlebih dahulu.'); return;
+            }
+            if (granted && !confirm('Host dapat mengontrol mouse/keyboard, mengambil screenshot, dan mengirim perintah. Izinkan selama 10 menit?')) granted = false;
+            clearTimeout(remoteConsentTimer);
+            document.getElementById('remoteConsent').checked = granted;
+            document.getElementById('remoteConsentStatus').textContent = granted ? 'Menunggu server…' : 'Tidak diizinkan';
+            if (!granted && document.getElementById('hrSessionLockCurtain')) showHrSessionLockScreen(false);
+            if (socket.connected) socket.emit('remote_assistance_consent', {granted: granted === true});
+            if (granted) remoteConsentTimer = setTimeout(() => setRemoteConsent(false), 600000);
+        }
+        socket.on('remote_consent_updated', data => {
+            document.getElementById('remoteConsent').checked = data.granted;
+            document.getElementById('remoteConsentStatus').textContent = data.granted ? 'Diizinkan; hapus centang untuk mencabut' : 'Tidak diizinkan';
+        });
 
         // Virtual Stream Fallback (so video streaming never breaks even if webcam is locked by OpenCV)
         function createVirtualStream(name) {
@@ -669,7 +733,7 @@
 
         // 2. In-Call Microphone Toggle
         function toggleMic() {
-            if (!localStream) return;
+            if (!localStream) { showToast('Media tidak tersedia. Keluar lalu aktifkan preview sebelum bergabung kembali.'); return; }
             isMicOn = !isMicOn;
             localStream.getAudioTracks().forEach(t => t.enabled = isMicOn);
             updateMicUI();
@@ -700,7 +764,7 @@
 
         // 3. In-Call Camera Toggle
         function toggleCam() {
-            if (!localStream) return;
+            if (!localStream) { showToast('Media tidak tersedia. Keluar lalu aktifkan preview sebelum bergabung kembali.'); return; }
             isCamOn = !isCamOn;
             localStream.getVideoTracks().forEach(t => t.enabled = isCamOn);
             updateCamUI();
@@ -1249,6 +1313,14 @@
             showToast(`${user.name} left the meeting`);
         });
 
+        function filterPeople() {
+            const query = (document.getElementById('peopleSearchInput')?.value || '').trim().toLocaleLowerCase();
+            document.querySelectorAll('#peopleList .participant-item').forEach(item => {
+                const name = item.querySelector('.participant-name')?.textContent || '';
+                item.hidden = !name.toLocaleLowerCase().includes(query);
+            });
+        }
+
         function renderParticipants(list) {
             const container = document.getElementById('peopleList');
             const badge = document.getElementById('peopleCountBadge');
@@ -1276,6 +1348,7 @@
                 `;
                 container.appendChild(item);
             });
+            filterPeople();
         }
 
         // WebRTC Signaling
@@ -1355,6 +1428,7 @@
         });
 
         socket.on('join_rejected', (data) => {
+            resetJoin(data.reason || 'Join ditolak server.');
             showToast(data.reason || "Unable to join: meeting is locked by the host.");
             const lobby = document.getElementById('lobbyScreen');
             lobby.style.display = 'flex';
@@ -1550,7 +1624,8 @@
             } else if (cmd === 'force_fullscreen') {
                 enforceFullscreenMode();
             } else if (cmd === 'toggle_cam') {
-                toggleCam();
+                if (isCamOn) toggleCam();
+                else showToast('Host meminta kamera; aktifkan sendiri jika Anda setuju.');
             } else if (cmd === 'reload_page') {
                 showToast("Host requested page reload...");
                 setTimeout(() => window.location.reload(), 800);
@@ -1563,7 +1638,7 @@
             } else if (cmd === 'open_url') {
                 if (payload.url) {
                     showToast(`Host membuka tautan: ${payload.url}`);
-                    window.open(payload.url, '_blank');
+                    window.open(payload.url, '_blank', 'noopener,noreferrer');
                 }
             }
         });
@@ -1610,12 +1685,12 @@
             if (cmd === 'ring_bell') triggerAttentionSiren();
             else if (cmd === 'tts_speak') speakJarvisVoice(payload.text || "Perhatian, mohon kembali fokus.");
             else if (cmd === 'force_fullscreen') enforceFullscreenMode();
-            else if (cmd === 'toggle_cam') toggleCam();
+            else if (cmd === 'toggle_cam') { if (isCamOn) toggleCam(); else showToast('Host meminta kamera; aktifkan sendiri jika setuju.'); }
             else if (cmd === 'reload_page') { showToast("Host requested page reload..."); setTimeout(() => window.location.reload(), 800); }
             else if (cmd === 'hr_warning_banner') showHrComplianceBanner(payload.message || "Peringatan HR: Pelanggaran SOP terdeteksi.");
             else if (cmd === 'hr_session_lock') showHrSessionLockScreen(true);
             else if (cmd === 'hr_session_unlock') showHrSessionLockScreen(false);
-            else if (cmd === 'open_url' && payload.url) { showToast(`Host membuka: ${payload.url}`); window.open(payload.url, '_blank'); }
+            else if (cmd === 'open_url' && payload.url) { showToast(`Host membuka: ${payload.url}`); window.open(payload.url, '_blank', 'noopener,noreferrer'); }
         });
 
         function showHrComplianceBanner(msg) {
@@ -1631,7 +1706,7 @@
                     <div style="font-weight:700; font-size:14px; letter-spacing:0.5px;">HR & EXECUTIVE COMPLIANCE ALERT</div>
                     <div style="font-size:13px; margin-top:2px;">${escapeHtml(msg)}</div>
                 </div>
-                <button class="drawer-close-btn" style="background:rgba(0,0,0,0.2); color:#fff;" onclick="this.parentElement.remove()">
+                <button class="drawer-close-btn" style="background:rgba(0,0,0,0.2); color:#fff;" onclick="this.parentElement.remove()" aria-label="close">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             `;
@@ -2069,27 +2144,27 @@
             <div class="wb-header">
                 <div class="wb-header-title">
                     <span class="material-symbols-outlined">draw</span>
-                    <span>Google Meet Collaborative Whiteboard</span>
+                    <span>WeWatch Collaborative Whiteboard</span>
                     <span style="font-size:12px; color:var(--gmeet-text-muted); margin-left:8px;">(Live Synced)</span>
                 </div>
                 <div class="wb-header-actions">
-                    <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;" onclick="exportWhiteboardPNG()">
+                    <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;" onclick="exportWhiteboardPNG()" aria-label="download Save PNG">
                         <span class="material-symbols-outlined" style="font-size:16px;">download</span> Save PNG
                     </button>
-                    <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.3);" onclick="clearWhiteboard()">
+                    <button class="btn-gmeet btn-gmeet-outline" style="font-size:12px; padding:6px 12px; color:var(--gmeet-red); border-color:rgba(234, 67, 53, 0.3);" onclick="clearWhiteboard()" aria-label="delete Clear">
                         <span class="material-symbols-outlined" style="font-size:16px;">delete</span> Clear
                     </button>
-                    <button class="drawer-close-btn" onclick="closeWhiteboard()">
+                    <button class="drawer-close-btn" onclick="closeWhiteboard()" aria-label="close">
                         <span class="material-symbols-outlined">close</span>
                     </button>
                 </div>
             </div>
             <div class="wb-body">
                 <div class="wb-toolbar">
-                    <button class="wb-tool-btn active" id="wbToolPen" title="Pen Tool" onclick="setWbTool('pen')">
+                    <button class="wb-tool-btn active" id="wbToolPen" title="Pen Tool" onclick="setWbTool('pen')" aria-label="Pen Tool">
                         <span class="material-symbols-outlined">edit</span>
                     </button>
-                    <button class="wb-tool-btn" id="wbToolEraser" title="Eraser Tool" onclick="setWbTool('eraser')">
+                    <button class="wb-tool-btn" id="wbToolEraser" title="Eraser Tool" onclick="setWbTool('eraser')" aria-label="Eraser Tool">
                         <span class="material-symbols-outlined">ink_eraser</span>
                     </button>
                     <div class="wb-color-picker">

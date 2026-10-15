@@ -5,10 +5,17 @@ import json
 import uuid
 import hmac
 import time
+import math
+import re
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+from functools import wraps
 from datetime import datetime
 from urllib.parse import urlparse
 from flask import Flask, render_template, request, jsonify, redirect
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room, leave_room, disconnect
 try:
     from services.room_auth import issue_room_token, verify_room_token
     from services.livekit_tokens import issue_livekit_token
@@ -27,6 +34,7 @@ except ModuleNotFoundError:
 from utils.security import SlidingWindowRateLimiter
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 app.config['SECRET_KEY'] = os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex())
 _configured_origins = os.getenv(
     'WEBRTC_ALLOWED_ORIGINS',
@@ -50,7 +58,8 @@ socketio = SocketIO(
 
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
 DESKTOP_AGENT_TOKEN = os.getenv('DESKTOP_AGENT_TOKEN', '').strip()
-REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 'true'
+ALLOW_STATIC_AGENT_TOKEN = os.getenv('WEBRTC_ALLOW_STATIC_AGENT_TOKEN', 'false').lower() == 'true'
+REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'true').lower() == 'true'
 REQUIRE_SHARED_STATE = os.getenv('WEBRTC_REQUIRE_SHARED_STATE', 'false').lower() == 'true'
 ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
 LIVEKIT_URL = os.getenv('LIVEKIT_URL', 'ws://localhost:7880').strip()
@@ -59,7 +68,7 @@ ALLOW_UNSAFE_WERKZEUG = os.getenv(
 ).lower() == 'true'
 try:
     MAX_PARTICIPANTS = max(1, int(os.getenv('WEBRTC_MAX_PARTICIPANTS', '600')))
-except ValueError:
+except (ValueError, RuntimeError):
     MAX_PARTICIPANTS = 600
 ALLOWED_REMOTE_COMMANDS = {
     'ring_bell', 'tts_speak', 'force_fullscreen', 'toggle_cam',
@@ -74,6 +83,7 @@ join_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
 room_token_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
 livekit_token_limiter = SlidingWindowRateLimiter(max_events=1000, window_seconds=60)
 socket_event_limiters = {
+    'general': SlidingWindowRateLimiter(max_events=1000, window_seconds=10),
     'chat': SlidingWindowRateLimiter(max_events=30, window_seconds=10),
     'caption': SlidingWindowRateLimiter(max_events=30, window_seconds=10),
     'whiteboard': SlidingWindowRateLimiter(max_events=120, window_seconds=10),
@@ -104,7 +114,8 @@ def healthz():
 def add_security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
     response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
-    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['Cache-Control'] = 'no-store'
     response.headers.setdefault(
         'Permissions-Policy',
         'camera=(self), microphone=(self), geolocation=(), payment=()',
@@ -134,9 +145,9 @@ def readyz():
 def room_token():
     if not room_token_limiter.allow(request.remote_addr or 'unknown'):
         return jsonify(error='too many token requests'), 429
-    if request.headers.get('X-Admin-Token', '') != ADMIN_TOKEN or not ADMIN_TOKEN:
+    if not ADMIN_TOKEN or not hmac.compare_digest(request.headers.get('X-Admin-Token', ''), ADMIN_TOKEN):
         return jsonify(error='admin authentication required'), 401
-    data = request.get_json(silent=True) or {}
+    data = _as_dict(request.get_json(silent=True))
     identity = str(data.get('identity', '')).strip()
     role = str(data.get('role', 'client')).strip()
     room = str(data.get('room', ROOM_NAME)).strip() or ROOM_NAME
@@ -146,8 +157,8 @@ def room_token():
         return jsonify(error='room does not match the configured signaling room'), 400
     try:
         ttl = int(data.get('ttl', 3600))
-        join_token = issue_room_token(room, identity, role, ttl)
-    except (ValueError, RuntimeError) as exc:
+        join_token = issue_room_token(room, identity, role, ttl, target_identity=data.get('target_identity'))
+    except (ValueError, TypeError, OverflowError, RuntimeError) as exc:
         return jsonify(error=str(exc)), 400
     try:
         livekit_token = issue_livekit_token(room, identity, ttl)
@@ -179,8 +190,13 @@ def livekit_token():
         claims = verify_room_token(room_token_value, ROOM_NAME)
         if claims.get('role') not in {'admin', 'client'}:
             raise ValueError('unsupported media role')
+        if claims['role'] == 'client' and is_meeting_locked():
+            return jsonify(error='meeting locked'), 403
         ttl = int(data.get('ttl', 3600))
-        token = issue_livekit_token(ROOM_NAME, claims['identity'], ttl)
+        remaining = int(claims['exp']) - int(time.time())
+        if remaining <= 0:
+            raise ValueError('room token expired')
+        token = issue_livekit_token(ROOM_NAME, claims['identity'], min(ttl, remaining), min_ttl=1)
     except (ValueError, RuntimeError, KeyError) as exc:
         return jsonify(error=str(exc)), 401
     return jsonify(
@@ -190,6 +206,40 @@ def livekit_token():
         identity=claims['identity'],
         role=claims['role'],
     )
+
+
+
+def require_participant(handler):
+    """A socket transport connection is not an authenticated room membership."""
+    @wraps(handler)
+    def guarded(*args, **kwargs):
+        user = participants.get(request.sid, {})
+        if user.get('role') not in {'admin', 'client', 'agent'}:
+            emit('action_rejected', {'reason': 'Join authentication required.'}, to=request.sid)
+            return
+        if user.get('role') == 'agent' and handler.__name__ != 'handle_agent_action_result':
+            return
+        if not socket_event_limiters['general'].allow(request.sid):
+            emit('rate_limited', {'event': 'room', 'retry_after': 10}, to=request.sid)
+            return
+        return handler(*args, **kwargs)
+    return guarded
+
+
+def remote_consent(target):
+    user = participants.get(target, {})
+    return user.get('role') == 'client' and user.get('remote_consent_until', 0) > time.time()
+
+
+def require_remote_consent(target):
+    if not remote_consent(target):
+        emit_remote_error('Participant remote-assistance consent is required (expires after 10 minutes).')
+        return False
+    return True
+
+
+def public_poll(poll):
+    return {key: value for key, value in poll.items() if key != 'voters'}
 
 
 def is_admin(sid):
@@ -270,6 +320,10 @@ def dispatch_to_agent(target, command, payload=None):
         emit_remote_error('No paired desktop agent is connected for this client.')
         return True
     request_id = uuid.uuid4().hex
+    room_store.set('desktop_request:' + request_id, {
+        'agent_sid': agent_sid, 'reply_to': request.sid, 'target': target,
+        'expires_at': time.time() + 30,
+    }, ttl=30)
     emit(
         'desktop_command',
         {
@@ -311,8 +365,8 @@ def admin_page():
 @app.route('/manifest.json')
 def manifest():
     return jsonify({
-        "short_name": "Google Meet",
-        "name": "Google Meet Client",
+        "short_name": "WeWatch",
+        "name": "WeWatch Client",
         "icons": [
             {
                 "src": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-512dp/logo_meet_2020q4_color_2x_web_512dp.png",
@@ -333,18 +387,28 @@ def handle_join(data):
     if not join_limiter.allow(request.remote_addr or 'unknown'):
         emit('join_rejected', {'reason': 'Too many join attempts. Try again later.'})
         return
+    if request.sid in participants:
+        emit('join_rejected', {'reason': 'Already joined; reconnect to change identity.'})
+        return
+    if REQUIRE_SHARED_STATE and (not participants.healthy() or not room_store.healthy()):
+        emit('join_rejected', {'reason': 'Required shared state is unavailable.'})
+        return
     requested_role = data.get('role', 'client')
+    if requested_role not in ('admin', 'agent', 'client'):
+        emit('join_rejected', {'reason': 'Invalid participant role.'})
+        return
     identity = str(data.get('identity', request.sid[:12])).strip()[:128]
     if requested_role == 'agent':
-        static_agent_ok = bool(DESKTOP_AGENT_TOKEN) and hmac.compare_digest(
+        static_agent_ok = ALLOW_STATIC_AGENT_TOKEN and bool(DESKTOP_AGENT_TOKEN) and hmac.compare_digest(
             str(data.get('agent_token', '')), DESKTOP_AGENT_TOKEN
         )
         ticket_ok = False
         if not static_agent_ok:
             try:
                 claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
-                ticket_ok = claims['role'] == 'agent'
-            except ValueError:
+                ticket_ok = (claims['role'] == 'agent' and isinstance(claims.get('target_identity'), str)
+                             and claims['target_identity'] == data.get('target_identity'))
+            except (ValueError, RuntimeError):
                 ticket_ok = False
         if not (static_agent_ok or ticket_ok):
             emit('join_rejected', {'reason': 'Desktop agent authentication required.'})
@@ -358,18 +422,19 @@ def handle_join(data):
             try:
                 claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
                 ticket_ok = claims['role'] == 'admin'
-            except ValueError:
+            except (ValueError, RuntimeError):
                 ticket_ok = False
         if not (static_token_ok or ticket_ok):
             emit('join_rejected', {'reason': 'Admin token required.'})
             return
     role = requested_role if requested_role in {'admin', 'agent'} else 'client'
-    if REQUIRE_JOIN_TOKEN and role == 'client':
+    if role == 'client' and (REQUIRE_JOIN_TOKEN or data.get('join_token')):
         try:
-            claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, identity)
+            claims = verify_room_token(data.get('join_token', ''), ROOM_NAME, data.get('identity') or None)
+            identity = claims['identity']
             if claims['role'] != 'client':
                 raise ValueError('role mismatch')
-        except ValueError:
+        except (ValueError, RuntimeError):
             emit('join_rejected', {'reason': 'Valid room token required.'})
             return
     
@@ -388,7 +453,10 @@ def handle_join(data):
             )
             return
 
-    name = data.get('name', 'Admin (Host)' if role == 'admin' else f'Participant {request.sid[:4]}')
+    if not identity or any(user.get('identity') == identity for user in participants.values()):
+        emit('join_rejected', {'reason': 'Identity is empty or already connected.'})
+        return
+    name = str(data.get('name') or ('Admin (Host)' if role == 'admin' else 'Participant'))[:128]
     room = ROOM_NAME
     join_room(room)
     
@@ -405,6 +473,7 @@ def handle_join(data):
         'hand': False,
         'joined_at': now_str
     }
+    emit('join_accepted', {'identity': identity, 'role': role}, to=request.sid)
     print(f"[{role.upper()}] joined: {name} ({request.sid}) at {now_str}")
     
     # Send current participant list, lock state, and host permissions to newly joined user
@@ -413,7 +482,7 @@ def handle_join(data):
     emit('host_permissions_update', get_host_permissions())
     active_poll = get_active_poll()
     if active_poll:
-        emit('poll_created', active_poll)
+        emit('poll_created', public_poll(active_poll))
     
     # Broadcast to other participants
     if role != 'agent':
@@ -424,6 +493,18 @@ def handle_join(data):
         emit('client_joined', {'id': request.sid, 'name': name}, to=room)
 
 
+@socketio.on('remote_assistance_consent')
+@require_participant
+def handle_remote_assistance_consent(data):
+    user = participants.get(request.sid, {})
+    if user.get('role') != 'client':
+        return
+    granted = _as_dict(data).get('granted') is True
+    user['remote_consent_until'] = time.time() + 600 if granted else 0
+    participants[request.sid] = user
+    emit('remote_consent_updated', {'granted': granted}, to=request.sid)
+
+
 @socketio.on('presence_ping')
 def handle_presence_ping():
     if request.sid in participants:
@@ -431,6 +512,7 @@ def handle_presence_ping():
 
 
 @socketio.on('agent_action_result')
+@require_participant
 def handle_agent_action_result(data):
     agent = participants.get(request.sid, {})
     if agent.get('role') != 'agent' or not isinstance(data, dict):
@@ -440,6 +522,13 @@ def handle_agent_action_result(data):
     if not isinstance(request_id, str) or len(request_id) > 64:
         return
     if not isinstance(reply_to, str) or participants.get(reply_to, {}).get('role') != 'admin':
+        return
+    pending = room_store.get('desktop_request:' + request_id)
+    if (not isinstance(pending, dict) or pending.get('agent_sid') != request.sid
+            or pending.get('reply_to') != reply_to or pending.get('expires_at', 0) <= time.time()):
+        return
+    room_store.delete('desktop_request:' + request_id)
+    if not remote_consent(pending.get('target')):
         return
     result = {
         'status': 'success' if data.get('ok') else 'error',
@@ -451,27 +540,37 @@ def handle_agent_action_result(data):
         emit('desktop_screenshot_data', {'b64': screenshot}, to=reply_to)
 
 @socketio.on('webrtc_offer')
+@require_participant
 def handle_offer(data):
     data = _as_dict(data)
     target = data.get('target')
-    if target in participants:
+    if (isinstance(target, str) and target in participants
+            and {participants[request.sid]['role'], participants[target].get('role')} == {'admin', 'client'}):
+        data['sender'] = request.sid
         emit('webrtc_offer', data, to=target)
 
 @socketio.on('webrtc_answer')
+@require_participant
 def handle_answer(data):
     data = _as_dict(data)
     target = data.get('target')
-    if target in participants:
+    if (isinstance(target, str) and target in participants
+            and {participants[request.sid]['role'], participants[target].get('role')} == {'admin', 'client'}):
+        data['sender'] = request.sid
         emit('webrtc_answer', data, to=target)
 
 @socketio.on('webrtc_ice_candidate')
+@require_participant
 def handle_ice(data):
     data = _as_dict(data)
     target = data.get('target')
-    if target in participants:
+    if (isinstance(target, str) and target in participants
+            and {participants[request.sid]['role'], participants[target].get('role')} == {'admin', 'client'}):
+        data['sender'] = request.sid
         emit('webrtc_ice_candidate', data, to=target)
 
 @socketio.on('chat_message')
+@require_participant
 def handle_chat_message(data):
     data = _as_dict(data)
     if not allow_socket_event('chat'):
@@ -491,6 +590,7 @@ def handle_chat_message(data):
     emit('chat_message', message_payload, to=ROOM_NAME)
 
 @socketio.on('live_caption')
+@require_participant
 def handle_live_caption(data):
     # Broadcast live speech transcript to everyone in call
     if isinstance(data, dict) and allow_socket_event('caption'):
@@ -502,6 +602,7 @@ def handle_live_caption(data):
         emit('caption_broadcast', payload, to=ROOM_NAME)
 
 @socketio.on('update_host_permission')
+@require_participant
 def handle_update_host_permission(data):
     data = _as_dict(data)
     if not require_admin():
@@ -516,14 +617,21 @@ def handle_update_host_permission(data):
         emit('host_permissions_update', permissions, to=ROOM_NAME)
 
 @socketio.on('toggle_media')
+@require_participant
 def handle_toggle_media(data):
     data = _as_dict(data)
     if request.sid in participants:
         media_type = data.get('type') # 'mic' or 'cam'
         if media_type not in ('mic', 'cam', 'screen'):
             return
-        enabled = bool(data.get('enabled', True))
-        participants[request.sid][media_type] = enabled
+        enabled = data.get('enabled') is True
+        permission_key = {'cam': 'video', 'mic': 'mic', 'screen': 'screen'}[media_type]
+        if enabled and not is_admin(request.sid) and not get_host_permissions().get(permission_key, True):
+            emit('action_rejected', {'reason': 'Media disabled by host.'}, to=request.sid)
+            return
+        user = participants[request.sid]
+        user[media_type] = enabled
+        participants[request.sid] = user
         emit('user_media_toggled', {
             'id': request.sid,
             'type': media_type,
@@ -531,11 +639,14 @@ def handle_toggle_media(data):
         }, to=ROOM_NAME)
 
 @socketio.on('raise_hand')
+@require_participant
 def handle_raise_hand(data):
     data = _as_dict(data)
     if request.sid in participants:
         raised = data.get('raised', False)
-        participants[request.sid]['hand'] = raised
+        user = participants[request.sid]
+        user['hand'] = bool(raised)
+        participants[request.sid] = user
         emit('user_hand_raised', {
             'id': request.sid,
             'name': participants[request.sid]['name'],
@@ -543,6 +654,7 @@ def handle_raise_hand(data):
         }, to=ROOM_NAME)
 
 @socketio.on('reaction_emoji')
+@require_participant
 def handle_reaction(data):
     data = _as_dict(data)
     allowed = {'👍', '👏', '❤️', '😂', '😮', '😢', '🎉'}
@@ -553,6 +665,7 @@ def handle_reaction(data):
     }, to=ROOM_NAME)
 
 @socketio.on('recording_state')
+@require_participant
 def handle_recording_state(data):
     data = _as_dict(data)
     if not require_admin():
@@ -563,43 +676,56 @@ def handle_recording_state(data):
 
 # Host-specific moderation events
 @socketio.on('admin_mute_client')
+@require_participant
 def handle_mute_client(data):
     data = _as_dict(data)
     if not require_admin():
         return
     target_id = data.get('target')
-    if target_id in participants:
-        participants[target_id]['mic'] = False
+    if isinstance(target_id, str) and target_id in participants:
+        user = participants[target_id]
+        user['mic'] = False
+        participants[target_id] = user
         emit('force_mute', {}, to=target_id)
         emit('user_media_toggled', {'id': target_id, 'type': 'mic', 'enabled': False}, to=ROOM_NAME)
 
 @socketio.on('admin_mute_all')
+@require_participant
 def handle_mute_all():
     if not require_admin():
         return
     for sid, u in participants.items():
         if u['role'] == 'client':
             u['mic'] = False
+            participants[sid] = u
             emit('force_mute', {}, to=sid)
             emit('user_media_toggled', {'id': sid, 'type': 'mic', 'enabled': False}, to=ROOM_NAME)
 
 @socketio.on('admin_kick_client')
+@require_participant
 def handle_kick_client(data):
     data = _as_dict(data)
     if not require_admin():
         return
     target_id = data.get('target')
-    if target_id in participants:
+    if isinstance(target_id, str) and target_id in participants:
         emit('force_disconnect', {'reason': 'You were removed by the meeting host.'}, to=target_id)
+        disconnect(target_id)
 
 @socketio.on('admin_end_all')
+@require_participant
 def handle_end_all():
     if not require_admin():
         return
+    room_store.set('meeting_locked', True)
     emit('meeting_ended_by_host', {'reason': 'The meeting was ended for everyone by the host.'}, to=ROOM_NAME)
+    for sid, user in list(participants.items()):
+        if user.get('role') != 'admin':
+            disconnect(sid)
 
 # Meeting Lock Security
 @socketio.on('toggle_meeting_lock')
+@require_participant
 def handle_toggle_meeting_lock(data):
     data = _as_dict(data)
     if not require_admin():
@@ -611,11 +737,22 @@ def handle_toggle_meeting_lock(data):
 
 # Collaborative Whiteboard Events
 @socketio.on('whiteboard_draw')
+@require_participant
 def handle_whiteboard_draw(data):
     if not allow_socket_event('whiteboard'):
         return
     if not isinstance(data, dict) or len(json.dumps(data)) > 10000:
         return
+    if any(not isinstance(data.get(k), (int, float)) or isinstance(data.get(k), bool)
+           or not math.isfinite(data[k]) or not 0 <= data[k] <= 1
+           for k in ('x0', 'y0', 'x1', 'y1')):
+        return
+    size = data.get('size', 4)
+    color = data.get('color', '#ffffff')
+    if (not isinstance(size, (int, float)) or not math.isfinite(size) or not 1 <= size <= 40
+            or not isinstance(color, str) or not re.fullmatch(r'#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?', color)):
+        return
+    data = {key: data[key] for key in ('x0', 'y0', 'x1', 'y1')} | {'size': size, 'color': color}
     def append_stroke(history):
         history = history if isinstance(history, list) else []
         return (history + [data])[-2000:]
@@ -624,6 +761,7 @@ def handle_whiteboard_draw(data):
     emit('whiteboard_draw', data, to=ROOM_NAME, include_self=False)
 
 @socketio.on('whiteboard_clear')
+@require_participant
 def handle_whiteboard_clear():
     if not require_admin():
         return
@@ -631,11 +769,13 @@ def handle_whiteboard_clear():
     emit('whiteboard_clear', {}, to=ROOM_NAME)
 
 @socketio.on('whiteboard_request_sync')
+@require_participant
 def handle_whiteboard_sync():
     emit('whiteboard_full_sync', {'strokes': get_whiteboard_history()})
 
 # In-Meeting Live Polls Events
 @socketio.on('create_poll')
+@require_participant
 def handle_create_poll(data):
     data = _as_dict(data)
     if not require_admin():
@@ -661,9 +801,10 @@ def handle_create_poll(data):
     }
     room_store.set('active_poll', active_poll)
     print(f"[POLL] Created: {question} with {len(options)} options")
-    emit('poll_created', active_poll, to=ROOM_NAME)
+    emit('poll_created', public_poll(active_poll), to=ROOM_NAME)
 
 @socketio.on('submit_vote')
+@require_participant
 def handle_submit_vote(data):
     data = _as_dict(data)
     active_poll = get_active_poll()
@@ -678,6 +819,7 @@ def handle_submit_vote(data):
         emit('poll_error', {'reason': 'Invalid poll option.'}, to=request.sid)
         return
     
+    voter_identity = participants[request.sid]['identity']
     def apply_vote(current):
         if (
             not isinstance(current, dict)
@@ -688,14 +830,14 @@ def handle_submit_vote(data):
         ):
             return current
         voters = current.setdefault('voters', {})
-        previous = voters.get(request.sid)
+        previous = voters.get(voter_identity)
         if previous == option_idx:
             return current
         if isinstance(previous, int) and 0 <= previous < len(current['options']):
             current['options'][previous]['votes'] = max(
                 0, int(current['options'][previous].get('votes', 0)) - 1
             )
-        voters[request.sid] = option_idx
+        voters[voter_identity] = option_idx
         current['options'][option_idx]['votes'] = int(
             current['options'][option_idx].get('votes', 0)
         ) + 1
@@ -712,6 +854,7 @@ def handle_submit_vote(data):
     }, to=ROOM_NAME)
 
 @socketio.on('end_poll')
+@require_participant
 def handle_end_poll(data):
     data = _as_dict(data)
     if not require_admin():
@@ -727,18 +870,24 @@ def handle_end_poll(data):
 # =========================================================================
 
 @socketio.on('client_proctor_alert')
+@require_participant
 def handle_proctor_alert(data):
     user = participants.get(request.sid, {})
-    event = str((data or {}).get('event', 'unknown'))[:200]
-    emit('admin_proctor_alert', {
+    event = str(_as_dict(data).get('event', 'unknown'))[:200]
+    payload = {
         'id': request.sid,
         'name': user.get('name', 'Participant'),
         'event': event,
         'time': datetime.now().strftime('%H:%M:%S')
-    }, to=ROOM_NAME)
+    }
+    # An empty target list is a broadcast in some Socket.IO versions.
+    for sid, participant in participants.items():
+        if participant.get('role') == 'admin':
+            emit('admin_proctor_alert', payload, to=sid)
 
 
 @socketio.on('client_proctor_event')
+@require_participant
 def handle_proctor_event(data):
     handle_proctor_alert(data)
 
@@ -748,6 +897,7 @@ def handle_proctor_event(data):
 # =========================================================================
 
 @socketio.on('desktop_mouse_move')
+@require_participant
 def handle_desktop_mouse_move(data):
     data = _as_dict(data)
     if not require_admin():
@@ -755,13 +905,14 @@ def handle_desktop_mouse_move(data):
     if not allow_socket_event('desktop'):
         return
     target = require_remote_client_target(data)
-    if target is None:
+    if target is None or not require_remote_consent(target):
         return
     dispatch_to_agent(target, 'mouse_move', {
         'xRatio': data.get('xRatio', 0), 'yRatio': data.get('yRatio', 0)
     })
 
 @socketio.on('desktop_mouse_click')
+@require_participant
 def handle_desktop_mouse_click(data):
     data = _as_dict(data)
     if not require_admin():
@@ -769,7 +920,7 @@ def handle_desktop_mouse_click(data):
     if not allow_socket_event('desktop'):
         return
     target = require_remote_client_target(data)
-    if target is None:
+    if target is None or not require_remote_consent(target):
         return
     dispatch_to_agent(target, 'mouse_click', {
         'xRatio': data.get('xRatio', 0), 'yRatio': data.get('yRatio', 0),
@@ -777,6 +928,7 @@ def handle_desktop_mouse_click(data):
     })
 
 @socketio.on('desktop_mouse_scroll')
+@require_participant
 def handle_desktop_mouse_scroll(data):
     data = _as_dict(data)
     if not require_admin():
@@ -784,13 +936,14 @@ def handle_desktop_mouse_scroll(data):
     if not allow_socket_event('desktop'):
         return
     target = require_remote_client_target(data)
-    if target is None:
+    if target is None or not require_remote_consent(target):
         return
     dispatch_to_agent(target, 'mouse_scroll', {
         'deltaY': data.get('deltaY', data.get('clicks', 0))
     })
 
 @socketio.on('desktop_key_input')
+@require_participant
 def handle_desktop_key_input(data):
     data = _as_dict(data)
     if not require_admin():
@@ -798,13 +951,14 @@ def handle_desktop_key_input(data):
     if not allow_socket_event('desktop'):
         return
     target = require_remote_client_target(data)
-    if target is None:
+    if target is None or not require_remote_consent(target):
         return
     dispatch_to_agent(target, 'key_input', {
         'type': data.get('type'), 'value': data.get('value')
     })
 
 @socketio.on('desktop_quick_action')
+@require_participant
 def handle_desktop_quick_action(data):
     data = _as_dict(data)
     if not require_admin():
@@ -812,12 +966,13 @@ def handle_desktop_quick_action(data):
     if not allow_socket_event('desktop'):
         return
     target = require_remote_client_target(data)
-    if target is None:
+    if target is None or not require_remote_consent(target):
         return
     dispatch_to_agent(target, 'quick_action', dict(data))
 
 # Forwarding remote laser, annotation, and in-app executive commands
 @socketio.on('admin_remote_pointer')
+@require_participant
 def handle_admin_remote_pointer(data):
     data = _as_dict(data)
     if not require_admin():
@@ -825,6 +980,8 @@ def handle_admin_remote_pointer(data):
     target = data.get('target')
     if not valid_remote_target(target):
         emit_remote_error('Remote pointer target is not connected.')
+        return
+    if not require_remote_consent(target):
         return
     try:
         payload = {
@@ -838,6 +995,7 @@ def handle_admin_remote_pointer(data):
     emit('client_remote_pointer', payload, to=target)
 
 @socketio.on('admin_remote_annotate')
+@require_participant
 def handle_admin_remote_annotate(data):
     data = _as_dict(data)
     if not require_admin():
@@ -845,6 +1003,8 @@ def handle_admin_remote_annotate(data):
     target = data.get('target')
     if not valid_remote_target(target):
         emit_remote_error('Remote annotation target is not connected.')
+        return
+    if not require_remote_consent(target):
         return
     action = data.get('action')
     if action == 'clear':
@@ -879,6 +1039,7 @@ def handle_admin_remote_annotate(data):
     }, to=target)
 
 @socketio.on('admin_remote_command')
+@require_participant
 def handle_admin_remote_command(data):
     data = _as_dict(data)
     if not require_admin():
@@ -897,7 +1058,10 @@ def handle_admin_remote_command(data):
         return
     if command == 'open_url':
         target_url = payload.get('url')
-        parsed = urlparse(target_url) if isinstance(target_url, str) else None
+        try:
+            parsed = urlparse(target_url) if isinstance(target_url, str) else None
+        except ValueError:
+            parsed = None
         if (
             parsed is None
             or parsed.scheme not in {'http', 'https'}
@@ -906,6 +1070,8 @@ def handle_admin_remote_command(data):
         ):
             emit_remote_error('Remote URL must be a valid HTTP(S) URL.')
             return
+    if not require_remote_consent(target):
+        return
     emit('client_remote_command', {
         'command': command,
         'payload': payload,
@@ -921,11 +1087,11 @@ def handle_disconnect():
             emit('client_left', {'id': request.sid}, to=ROOM_NAME)
 
 if __name__ == '__main__':
-    print("Starting Google Meet WebRTC Signaling Server on port 5001...")
+    print("Starting WeWatch WebRTC Signaling Server on port 5001...")
     socketio.run(
         app,
         debug=False,
-        host='0.0.0.0',
+        host=os.getenv('WEBRTC_HOST', '127.0.0.1'),
         port=5001,
         allow_unsafe_werkzeug=ALLOW_UNSAFE_WERKZEUG,
     )

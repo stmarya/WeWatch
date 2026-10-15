@@ -166,7 +166,11 @@ class DesktopApp(ctk.CTk):
 
     def toggle_feature(self, key):
         is_on = self.switches[key].get() == 1
-        FEATURES[key] = is_on
+        success, message = camera.set_feature(key, is_on)
+        if not success:
+            self.switches[key].deselect()
+            self.show_toast(message)
+            return
         logging.info(f"[Desktop] Feature {key} set to {is_on}")
 
     def update_video(self):

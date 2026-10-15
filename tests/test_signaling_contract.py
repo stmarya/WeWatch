@@ -247,6 +247,8 @@ class SignalingContractTests(unittest.TestCase):
             },
         )
         client.get_received()
+        client.emit("remote_assistance_consent", {"granted": True})
+        client.get_received()
         client_sid = next(
             sid
             for sid, user in signaling.participants.items()
