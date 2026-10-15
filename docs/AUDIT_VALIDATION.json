@@ -63,7 +63,7 @@
   "bandit": {
     "severity_counts": {
       "LOW": 15,
-      "MEDIUM": 2
+      "MEDIUM": 1
     },
     "findings": [
       {
@@ -177,13 +177,6 @@
         "rule": "B105",
         "severity": "LOW",
         "note": "Possible hardcoded password: 'true'"
-      },
-      {
-        "file": "tools/run_browser_qa_server.py",
-        "line": 10,
-        "rule": "B108",
-        "severity": "MEDIUM",
-        "note": "Probable insecure usage of temp file/directory."
       }
     ]
   },

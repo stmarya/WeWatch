@@ -7,8 +7,13 @@ os.environ['WEBRTC_SECRET_KEY'] = 's'*64
 os.environ['WEBRTC_ADMIN_TOKEN'] = 'admin-test'
 os.environ['WEBRTC_REQUIRE_JOIN_TOKEN'] = 'true'
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = Path(os.getenv('WEWATCH_QA_DIR', '/tmp/wewatch-qa'))
-OUTPUT.mkdir(parents=True, exist_ok=True)
+if not os.getenv('WEWATCH_QA_DIR'):
+    raise SystemExit('Set WEWATCH_QA_DIR to a private directory created by mktemp -d')
+OUTPUT = Path(os.environ['WEWATCH_QA_DIR'])
+if not OUTPUT.is_dir() or OUTPUT.is_symlink():
+    raise SystemExit('WEWATCH_QA_DIR must be an existing private directory')
+if OUTPUT.stat().st_uid != os.getuid() or OUTPUT.stat().st_mode & 0o077:
+    raise SystemExit('WEWATCH_QA_DIR must be owned by this user with mode 0700')
 sys.path[:0] = [str(ROOT), str(ROOT / 'tests')]
 os.chdir(ROOT)
 from test_dashboard_api import load_dashboard

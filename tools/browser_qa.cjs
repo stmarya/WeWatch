@@ -1,5 +1,5 @@
 const {chromium} = require('playwright'); const fs = require('fs');
-const path = require('path'); const OUTPUT = process.env.WEWATCH_QA_DIR || '/tmp/wewatch-qa'; fs.mkdirSync(OUTPUT, {recursive:true});
+const path = require('path'); const OUTPUT = process.env.WEWATCH_QA_DIR; if (!OUTPUT) throw new Error('Set WEWATCH_QA_DIR to the private QA directory used by the server');
 (async()=>{
 const browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH || undefined, headless:true, args:['--no-sandbox']});
 const context = await browser.newContext({viewport:{width:1365,height:900}});

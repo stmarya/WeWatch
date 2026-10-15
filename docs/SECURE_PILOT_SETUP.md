@@ -123,9 +123,9 @@ git diff --check
 Browser QA menggunakan kamera tiruan dan fixture credential **khusus loopback**:
 
 1. Sediakan Node, Playwright, dan Chromium lokal (bukan browser user).
-2. Terminal pertama: `python tools/run_browser_qa_server.py`.
-3. Terminal kedua: `CHROMIUM_PATH=/path/to/chromium node tools/browser_qa.cjs`.
-4. Hasil/screenshot di `/tmp/wewatch-qa`; token fixture juga berada di folder ini.
+2. Buat folder privat: `export WEWATCH_QA_DIR="$(mktemp -d)"` (mode 0700).
+3. Terminal pertama: `python tools/run_browser_qa_server.py`. Terminal kedua: export path `WEWATCH_QA_DIR` yang sama, lalu `CHROMIUM_PATH=/path/to/chromium node tools/browser_qa.cjs`.
+4. Hasil/screenshot dan token fixture berada di folder privat tersebut. Hapus setelah QA.
 5. Stop server QA setelah selesai. Jangan deploy harness QA.
 
 ## 6. Gate produksi (NO-GO jika belum terpenuhi)
