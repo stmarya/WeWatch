@@ -148,3 +148,14 @@ PYTHONPATH=. python -m unittest discover -s tests -v
 
 Untuk seluruh aplikasi gunakan `requirements.txt`; compiler dlib, hardware
 kamera/mikrofon, dan desktop session tetap diperlukan.
+
+
+## Platform akun & workspace — Tahap 1 (pilot terpisah)
+
+Fondasi platform baru menggunakan **`platform_app.py` pada `127.0.0.1:5002`**, bukan entrypoint kamera/meeting lama. Tersedia pendaftaran, verifikasi email, login/reset, sesi yang dapat dicabut, workspace, undangan, dan RBAC Owner/Admin/Host/Member/Viewer. Akun baru tidak otomatis mendapat akses kamera, AI, meeting, atau desktop.
+
+- [Setup dan batas keamanan tahap 1](docs/PLATFORM_PHASE_1.md)
+- [Roadmap enam tahap dan release gates](docs/PLATFORM_ROADMAP.md)
+- [Bukti validasi lokal](docs/PLATFORM_PHASE_1_VALIDATION.json)
+
+Install `requirements-platform.txt`, buat `PLATFORM_SESSION_SECRET` privat yang berbeda dari layanan lama, dan atur mail transport sesuai panduan. Default mail `disabled` tidak mengirim email. Mode `file` hanya untuk pilot loopback; SMTP nyata dan SSO/MFA belum tervalidasi. **Belum disetujui untuk produksi publik.**

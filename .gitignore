@@ -26,3 +26,11 @@ gallery/
 faces/*.jpg
 faces/*.png
 static/gallery/
+
+# Private platform database, mail spool, fixtures and session data
+instance/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.eml
+node_modules/

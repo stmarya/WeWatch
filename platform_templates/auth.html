@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% set titles = {'register':'Buat akun Anda', 'login':'Selamat datang kembali', 'verify':'Verifikasi email', 'resend':'Kirim ulang verifikasi', 'forgot':'Pulihkan akses akun', 'reset':'Buat password baru', 'invite':'Terima undangan workspace'} %}
+{% block title %}{{ titles[mode] }} · WeWatch{% endblock %}
+{% block content %}
+<div class="auth-grid">
+  <section class="auth-intro">
+    <p class="eyebrow">SATU AKUN. WORKSPACE TERPISAH.</p>
+    <h1>Mulai dari<br>ruang kerja Anda.</h1>
+    <p class="lead">Kelola akun, anggota, dan hak akses dalam satu tempat. Anda menentukan siapa yang boleh masuk.</p>
+    <ul class="trust-list">
+      <li><span class="trust-number">01</span><div><strong>Akun terverifikasi</strong><p>Email dikonfirmasi sebelum Anda membuat atau bergabung ke workspace.</p></div></li>
+      <li><span class="trust-number">02</span><div><strong>Akses sesuai peran</strong><p>Owner, Admin, Host, Member, dan Viewer tidak memiliki hak yang sama.</p></div></li>
+      <li><span class="trust-number">03</span><div><strong>Tanpa akses perangkat otomatis</strong><p>Membuat akun tidak mengaktifkan kamera, mikrofon, atau desktop agent.</p></div></li>
+    </ul>
+  </section>
+  <section class="panel auth-panel" aria-labelledby="form-title">
+    <p class="eyebrow">WEWATCH PLATFORM</p>
+    <h2 id="form-title">{{ titles[mode] }}</h2>
+    {% if mode == 'register' %}<p>Gunakan email yang dapat Anda akses. Tidak perlu mendaftarkan wajah.</p>
+    {% elif mode == 'login' %}<p>Masuk dengan akun yang sudah diverifikasi.</p>
+    {% elif mode == 'invite' %}<p>Daftar, verifikasi, dan login dengan alamat email penerima undangan. Setelah itu buka kembali tautan email untuk mengonfirmasi.</p>
+    {% else %}<p>{% if mode in ('verify','reset') %}Buka tautan email atau tempel token yang Anda terima. Token hanya dapat digunakan sekali.{% else %}Kami akan mengirim email jika akun Anda memenuhi syarat.{% endif %}</p>{% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if mode == 'register' %}
+      <label for="display-name">Nama tampilan</label><input id="display-name" name="display_name" autocomplete="name" required maxlength="80" placeholder="Nama Anda">
+      {% endif %}
+      {% if mode in ('register','login','forgot','resend') %}
+      <label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="nama@organisasi.com">
+      {% endif %}
+      {% if mode in ('verify','reset','invite') %}
+      <label for="token">Token dari email</label><input id="token" name="token" type="password" autocomplete="off" required minlength="20" maxlength="200" data-fragment-token>
+      {% endif %}
+      {% if mode in ('register','login','reset') %}
+      <label for="password">{% if mode == 'reset' %}Password baru{% else %}Password{% endif %}</label>
+      <input id="password" name="password" type="password" autocomplete="{{ 'current-password' if mode == 'login' else 'new-password' }}" required maxlength="128" {% if mode != 'login' %}minlength="12" aria-describedby="password-hint"{% endif %}>
+      {% if mode != 'login' %}<p class="field-hint" id="password-hint">Gunakan passphrase 12–128 karakter yang unik. Jangan gunakan password layanan lain.</p>{% endif %}
+      <button type="button" class="text-button" data-password-toggle="password" aria-pressed="false">Tampilkan password</button>
+      {% endif %}
+      <button class="button primary full-width" type="submit">{{ {'register':'Daftar & kirim verifikasi','login':'Masuk','verify':'Konfirmasi email','resend':'Kirim verifikasi','forgot':'Kirim email pemulihan','reset':'Simpan password baru','invite':'Konfirmasi bergabung'}[mode] }}</button>
+    </form>
+    <div class="auth-links">
+      {% if mode == 'login' %}<a href="{{ url_for('forgot_password') }}">Lupa password?</a><a href="{{ url_for('resend_verification') }}">Belum menerima verifikasi?</a>
+      {% elif mode == 'register' %}<p>Sudah punya akun? <a href="{{ url_for('login') }}">Masuk</a></p>
+      {% else %}<a href="{{ url_for('login') }}">Kembali ke login</a>{% endif %}
+    </div>
+    <p class="privacy-note">Data akun digunakan untuk autentikasi dan keanggotaan. Fitur AI/perangkat akan meminta izin terpisah pada tahap integrasi.</p>
+  </section>
+</div>
+{% endblock %}

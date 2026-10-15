@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}WeWatch Platform{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='platform.css') }}">
+  <script defer src="{{ url_for('static', filename='platform.js') }}"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Lewati ke konten</a>
+<header class="site-header">
+  <a class="brand" href="{{ url_for('landing') }}"><span class="brand-mark" aria-hidden="true">W</span> WeWatch <span class="brand-sub">Platform</span></a>
+  <nav aria-label="Navigasi utama">
+    {% if current_user %}
+    <a href="{{ url_for('dashboard') }}">Workspace</a>
+    <span class="account-name">{{ current_user.display_name }}</span>
+    <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button secondary compact" type="submit">Keluar</button></form>
+    {% else %}
+    <a href="{{ url_for('login') }}">Masuk</a><a class="button secondary compact" href="{{ url_for('register') }}">Buat akun</a>
+    {% endif %}
+  </nav>
+</header>
+<main id="main" class="container">
+  {% for category, message in get_flashed_messages(with_categories=true) %}<div class="notice {{ category }}" role="status">{{ message }}</div>{% endfor %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="site-footer">Fondasi platform · Pilot lokal · Kamera dan kontrol perangkat tidak aktif pada layanan ini.</footer>
+</body>
+</html>
