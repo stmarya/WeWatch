@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}Permintaan belum berhasil · WeWatch{% endblock %}
+{% block content %}<section class="panel readable error-panel"><p class="eyebrow">PERMINTAAN BELUM BERHASIL · {{ status }}</p><h1>Periksa kembali langkah Anda.</h1><p role="alert">{{ message }}</p><p>Tidak ada hak akses tambahan yang diberikan oleh permintaan ini.</p><div class="actions"><a class="button primary" href="{{ url_for('dashboard' if current_user else 'login') }}">{{ 'Kembali ke workspace' if current_user else 'Kembali ke login' }}</a><a class="button secondary" href="{{ url_for('register') }}">Pendaftaran akun</a></div></section>{% endblock %}

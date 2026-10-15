@@ -1,0 +1,222 @@
+{
+  "scope": "Phase 1 isolated platform control plane; local pilot only, not production approval",
+  "audit_base_commit": "a6c404987e24037bfabf04d371eca0aa3f84704c",
+  "regression": {
+    "python": "3.13",
+    "total_tests": 92,
+    "phase1_new_tests": 42,
+    "passed": true,
+    "duration_seconds": 14.373,
+    "command": "PYTHONPATH=. python -m unittest discover -s tests -v"
+  },
+  "browser": {
+    "engine": "Chromium headless on Linux",
+    "playwright": "1.64.1",
+    "assertions_passed": 19,
+    "runtime_errors": 0,
+    "results": [
+      {
+        "test": "foundation starts without a media permission request",
+        "pass": true
+      },
+      {
+        "test": "email bearer token stays out of HTTP URL",
+        "pass": true
+      },
+      {
+        "test": "registration, email confirmation and login complete",
+        "pass": true
+      },
+      {
+        "test": "account session is HttpOnly and separated from legacy cookie",
+        "pass": true
+      },
+      {
+        "test": "workspace creator becomes Owner",
+        "pass": true
+      },
+      {
+        "test": "email bearer token stays out of HTTP URL",
+        "pass": true
+      },
+      {
+        "test": "foreign workspace is not disclosed to an authenticated outsider",
+        "pass": true
+      },
+      {
+        "test": "email-bound invitation grants Viewer only",
+        "pass": true
+      },
+      {
+        "test": "viewer cannot see owner email or member management",
+        "pass": true
+      },
+      {
+        "test": "viewer write is denied server-side",
+        "pass": true
+      },
+      {
+        "test": "mobile workspace list has no overflow",
+        "pass": true
+      },
+      {
+        "test": "mobile member management has no overflow",
+        "pass": true
+      },
+      {
+        "test": "ownership transfer demotes the prior Owner to Admin",
+        "pass": true
+      },
+      {
+        "test": "new Owner is reflected on the next request",
+        "pass": true
+      },
+      {
+        "test": "logout-all returns to login and revokes session",
+        "pass": true
+      },
+      {
+        "test": "password recovery works end to end",
+        "pass": true
+      },
+      {
+        "test": "no third-party assets or requests in account workflow",
+        "pass": true
+      },
+      {
+        "test": "no bearer token appears in an HTTP request",
+        "pass": true
+      },
+      {
+        "test": "mobile registration has no horizontal overflow",
+        "pass": true
+      }
+    ],
+    "mail": "Private loopback file spool; not real SMTP"
+  },
+  "security": {
+    "bandit_scope": [
+      "platform_app.py",
+      "platform_core"
+    ],
+    "bandit_findings": 0,
+    "pip_audit_scope": "requirements-platform.txt",
+    "pip_audit_advisories": 0,
+    "note": "Zero scanner findings is not a security certification; legacy services retain their audit scope"
+  },
+  "visual": {
+    "method": "capture_html.py + individual image inspection",
+    "desktop_width": 1440,
+    "mobile_width": 390,
+    "states": [
+      {
+        "state": "login",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "115c24ac8c460243ec585ffc7f75e6842e3e7d23b6a94098685c7b067374b0c3"
+      },
+      {
+        "state": "register",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "a53d1973c6f0e7cea380f568fc2b82d35127fa220bf9d1b446d5d4c71a24dd85"
+      },
+      {
+        "state": "register-mobile",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "daf92c68037b130e2fedbf1671ae7b05c3070c7ca2e32616de3eaa00844bc618"
+      },
+      {
+        "state": "verify",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "fb8fb4b885dc179a923d87197f49e79574ff4241ac3fbaeeec6181674d5c5058"
+      },
+      {
+        "state": "resend",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "aa357a8e5afe2f5d06ebd3c2f4424413f8e98e4585c4c92f354d0e044560d1f5"
+      },
+      {
+        "state": "forgot",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "9a0fd294e707c8e24d49b72387e0b64919e89615244a8cb69124fd902abf690f"
+      },
+      {
+        "state": "reset",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "f4d913b563d6f4cbe5495801b44ceadc30c14f1307c5716a497d03eb20c6a659"
+      },
+      {
+        "state": "invite",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "22a64a54f2c138ecf89ee3323efcb154a9d52a02122083d57ca4f03914124922"
+      },
+      {
+        "state": "dashboard",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "ad9bdf8cacb1f0dbf708776986644b74b1f6a0b5dc53c6df11b7c39098ea5713"
+      },
+      {
+        "state": "dashboard-empty",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "b65e6567e85d1c7bd25864896b0ac4c0b4492e56ce73e95a8a1dc6fbc3e450df"
+      },
+      {
+        "state": "dashboard-mobile",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "4fcf61fedee0fb5001462bc6c1e0abab9d1bdb8afab3d66107e883101d3eacd7"
+      },
+      {
+        "state": "workspace-owner",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "744aeb05f79cccc065d8b748be89605099eca6896ad4c6383e669b0a31e40310"
+      },
+      {
+        "state": "workspace-viewer",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "00c3822c9ec56b0bc5cdfea5807af8eca42b8578fac6fa3f61e2b3ece9a86545"
+      },
+      {
+        "state": "workspace-mobile",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "b5270a17bc4ed6f91595b8385510a597bca6621fe35844e4db2d56ff20178f8d"
+      },
+      {
+        "state": "error",
+        "inspected": true,
+        "result": "pass",
+        "sha256": "52ad4ca6eec04823728a266ff0ddd8341485c0ac53ae7903d6e1a4ae308ecbe0"
+      }
+    ],
+    "note": "Light-mode screenshots; no horizontal page overflow or overlapping UI. Screen-reader-only clipping is intentional. Not a complete accessibility certification or cross-browser test."
+  },
+  "static_checks": [
+    "Python compile",
+    "Platform and QA JavaScript syntax",
+    "Existing inline template JavaScript syntax",
+    "Legacy UI handler inventory",
+    "git diff --check"
+  ],
+  "not_validated": [
+    "Real SMTP deliverability or failure recovery",
+    "SSO/MFA",
+    "Multi-instance or PostgreSQL RLS",
+    "Windows/device hardware",
+    "Camera/microphone/desktop/meeting integration",
+    "Production deployment/load/backup restore",
+    "Phases 2–6"
+  ],
+  "release_decision": "NO-GO public production; eligible for code review and isolated local pilot"
+}
