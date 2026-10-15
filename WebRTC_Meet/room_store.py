@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from threading import RLock
 
 
@@ -15,6 +16,8 @@ class RoomStore:
     def __init__(self, redis_url: str | None, room: str):
         self._local: dict[str, object] = {}
         self._lock = RLock()
+        self._expires = {}
+        self._next_cleanup = 0.0
         self._prefix = f"wewatch:room:{room}:"
         self._redis = None
         if redis_url:
@@ -49,6 +52,9 @@ class RoomStore:
                 self._redis.delete(self._prefix + name)
                 return default
         with self._lock:
+            if self._expires.get(name, 0) <= time.monotonic():
+                self._local.pop(name, None)
+                self._expires.pop(name, None)
             return self._local.get(name, default)
 
     def set(self, name, value, ttl=86400):
@@ -56,7 +62,15 @@ class RoomStore:
             self._redis.set(self._prefix + name, json.dumps(value), ex=ttl)
         else:
             with self._lock:
+                now = time.monotonic()
+                if now >= self._next_cleanup:
+                    for key in list(self._expires):
+                        if self._expires[key] <= now:
+                            self._local.pop(key, None)
+                            self._expires.pop(key, None)
+                    self._next_cleanup = now + 5
                 self._local[name] = value
+                self._expires[name] = now + ttl
 
     def delete(self, name):
         if self._redis:
@@ -64,14 +78,15 @@ class RoomStore:
         else:
             with self._lock:
                 self._local.pop(name, None)
+                self._expires.pop(name, None)
 
     def update(self, name, updater, default=None, ttl=86400, retries=5):
         """Atomically update one JSON value when Redis is available."""
         if not self._redis:
             with self._lock:
-                current = self._local.get(name, default)
+                current = self.get(name, default)
                 updated = updater(current)
-                self._local[name] = updated
+                self.set(name, updated, ttl=ttl)
                 return updated
 
         from redis.exceptions import WatchError

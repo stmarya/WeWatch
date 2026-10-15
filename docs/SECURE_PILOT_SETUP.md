@@ -14,7 +14,7 @@ cp .env.example .env
 ```
 
 Untuk aplikasi AI/desktop gunakan `requirements.txt`. Windows-only dependencies
-sudah memakai platform markers. Compiler dlib dan desktop session tetap perlu.
+sudah memakai platform markers. Full AI pins memerlukan Python 3.12/3.13; NumPy signaling/tests terpisah agar tetap kompatibel dengan CI 3.11. Compiler dlib dan desktop session tetap perlu.
 SpeechRecognition microphone memerlukan PyAudio jika voice cloud diaktifkan.
 
 Isi `WEBRTC_ADMIN_TOKEN`, `WEBRTC_SECRET_KEY`, dan `WEBWATCH_SESSION_SECRET`

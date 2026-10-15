@@ -23,5 +23,19 @@ class RoomStoreTests(unittest.TestCase):
         self.assertEqual(store.get("counter"), 1)
 
 
+
+class LocalTTLTests(unittest.TestCase):
+    def test_local_request_expiry_and_cleanup(self):
+        from unittest.mock import patch
+        from WebRTC_Meet.room_store import RoomStore
+        store = RoomStore(None, 'ttl-test')
+        with patch('WebRTC_Meet.room_store.time.monotonic', return_value=10):
+            store.set('request', {'payload': 'fixture'}, ttl=1)
+        with patch('WebRTC_Meet.room_store.time.monotonic', return_value=12):
+            self.assertIsNone(store.get('request'))
+        with patch('WebRTC_Meet.room_store.time.monotonic', return_value=20):
+            store.set('new', 1)
+        self.assertNotIn('request', store._local)
+
 if __name__ == "__main__":
     unittest.main()

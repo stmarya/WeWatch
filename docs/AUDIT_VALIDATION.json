@@ -1,7 +1,7 @@
 {
   "baseline_commit": "c1804006dda9f406b0793602c1ae7b0e84e61362",
   "baseline_unit_tests": 21,
-  "final_unit_tests": 49,
+  "final_unit_tests": 50,
   "unit_tests_pass": true,
   "browser": {
     "results": [
@@ -187,5 +187,11 @@
     "No real model accuracy, bias, spoof, clinical pulse or load benchmark",
     "Full dependency resolution is not a successful native build",
     "No production deployment or main merge"
-  ]
+  ],
+  "ci_resolution": {
+    "python_3_11_binary_resolution": "passed; not execution under Python 3.11",
+    "signaling_test_numpy": "2.2.6",
+    "tests_executed_on": "Python 3.13",
+    "signal_dependencies_known_advisories": 0
+  }
 }
