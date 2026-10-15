@@ -7,7 +7,7 @@ import sqlite3
 import time
 import uuid
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS users(
@@ -85,7 +85,8 @@ class Store:
                 raise RuntimeError('Database schema is newer than this application')
             # Idempotent under parallel process startup. Future migrations must
             # be appended, not destructive replacement of existing tables.
-            connection.executescript('BEGIN IMMEDIATE;\n' + SCHEMA + '\nINSERT OR IGNORE INTO schema_migrations VALUES (1, strftime(\'%s\',\'now\'));\nCOMMIT;')
+            from platform_core.device_schema import MIGRATION_2
+            connection.executescript('BEGIN IMMEDIATE;\n' + SCHEMA + '\nINSERT OR IGNORE INTO schema_migrations VALUES (1, strftime(\'%s\',\'now\'));\n' + MIGRATION_2 + '\nINSERT OR IGNORE INTO schema_migrations VALUES (2, strftime(\'%s\',\'now\'));\nCOMMIT;')
         finally:
             connection.close()
 

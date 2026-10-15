@@ -1,0 +1,233 @@
+{
+  "scope": "Phase 2 isolated browser onboarding + session pairing + local-only preview; not desktop agent/remote integration or production approval",
+  "base_commit": "a9a508090acadc824dde9d877acb22a72c14d0ab",
+  "schema_version": 2,
+  "python_tests": {
+    "total": 131,
+    "new_phase2": 39,
+    "passed": true,
+    "duration_seconds": 28.406,
+    "version": "3.13",
+    "command": "PYTHONPATH=. python -m unittest discover -s tests -v",
+    "final_permissions_policy_smoke_tests_passed": 2
+  },
+  "preview_controller_tests": {
+    "total": 16,
+    "passed": true,
+    "command": "node --test tests/test_preview_controller.cjs",
+    "scope": "Fake tracks/timers and deferred permission responses, not browser hardware"
+  },
+  "browser": {
+    "new_onboarding_assertions": 24,
+    "baseline_account_assertions": 19,
+    "runtime_errors": 0,
+    "playwright": "1.64.1",
+    "media": "Chromium fake media; denial and pagehide simulated",
+    "new_results": [
+      {
+        "test": "onboarding page load requests no media",
+        "pass": true
+      },
+      {
+        "test": "pair request does not grant camera or microphone",
+        "pass": true
+      },
+      {
+        "test": "pairing fragment removed without automatic approval",
+        "pass": true
+      },
+      {
+        "test": "pairing binds current browser but gives no media grant",
+        "pass": true
+      },
+      {
+        "test": "readiness check never opens media",
+        "pass": true
+      },
+      {
+        "test": "camera permission leaves microphone off",
+        "pass": true
+      },
+      {
+        "test": "separate microphone button adds only audio consent",
+        "pass": true
+      },
+      {
+        "test": "camera stop does not stop microphone",
+        "pass": true
+      },
+      {
+        "test": "emergency stop ends all local tracks synchronously",
+        "pass": true
+      },
+      {
+        "test": "emergency stop revokes both server grants",
+        "pass": true
+      },
+      {
+        "test": "permission denied fails closed and revokes intent",
+        "pass": true
+      },
+      {
+        "test": "offline event stops tracks",
+        "pass": true
+      },
+      {
+        "test": "online recovery never auto-restarts camera",
+        "pass": true
+      },
+      {
+        "test": "pagehide handler stops all local tracks",
+        "pass": true
+      },
+      {
+        "test": "mobile onboarding has no horizontal page overflow",
+        "pass": true
+      },
+      {
+        "test": "remote revocation request by same owner succeeds",
+        "pass": true
+      },
+      {
+        "test": "polling notices revoked pairing and stops all tracks",
+        "pass": true
+      },
+      {
+        "test": "Viewer has no enrollment form and no grant controls",
+        "pass": true
+      },
+      {
+        "test": "mobile Viewer has no horizontal page overflow",
+        "pass": true
+      },
+      {
+        "test": "foreign workspace onboarding rejected",
+        "pass": true
+      },
+      {
+        "test": "another account cannot inspect consumed or foreign pairing",
+        "pass": true
+      },
+      {
+        "test": "no pairing bearer is sent in any HTTP URL",
+        "pass": true
+      },
+      {
+        "test": "onboarding requests no third-party hosts",
+        "pass": true
+      },
+      {
+        "test": "no browser runtime errors",
+        "pass": true
+      }
+    ],
+    "baseline_passed": true
+  },
+  "security": {
+    "bandit_runtime_findings": 0,
+    "bandit_scope": [
+      "platform_app.py",
+      "platform_core"
+    ],
+    "pip_audit_known_advisories": 0,
+    "pip_audit_scope": "requirements-platform.txt"
+  },
+  "visual": {
+    "states_inspected": 13,
+    "widths": [
+      1440,
+      390
+    ],
+    "mode": "Light mode; capture_html.py + individual visual inspection",
+    "states": [
+      {
+        "state": "onboarding-unpaired",
+        "result": "pass",
+        "sha256": "e5596a1316049349511e5f046cb03d1eacf235b79a74fd7add9eadcd8466191e"
+      },
+      {
+        "state": "onboarding-pending",
+        "result": "pass",
+        "sha256": "94b2fb49a8d5912efa92f13fada20d86618ec03b3a0f59eac3a8c672a8d8cfee"
+      },
+      {
+        "state": "pairing-review",
+        "result": "pass",
+        "sha256": "9a91db94ea7db40d277f25e1dfe7bf9332fb58d1a70c84c35b2a81f3d8da5b9c"
+      },
+      {
+        "state": "onboarding-paired",
+        "result": "pass",
+        "sha256": "20eafdcf083e308230291257767ad4d57975836c907e38dae7f83befb11ae5af"
+      },
+      {
+        "state": "onboarding-camera",
+        "result": "pass",
+        "sha256": "a8f220a6681ca10f9fcf91b2a7ccf40d0e431925ef284ecbce1655c1e32bc0ce"
+      },
+      {
+        "state": "onboarding-mobile",
+        "result": "pass",
+        "sha256": "10fde3624de10708a239d7640c755867eaa4ea28979cd4988352d44ce07e6de1"
+      },
+      {
+        "state": "onboarding-denied",
+        "result": "pass",
+        "sha256": "2b4c9a3e4a6ecb12dbff5e627bb2804af42e923d6964a6cdd968231bc5ed9559"
+      },
+      {
+        "state": "onboarding-revoked",
+        "result": "pass",
+        "sha256": "b303acb2f950068bd357e704ad76dce43bfb5ec2b4221206b8b3248daf49a24b"
+      },
+      {
+        "state": "onboarding-viewer",
+        "result": "pass",
+        "sha256": "b74548f23ad51ce6cc298c03769f493bfdc149457451e08146e8567bb8c2e202"
+      },
+      {
+        "state": "onboarding-viewer-mobile",
+        "result": "pass",
+        "sha256": "cd22087769e31f88c51e07de9a5330a91e77e98f3d8b01c1c88d8191d5b2495d"
+      },
+      {
+        "state": "platform-workspace-owner",
+        "result": "pass",
+        "sha256": "dab4b91df5b88941ed8e9429595ba842b32f324f5d97f1e0ed56e30d16ea77c0"
+      },
+      {
+        "state": "platform-workspace-mobile",
+        "result": "pass",
+        "sha256": "2222e676b7d5d64e2e1aecfe24e8c59e6463c505ed36aa62a5fcb6b418cc9c7e"
+      },
+      {
+        "state": "platform-dashboard",
+        "result": "pass",
+        "sha256": "d59f03f28ca27c0c9ba351590fb21b2e7421983656db247685f3e115e84e726a"
+      }
+    ],
+    "notes": [
+      "No horizontal page overflow or overlap; intentionally clipped screen-reader labels excluded",
+      "Static DOM previews strip JavaScript; live video pixels are not serialized; live controller tested separately",
+      "Not WCAG certification, cross-browser or hardware proof"
+    ]
+  },
+  "revocation_semantics": {
+    "preview_ttl_seconds": 600,
+    "pair_token_ttl_seconds": 300,
+    "status_poll_seconds": 4,
+    "request_timeout_seconds": 3,
+    "permission_prompt_timeout_seconds": 60,
+    "warning": "Nominal detection cadence, not a hard real-time guarantee. Local scripts cannot enforce OS permission or malicious clients."
+  },
+  "not_implemented_or_validated": [
+    "Persistent hardware/Windows agent credentials and key rotation",
+    "AI/model inference or performance/health/identity validation",
+    "Remote control, screen share, command execution or screenshot grants",
+    "Real camera/microphone or OS permission prompts",
+    "Real background/BFCache/iOS/Safari/Firefox behavior",
+    "Real SMTP, SSO/MFA, distributed limits, managed DB/RLS, backup/restore and retention gates from phase 1",
+    "Production deployment or phases 3–6"
+  ],
+  "release_decision": "NO-GO public production; code review and isolated pilot only"
+}

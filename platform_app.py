@@ -1,4 +1,4 @@
-"""WeWatch platform control plane, phase 1. No camera, OS control or media imports."""
+"""WeWatch isolated control plane + browser onboarding. No camera/OS/media imports."""
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 import hmac
@@ -161,8 +161,9 @@ def create_app(config=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'no-referrer'
-        response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=(), payment=()'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        response.headers['Permissions-Policy'] = ('camera=(self), microphone=(self), geolocation=(), payment=()'
+            if request.endpoint == 'onboarding.page' and g.get('onboarding_media_allowed', False) else 'camera=(), microphone=(), geolocation=(), payment=()')
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
         if request.is_secure or app.config['ENVIRONMENT'] == 'production':
             response.headers['Strict-Transport-Security'] = 'max-age=31536000'
         return response
@@ -406,8 +407,10 @@ def create_app(config=None):
     def check_platform():
         import click
         click.echo('Database schema ready; mail configured: ' + str(app.extensions['platform_mailer'].ready))
-        click.echo('Phase 1 control plane only. Camera/meeting/desktop grants remain unavailable.')
+        click.echo('Isolated control plane + session-bound local browser preview. AI/meeting/desktop grants remain unavailable.')
 
+    from platform_core.onboarding_routes import register_onboarding
+    register_onboarding(app, database, data, authenticated, complete)
     return app
 
 

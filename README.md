@@ -159,3 +159,10 @@ Fondasi platform baru menggunakan **`platform_app.py` pada `127.0.0.1:5002`**, b
 - [Bukti validasi lokal](docs/PLATFORM_PHASE_1_VALIDATION.json)
 
 Install `requirements-platform.txt`, buat `PLATFORM_SESSION_SECRET` privat yang berbeda dari layanan lama, dan atur mail transport sesuai panduan. Default mail `disabled` tidak mengirim email. Mode `file` hanya untuk pilot loopback; SMTP nyata dan SSO/MFA belum tervalidasi. **Belum disetujui untuk produksi publik.**
+
+
+### Tahap 2 — onboarding browser & izin lokal
+
+Di halaman workspace, buka **Siapkan browser & izin** untuk pairing sesi browser, cek kesiapan tanpa membuka media, dan preview kamera/mikrofon lokal dengan persetujuan terpisah (maksimal 10 menit, countdown, STOP dan revoke). Pairing terikat akun/workspace/sesi; Owner/Admin dapat mencabut pairing tetapi tidak memberi izin media atas nama anggota.
+
+**Bukan pairing Windows agent atau izin remote.** AI/meeting/kontrol desktop tetap belum terhubung. Pengujian browser memakai fake media, bukan perangkat nyata. Setup tetap memakai entrypoint platform di atas; migrasi SQLite v2 otomatis dan aditif. Baca [panduan dan release gates tahap 2](docs/PLATFORM_PHASE_2.md) serta [bukti validasi](docs/PLATFORM_PHASE_2_VALIDATION.json).

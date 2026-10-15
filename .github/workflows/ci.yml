@@ -42,7 +42,10 @@ jobs:
         run: python tools/audit_ui_inventory.py --output /tmp/wewatch-ui-inventory.json
 
       - name: Validate platform JavaScript
-        run: node --check platform_static/platform.js
+        run: |
+          node --check platform_static/platform.js
+          node --check platform_static/onboarding.js
+          node --test tests/test_preview_controller.cjs
 
       - name: Smoke import signaling service
         run: PYTHONPATH=. python -c "import WebRTC_Meet.app"
