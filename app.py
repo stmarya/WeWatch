@@ -24,10 +24,10 @@ from services.room_auth import issue_room_token
 from utils.security import SlidingWindowRateLimiter, safe_face_name
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv(
-    'WEBWATCH_SESSION_SECRET',
-    os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex()),
-)
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
+app.config['SECRET_KEY'] = (os.getenv('WEBWATCH_SESSION_SECRET', '').strip()
+                            or os.getenv('WEBRTC_SECRET_KEY', '').strip()
+                            or secrets.token_hex(32))
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('WEBWATCH_COOKIE_SECURE', 'false').lower() == 'true'
@@ -55,7 +55,7 @@ def require_admin_session():
     public_static = request.path.startswith('/static/') and not request.path.startswith('/static/gallery/')
     if request.endpoint in allowed or public_static:
         return None
-    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.endpoint not in {'auth_login', 'auth_logout'}:
+    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.endpoint != 'auth_login':
         expected = session.get('csrf_token', '')
         supplied = request.headers.get('X-CSRF-Token', '')
         if not expected or not hmac.compare_digest(supplied, expected):
@@ -71,7 +71,9 @@ def require_admin_session():
 def add_security_headers(response):
     response.headers.setdefault('X-Content-Type-Options', 'nosniff')
     response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
-    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    if request.endpoint != 'static' or request.path.startswith('/static/gallery/'):
+        response.headers['Cache-Control'] = 'no-store'
     response.headers.setdefault(
         'Permissions-Policy',
         'camera=(self), microphone=(self), geolocation=(), payment=()',
@@ -110,7 +112,7 @@ def auth_logout():
 def index():
     join_ticket = ''
     try:
-        join_ticket = issue_room_token('gmeet_room', 'admin-dashboard', 'admin', ttl=300)
+        join_ticket = issue_room_token(os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room'), 'admin-dashboard', 'admin', ttl=300)
     except (RuntimeError, ValueError) as exc:
         logging.error('Could not issue short-lived WebRTC admin ticket: %s', exc)
     return render_template(
@@ -122,8 +124,8 @@ def index():
 @app.route('/manifest.json')
 def manifest():
     return jsonify({
-        "short_name": "Google Meet",
-        "name": "Google Meet Admin",
+        "short_name": "WeWatch",
+        "name": "WeWatch Admin",
         "icons": [
             {
                 "src": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-512dp/logo_meet_2020q4_color_2x_web_512dp.png",
@@ -152,21 +154,26 @@ def gallery():
 
 @app.route('/toggle', methods=['POST'])
 def toggle():
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(success=False, message='JSON object wajib diisi.'), 400
     feature = data.get('feature')
     state = data.get('state')
-    if feature in FEATURES:
-        FEATURES[feature] = bool(state)
-        logging.info(f"Feature {feature} set to {state}")
-        return jsonify(success=True, feature=feature, state=FEATURES[feature])
+    if isinstance(feature, str) and feature in FEATURES and isinstance(state, bool):
+        success, message = camera.set_feature(feature, state)
+        return jsonify(success=success, feature=feature, state=FEATURES[feature], message=message), (200 if success else 422)
     return jsonify(success=False, message="Feature tidak valid."), 400
 
 @app.route('/snap_face', methods=['POST'])
 def snap_face():
     if not face_limiter.allow(request.remote_addr or 'unknown'):
         return jsonify(success=False, message='Terlalu banyak percobaan registrasi wajah.'), 429
-    data = request.get_json(silent=True) or {}
-    name = safe_face_name(data.get('name', 'user_default'))
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(success=False, message='JSON object wajib diisi.'), 400
+    if not isinstance(data.get('name'), str) or not data['name'].strip() or len(data['name']) > 64:
+        return jsonify(success=False, message='Nama wajah 1–64 karakter wajib diisi.'), 400
+    name = safe_face_name(data['name'])
     success, message = camera.register_face(name)
     return jsonify(success=success, message=message), (200 if success else 422)
 
@@ -174,7 +181,7 @@ def snap_face():
 def take_snapshot():
     if not snapshot_limiter.allow(request.remote_addr or 'unknown'):
         return jsonify(success=False, message='Terlalu banyak permintaan snapshot.'), 429
-    if camera.frame_rgb is not None:
+    if camera.frame_rgb is not None and camera.status.get('camera_state') == 'ready':
         try:
             import cv2
             filename = f"snapshot_{uuid.uuid4().hex}.jpg"
@@ -188,7 +195,9 @@ def take_snapshot():
 
 @app.route('/status_data')
 def status_data():
-    return jsonify({'status': STATUS, 'features': FEATURES})
+    return jsonify({'status': STATUS, 'features': FEATURES,
+                    'feature_errors': {key: camera.feature_error(key) for key in FEATURES},
+                    'model_health': camera.ai.model_health})
 
 @app.route('/mood_data')
 def mood_data():
@@ -229,7 +238,7 @@ def run_web_server():
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
     logging.info("Membuka Server di http://localhost:5000")
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+    app.run(host=os.getenv('WEBWATCH_HOST', '127.0.0.1'), port=5000, debug=False, use_reloader=False, threaded=True)
 
 if __name__ == '__main__':
     run_web_server()

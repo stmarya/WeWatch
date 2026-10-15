@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import io
 import logging
+import math
 import os
 import platform
 import subprocess
@@ -34,9 +35,11 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 SERVER_URL = os.getenv("WEBRTC_SERVER_URL", "http://localhost:5001")
+AGENT_JOIN_TOKEN = os.getenv("DESKTOP_AGENT_JOIN_TOKEN", "").strip()
 AGENT_TOKEN = os.getenv("DESKTOP_AGENT_TOKEN", "").strip()
 AGENT_IDENTITY = os.getenv("DESKTOP_AGENT_IDENTITY", platform.node() or "desktop-agent")
 TARGET_IDENTITY = os.getenv("DESKTOP_AGENT_TARGET_IDENTITY", "").strip()
+ALLOW_REMOTE_CONTROL = os.getenv("DESKTOP_AGENT_ALLOW_REMOTE_CONTROL", "false").lower() == "true"
 ALLOW_DANGEROUS = os.getenv("DESKTOP_AGENT_ALLOW_DANGEROUS", "false").lower() == "true"
 ALLOWED_PROCESSES = {
     item.strip().lower()
@@ -76,6 +79,8 @@ def _safe_url(value):
 
 def execute_command(command, payload):
     """Execute one allowlisted command and return a serializable result."""
+    if not ALLOW_REMOTE_CONTROL:
+        raise PermissionError("Remote control is disabled by local workstation policy")
     payload = payload if isinstance(payload, dict) else {}
 
     if command == "mouse_move":
@@ -96,7 +101,7 @@ def execute_command(command, payload):
         if button == "double":
             pyautogui.doubleClick(x, y)
         else:
-            getattr(pyautogui, f"{button}Click")(x, y)
+            pyautogui.click(x, y, button=button)
         return _result(True, "Mouse click completed")
 
     if command == "mouse_scroll":
@@ -220,6 +225,8 @@ def _claim_command(data):
         expires_at = float(data.get("expires_at", 0))
     except (TypeError, ValueError):
         raise ValueError("Invalid command expiry")
+    if not math.isfinite(expires_at) or expires_at > time.time() + 35:
+        raise ValueError("Invalid command expiry")
     if expires_at <= time.time():
         raise ValueError("Command expired")
     with _seen_command_lock:
@@ -240,6 +247,7 @@ def connect():
         "name": f"Desktop Agent ({AGENT_IDENTITY})",
         "target_identity": TARGET_IDENTITY,
         "agent_token": AGENT_TOKEN,
+        "join_token": AGENT_JOIN_TOKEN,
     })
     if _presence_thread is None or not _presence_thread.is_alive():
         _presence_thread = threading.Thread(target=_presence_loop, daemon=True)
@@ -274,8 +282,8 @@ def on_desktop_command(data):
 
 
 def main():
-    if not AGENT_TOKEN:
-        raise SystemExit("DESKTOP_AGENT_TOKEN is required")
+    if not (AGENT_JOIN_TOKEN or AGENT_TOKEN):
+        raise SystemExit("DESKTOP_AGENT_JOIN_TOKEN is required (static token only with explicit development opt-in)")
     if not TARGET_IDENTITY:
         raise SystemExit("DESKTOP_AGENT_TARGET_IDENTITY is required")
     sio.connect(SERVER_URL, transports=["websocket"], wait_timeout=15)

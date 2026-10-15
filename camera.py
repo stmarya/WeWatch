@@ -2,18 +2,19 @@ import cv2
 import mediapipe as mp
 import math
 import numpy as np
-import face_recognition
+from core.face_backend import face_recognition
 import os
 import time
 import threading
 import pyautogui
 import logging
+import importlib.util
 from pathlib import Path
 from dotenv import load_dotenv
 
 # Load Env
 load_dotenv()
-pyautogui.FAILSAFE = False
+pyautogui.FAILSAFE = True
 
 # Modul Internal
 from utils.helpers import is_thumbs_up, is_v_sign, calculate_bpm, overlay_transparent, calculate_angle, is_i_love_you, is_hello, is_ok, get_gaze_direction
@@ -21,10 +22,11 @@ from services.voice import speak
 from services.telegram_bot import send_telegram_alert, GALLERY_FOLDER
 from services.database import insert_mood, log_clock_in, update_work_time
 from core.ai_models import AIModelManager
+from core.ai_policy import MODEL_REQUIREMENTS, select_identity
 from utils.security import Cooldown, MajorityVote, safe_face_name
 
 FEATURES = {
-    'kantuk': True,
+    'kantuk': False,
     'kacamata': False,
     'mouse': False,
     'identitas': False,
@@ -80,10 +82,10 @@ STATUS = {
     'liveness': 'OFF',
     'keyboard_text': '',
     'last_command': '-',
-    'kehadiran': 'AT DESK',
-    'kehadiran_detail': 'AT_DESK',
+    'kehadiran': 'UNKNOWN',
+    'kehadiran_detail': 'NO_MEASUREMENT',
     'main_hp': 'AMAN',
-    'status_kerja': 'Kerja',
+    'status_kerja': 'OFF',
     'active_user': '-',
     'work_duration': 0
 }
@@ -160,6 +162,10 @@ class AICamera:
         self._frame_lock = threading.Lock()
         self._face_lock = threading.RLock()
         self._frame_sequence = 0
+        self._capture_sequence = 0
+        self._capture_at = 0.0
+        self._last_processed_sequence = -1
+        self.status["camera_state"] = "starting"
         self._next_encode_at = 0.0
         self._identity_vote = MajorityVote(size=5)
         self._alert_cooldown = Cooldown(seconds=8)
@@ -198,12 +204,50 @@ class AICamera:
         threading.Thread(target=self._safe_update, daemon=True).start()
         logging.info("AICamera Turbo Pipeline Initialized Successfully.")
 
+    def feature_error(self, feature):
+        if feature in {'mouse', 'music_player'}:
+            return 'Fitur belum diimplementasikan; kontrol dinonaktifkan.'
+        if feature == 'voice_command' and os.getenv('VOICE_CLOUD_ENABLED', 'false').lower() != 'true':
+            return 'Voice cloud memerlukan opt-in VOICE_CLOUD_ENABLED dan mikrofon.'
+        if feature == 'voice_command' and any(importlib.util.find_spec(name) is None for name in ('speech_recognition', 'pyaudio')):
+            return 'Instal SpeechRecognition dan PyAudio untuk akses mikrofon.'
+        if feature == 'rppg' and os.getenv('RPPG_EXPERIMENTAL_ENABLED', 'false').lower() != 'true':
+            return 'rPPG eksperimental, bukan alat medis; aktifkan opt-in eksperimen dahulu.'
+        if feature == 'bosskey' and os.name != 'nt':
+            return 'Boss Key saat ini hanya didukung di Windows.'
+        if feature in {'identitas', 'keamanan'} and not self.ai.known_face_encodings:
+            return 'Daftarkan tepat satu wajah dahulu; Face ID bukan kontrol akses.'
+        requirements = MODEL_REQUIREMENTS.get(feature, ())
+        if feature in {'keamanan', 'rppg'}:
+            requirements = ('face_detector',)
+        if any(getattr(self.ai, name, None) is None for name in requirements):
+            return 'Model atau aset AI tidak tersedia.'
+        if not self.running or self.status.get('camera_state') == 'unavailable':
+            return 'Kamera/pipeline AI tidak tersedia.'
+        return None
+
+    def set_feature(self, feature, state):
+        if feature not in self.features or not isinstance(state, bool):
+            return False, 'Feature dan state boolean yang valid wajib diisi.'
+        error = self.feature_error(feature) if state else None
+        if error:
+            return False, error
+        if state and feature == 'keamanan':
+            self.features['identitas'] = True
+        if not state and feature == 'identitas':
+            self.features['keamanan'] = False
+            self.status['active_user'] = '-'
+            self._identity_vote.clear()
+        self.features[feature] = state
+        return True, 'Status fitur diperbarui.'
+
     def _safe_grabber_loop(self):
         try:
             self._grabber_loop()
         except Exception:
             logging.exception("Camera grabber stopped unexpectedly")
             self.running = False
+            self.status["camera_state"] = "unavailable"
 
     def _safe_update(self):
         try:
@@ -211,6 +255,7 @@ class AICamera:
         except Exception:
             logging.exception("AI processing loop stopped unexpectedly")
             self.running = False
+            self.status["camera_state"] = "unavailable"
 
     def _grabber_loop(self):
         """Thread terpisah khusus membaca hardware webcam tanpa delay buffer."""
@@ -219,8 +264,17 @@ class AICamera:
             if success and frame is not None:
                 with self._frame_lock:
                     self.raw_frame = frame
+                    self._capture_sequence += 1
+                    self._capture_at = time.monotonic()
+                    self.status["camera_state"] = "ready"
             else:
-                time.sleep(0.005)
+                self.status["camera_state"] = "unavailable"
+                self.status["kehadiran"] = "UNKNOWN"
+                self.status["kehadiran_detail"] = "CAMERA_UNAVAILABLE"
+                self.status["bpm"] = 0
+                self.status["liveness"] = "UNAVAILABLE"
+                self.status["active_user"] = "-"
+                time.sleep(0.05)
 
     def _async_face_id(self, rgb_image, known_box=None):
         """Thread terpisah untuk ekstraksi dlib face_encodings dengan presisi tinggi tanpa lag."""
@@ -259,15 +313,8 @@ class AICamera:
             if known_encodings:
                 for (top, right, bottom, left), enc in zip(face_locs, face_encs):
                     face_distances = face_recognition.face_distance(known_encodings, enc)
-                    best_match_idx = int(np.argmin(face_distances))
-                    name = "Tidak Dikenal"
-                    # A stricter threshold reduces false positives. The margin
-                    # check also rejects ambiguous matches between similar faces.
-                    sorted_distances = np.sort(face_distances)
-                    best_distance = float(sorted_distances[0])
-                    margin = float(sorted_distances[1] - sorted_distances[0]) if len(sorted_distances) > 1 else 1.0
-                    if best_distance <= 0.54 and margin >= 0.035:
-                        name = known_names[best_match_idx]
+                    name = select_identity(known_names, face_distances)
+                    if name != 'Tidak Dikenal':
                         current_name = name
                     new_face_data.append((name, top, right, bottom, left))
             else:
@@ -277,10 +324,15 @@ class AICamera:
             self.last_face_data = new_face_data
             stable_name = self._identity_vote.add(current_name)
             self.status['identitas'] = stable_name
-            if current_name != "Tidak Dikenal" and self.status['active_user'] != current_name:
+            if not self.features["identitas"]:
+                self.status["identitas"] = "OFF"
+                self.status["active_user"] = "-"
+                return
+            if stable_name != "Tidak Dikenal" and self.status['active_user'] != stable_name:
                 self._identity_unknown_frames = 0
-                self.status['active_user'] = current_name
-                log_clock_in(current_name)
+                self.status['active_user'] = stable_name
+                if self.features.get('produktivitas'):
+                    log_clock_in(stable_name)
             elif current_name == "Tidak Dikenal":
                 self._identity_unknown_frames += 1
                 if self._identity_unknown_frames >= 5:
@@ -297,6 +349,8 @@ class AICamera:
         thumbs_up_frames = 0
         v_sign_frames = 0
         rppg_buffer = []
+        rppg_times = []
+        closed_since = None
         last_announced_object = ""
         last_announce_time = 0
         trainer_state = None
@@ -330,7 +384,9 @@ class AICamera:
 
         while self.running:
             with self._frame_lock:
-                if self.raw_frame is None:
+                sequence = self._capture_sequence
+                capture_at = self._capture_at
+                if sequence == self._last_processed_sequence or self.raw_frame is None:
                     raw_frame = None
                 else:
                     raw_frame = self.raw_frame.copy()
@@ -338,6 +394,7 @@ class AICamera:
                 time.sleep(0.01)
                 continue
 
+            self._last_processed_sequence = sequence
             # Ambil frame terbaru dan flip
             image = cv2.flip(raw_frame, 1)
             h_img, w_img, _ = image.shape
@@ -375,7 +432,7 @@ class AICamera:
 
             run_face_ai = (frame_count % 2 == 0)
             run_hand_ai = (frame_count % 2 == 1) and (self.features['hands'] or self.features['bosskey'] or self.features['sign_language'] or self.features['virtual_keyboard'])
-            run_pose_ai = (frame_count % 3 == 1) and (self.features['postur'] or self.features['trainer'])
+            run_pose_ai = (frame_count % 3 == 1) and (self.features['postur'] or self.features['trainer'] or self.features['produktivitas'])
             run_obj_ai = (frame_count % 3 == 2) and (self.features.get('object', False) or self.features.get('produktivitas', False))
 
             # -------------------------------------------------------------
@@ -403,7 +460,7 @@ class AICamera:
                     cv2.rectangle(image, (bbox.origin_x, bbox.origin_y), (bbox.origin_x + bbox.width, bbox.origin_y + bbox.height), (255, 0, 255), 2)
                     cv2.putText(image, name, (bbox.origin_x, bbox.origin_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
 
-            if self.features.get('produktivitas', False):
+            if self.features.get('produktivitas', False) and run_obj_ai:
                 is_holding_hp = any(
                     obj['name'] == 'cell phone'
                     and obj.get('score', 0.0) >= PHONE_DETECTION_THRESHOLD
@@ -415,9 +472,9 @@ class AICamera:
                     if hp_tercyduk_frames > 10:
                         self.status['main_hp'] = "TERCYDUK"
                         if time.time() - last_hp_alert > 10:
-                            send_telegram_alert(image, "📱 ALERT: User ketahuan bermain HP saat jam kerja!", save_as="main_hp")
+                            send_telegram_alert(image, "📱 ALERT: Ponsel terdeteksi di frame; perlu konfirmasi manusia, bukan bukti tidak bekerja.", save_as="main_hp")
                             if self._alert_cooldown.ready("main_hp_voice"):
-                                speak("Tuan, berhentilah bermain ponsel dan kembalilah bekerja.")
+                                speak("Ponsel terdeteksi di kamera. Periksa apakah pengingat ini relevan.")
                             last_hp_alert = time.time()
                 else:
                     hp_tercyduk_frames = max(0, hp_tercyduk_frames - 1)
@@ -534,9 +591,14 @@ class AICamera:
                     logging.debug("Face landmark detection failed: %s", exc)
                     self.last_face_landmarks = []
 
-            if run_face_ai:
+            if run_face_ai and self.ai.face_detector is not None:
                 if not detection_result or not detection_result.face_landmarks:
                     face_missing_frames += 1
+                    closed_since = None
+                    self.status["kantuk"] = False
+                    self.status["bpm"] = 0
+                    rppg_buffer.clear()
+                    rppg_times.clear()
                     now = time.monotonic()
                     if face_missing_started_at is None:
                         face_missing_started_at = now
@@ -593,14 +655,17 @@ class AICamera:
                         self.status['ekspresi'] = emosi
 
                         # Async mood log agar tidak lock SQLite
-                        if frame_count % 30 == 0:
+                        if frame_count % 30 == 0 and os.getenv('MOOD_LOG_ENABLED', 'false').lower() == 'true':
                             threading.Thread(target=insert_mood, args=(emosi,), daemon=True).start()
 
-                        if blink > 0.5: mata_tertutup_frames += 1
-                        else: mata_tertutup_frames = 0
+                        if blink > 0.5:
+                            if closed_since is None:
+                                closed_since = capture_at
+                        else:
+                            closed_since = None
 
                         self.status['kantuk'] = False
-                        if self.features['kantuk'] and mata_tertutup_frames >= 15:
+                        if self.features['kantuk'] and closed_since is not None and capture_at - closed_since >= 1.0:
                             self.status['kantuk'] = True
                             send_telegram_alert(image, "😴 ALERT: Anda terdeteksi mengantuk!", save_as="kantuk")
                             if self._alert_cooldown.ready("kantuk_voice"):
@@ -612,7 +677,7 @@ class AICamera:
                                 liveness_verified = True
 
                             if liveness_verified:
-                                self.status['liveness'] = "PASSED"
+                                self.status['liveness'] = "MOTION_DETECTED"
                             else:
                                 self.status['liveness'] = "PENDING"
                         else:
@@ -667,13 +732,16 @@ class AICamera:
                     cv2.putText(image, f"MATA: {gaze}", (20, h_img - 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
                 # rPPG
-                if self.features['rppg']:
+                if self.features['rppg'] and run_face_ai:
                     fx, fy = int(face_landmarks[10].x * w_img), int(face_landmarks[10].y * h_img)
                     if 0 < fy-20 and fy+20 < h_img and 0 < fx-20 and fx+20 < w_img:
                         roi = rgb_image[fy-20:fy+20, fx-20:fx+20]
                         rppg_buffer.append(np.mean(roi[:, :, 1]))
-                        if len(rppg_buffer) > 150: rppg_buffer.pop(0)
-                        self.status['bpm'] = calculate_bpm(rppg_buffer, fps=15)
+                        rppg_times.append(capture_at)
+                        while rppg_times and capture_at - rppg_times[0] > 15:
+                            rppg_times.pop(0)
+                            rppg_buffer.pop(0)
+                        self.status['bpm'] = calculate_bpm(rppg_buffer, timestamps=rppg_times)
 
             # -------------------------------------------------------------
             # 7. HAND TRACKING (Gestur, Sign Language, Virtual Keyboard)
@@ -803,6 +871,20 @@ class AICamera:
             # -------------------------------------------------------------
             # 8. STATUS KERJA & WORK DURATION
             # -------------------------------------------------------------
+            if not self.features['kantuk']:
+                self.status['kantuk'] = False
+            if not self.features['postur'] or self.last_pose_landmarks is None:
+                self.status['postur'] = False
+            if not self.features['liveness']:
+                self.status['liveness'] = 'OFF'
+            if not self.features['rppg']:
+                self.status['bpm'] = 0
+                rppg_buffer.clear()
+                rppg_times.clear()
+            if not self.features['produktivitas']:
+                self.status['main_hp'] = 'OFF'
+            if self.ai.face_detector is None:
+                self.status['kehadiran'] = 'UNKNOWN'
             if self.features.get('produktivitas', False):
                 if self.status['kehadiran'] == "AWAY":
                     self.status['status_kerja'] = "Meninggalkan Meja"
@@ -812,13 +894,15 @@ class AICamera:
                     self.status['status_kerja'] = "Mengantuk"
                 elif self.status['postur']:
                     self.status['status_kerja'] = "Postur Buruk"
+                elif self.status['kehadiran'] == 'UNKNOWN':
+                    self.status['status_kerja'] = 'Tidak cukup data'
                 else:
-                    self.status['status_kerja'] = "Fokus Bekerja"
+                    self.status['status_kerja'] = "Tidak ada sinyal gangguan"
             else:
                 self.status['status_kerja'] = "OFF"
 
             if self.features.get('produktivitas', False) and self.status['active_user'] != '-':
-                if self.status['status_kerja'] == "Fokus Bekerja":
+                if self.status['status_kerja'] == "Tidak ada sinyal gangguan":
                     if time.time() - last_work_update_time >= 1.0:
                         update_work_time(self.status['active_user'], 1)
                         self.status['work_duration'] += 1
@@ -850,6 +934,8 @@ class AICamera:
 
     def register_face(self, name, rgb_frame=None):
         """Validate and atomically register exactly one face."""
+        if self.status.get("camera_state") != "ready":
+            return False, "Kamera tidak tersedia; registrasi ditolak."
         clean_name = safe_face_name(name)
         if rgb_frame is None:
             with self._frame_lock:

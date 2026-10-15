@@ -79,3 +79,12 @@ Kategori ini memungkinkan Anda berinteraksi dengan komputer tanpa menyentuh mous
 
 > **WebRTC admin:** isi `WEBRTC_ADMIN_TOKEN` pada `.env`, lalu buka
 > `/admin?token=<WEBRTC_ADMIN_TOKEN>`. Jangan mengekspos port 5001 tanpa token.
+
+
+## Penting: perubahan keamanan 15 Oktober 2026
+
+Panduan lama di atas tidak menggantikan default keamanan terbaru. Ikuti
+`docs/SECURE_PILOT_SETUP.md` untuk token client, pairing agent terikat identity,
+consent remote yang dapat dicabut, dan opt-in transfer data pihak ketiga.
+Virtual Mouse dan Emotion Music Player belum diimplementasikan dan tidak
+dapat diaktifkan. Face ID/motion bukan kontrol akses; rPPG bukan alat medis.

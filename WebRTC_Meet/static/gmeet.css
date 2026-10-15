@@ -1847,3 +1847,23 @@ body {
     text-align: center;
     padding: 24px;
 }
+
+/* Accessibility: keyboard focus and participant motion preference. */
+button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid #8ab4f8; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.prejoin .meet-app, .prejoin .bottom-bar, .prejoin #remoteConsentPanel { display: none; }
+.lobby-screen { overflow-y: auto; }
+@media (max-width: 768px) {
+    .bottom-bar { height: auto; min-height: 80px; flex-wrap: wrap; gap: 8px; padding: 8px; }
+    .bar-left, .bar-right { min-width: 0; }
+    .bar-left { display: none; }
+    .bar-center { flex-wrap: wrap; justify-content: center; gap: 4px; width: 100%; }
+    .bar-right { width: 100%; justify-content: center; }
+    .meet-app { min-height: 0; }
+    #remoteConsentPanel { font-size: 12px; }
+}
+
+.participant-item[hidden] { display: none !important; }

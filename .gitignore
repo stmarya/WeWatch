@@ -22,3 +22,7 @@ Thumbs.db
 *.db
 temp_voice_*.mp3
 gallery/
+# Biometric enrollments and generated private media
+faces/*.jpg
+faces/*.png
+static/gallery/

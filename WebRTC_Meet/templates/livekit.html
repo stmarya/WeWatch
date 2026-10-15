@@ -30,6 +30,9 @@
         <div id="status">Not connected</div>
     </header>
     <main>
+        <label for="joinTokenInput">Token undangan (tidak disimpan)</label>
+        <input type="password" id="joinTokenInput" autocomplete="off" style="width:100%;max-width:500px;padding:10px;margin-bottom:12px">
+        <p>Klik Connect untuk masuk dengan kamera/mikrofon. Mode pilot SFU, bukan migrasi fitur legacy penuh.</p>
         <div class="toolbar">
             <button class="primary" id="connect" type="button">Connect</button>
             <button id="mic" type="button" disabled>Mute microphone</button>
@@ -55,6 +58,12 @@
             const cameraButton = document.getElementById('camera');
             const leaveButton = document.getElementById('leave');
             const tiles = new Map();
+            const params = new URLSearchParams(location.search);
+            document.getElementById('joinTokenInput').value = params.get('join_token') || '';
+            if (params.has('join_token')) {
+                params.delete('join_token');
+                history.replaceState(null, '', location.pathname + (params.size ? '?' + params : ''));
+            }
             const serverConfigured = {{ livekit_configured|tojson }};
 
             function setStatus(text) { status.textContent = text; }
@@ -110,7 +119,7 @@
                     setError('LiveKit is not configured on the signaling server.');
                     return;
                 }
-                const joinToken = new URLSearchParams(window.location.search).get('join_token') || '';
+                const joinToken = document.getElementById('joinTokenInput').value.trim();
                 if (!joinToken) {
                     setError('join_token is required. Request a short-lived token first.');
                     return;
@@ -137,6 +146,7 @@
                         if (publication.track) attachTrack(publication.track, room.localParticipant);
                     }
                 } catch (err) {
+                    await room.disconnect();
                     connectButton.disabled = false;
                     setStatus('Connection failed');
                     setError(err.message || 'Unable to connect to LiveKit');

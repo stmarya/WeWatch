@@ -13,6 +13,8 @@ GALLERY_FOLDER = str(BASE_DIR / 'static' / 'gallery')
 _alert_cooldown = Cooldown(seconds=15)
 
 def send_telegram_alert(frame, caption, save_as="alert"):
+    if os.getenv('ALERT_CAPTURE_ENABLED', 'false').lower() != 'true':
+        return
     # Cool down by alert type, so a drowsiness alert cannot suppress
     # an unrelated security alert (and vice versa).
     if not _alert_cooldown.ready(save_as):
@@ -24,6 +26,8 @@ def send_telegram_alert(frame, caption, save_as="alert"):
         logging.error("Failed to save Telegram alert frame: %s", filename)
         return
     
+    if os.getenv('TELEGRAM_UPLOAD_ENABLED', 'false').lower() != 'true':
+        return
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
     
@@ -42,10 +46,10 @@ def send_telegram_alert(frame, caption, save_as="alert"):
                     timeout=15,
                 )
                 if response.status_code != 200:
-                    logging.error(f"Failed to send Telegram message: {response.text}")
+                    logging.error("Telegram upload failed (HTTP %s)", response.status_code)
                 else:
                     logging.info(f"Telegram alert sent: {caption}")
         except Exception as e:
-            logging.error(f"Telegram API Exception: {e}")
+            logging.error("Telegram upload failed (%s)", type(e).__name__)
             
     threading.Thread(target=send, daemon=True).start()

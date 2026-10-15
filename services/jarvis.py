@@ -1,6 +1,7 @@
 import threading
 import time
 import logging
+import os
 from services.voice import speak
 
 try:
@@ -10,6 +11,9 @@ except ImportError:
     HAS_SR = False
 
 def jarvis_listener(camera):
+    if os.getenv('VOICE_CLOUD_ENABLED', 'false').lower() != 'true':
+        logging.info('Cloud speech recognition disabled by privacy policy')
+        return
     if not HAS_SR:
         print("JARVIS ERROR: Modul speech_recognition tidak terinstal.")
         return
@@ -41,31 +45,29 @@ def jarvis_listener(camera):
             if "jarvis" in text:
                 if "nyalakan" in text or "aktifkan" in text:
                     if "blur" in text:
-                        camera.features['blur'] = True
+                        camera.set_feature('blur', True)
                         speak("Sistem penyamaran diaktifkan.")
                     elif "kacamata" in text:
-                        camera.features['kacamata'] = True
+                        camera.set_feature('kacamata', True)
                         speak("Kacamata diaktifkan.")
                     elif "kantuk" in text:
-                        camera.features['kantuk'] = True
+                        camera.set_feature('kantuk', True)
                         speak("Pendeteksi kantuk siap.")
                     elif "keamanan" in text:
-                        camera.features['keamanan'] = True
-                        speak("Mode keamanan diaktifkan.")
+                        speak("Ubah pengaturan keamanan lewat dashboard admin.")
                         
                 elif "matikan" in text or "nonaktifkan" in text:
                     if "blur" in text:
-                        camera.features['blur'] = False
+                        camera.set_feature('blur', False)
                         speak("Sistem penyamaran dinonaktifkan.")
                     elif "kacamata" in text:
-                        camera.features['kacamata'] = False
+                        camera.set_feature('kacamata', False)
                         speak("Kacamata dilepas.")
                     elif "kantuk" in text:
-                        camera.features['kantuk'] = False
+                        camera.set_feature('kantuk', False)
                         speak("Pendeteksi kantuk dihentikan.")
                     elif "keamanan" in text:
-                        camera.features['keamanan'] = False
-                        speak("Mode keamanan dinonaktifkan.")
+                        speak("Pengaturan keamanan tidak dapat diubah lewat suara.")
                         
         except sr.WaitTimeoutError:
             continue

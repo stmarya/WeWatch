@@ -1,0 +1,197 @@
+{
+  "baseline_commit": "c1804006dda9f406b0793602c1ae7b0e84e61362",
+  "baseline_unit_tests": 21,
+  "final_unit_tests": 50,
+  "unit_tests_pass": true,
+  "browser": {
+    "results": [
+      {
+        "test": "initial preview needs opt-in",
+        "pass": true
+      },
+      {
+        "test": "media denial shown, no synthetic live feed",
+        "pass": true
+      },
+      {
+        "test": "rejected join remains in lobby",
+        "pass": true
+      },
+      {
+        "test": "server-confirmed join with separate display name",
+        "pass": true
+      },
+      {
+        "test": "participant search filters rows",
+        "pass": true
+      },
+      {
+        "test": "explicit remote consent acknowledged",
+        "pass": true
+      },
+      {
+        "test": "remote consent can be revoked",
+        "pass": true
+      },
+      {
+        "test": "leave shows ended overlay",
+        "pass": true
+      },
+      {
+        "test": "dashboard authenticated page rendered",
+        "pass": true
+      },
+      {
+        "test": "dashboard inline handlers resolve at runtime",
+        "pass": true,
+        "missing": []
+      },
+      {
+        "test": "mobile lobby has no horizontal overflow",
+        "pass": true
+      }
+    ],
+    "runtimeErrors": []
+  },
+  "browser_scope": "Chromium, loopback signaling, fake dashboard camera, microphone/camera permission denied; no real devices or SFU/TURN",
+  "pip_audit": {
+    "requirements": "requirements.txt",
+    "platform": "Linux Python 3.13; Windows-only dependencies not resolved",
+    "resolved_entries": 73,
+    "known_vulnerability_entries": 0
+  },
+  "bandit": {
+    "severity_counts": {
+      "LOW": 15,
+      "MEDIUM": 1
+    },
+    "findings": [
+      {
+        "file": "camera.py",
+        "line": 989,
+        "rule": "B110",
+        "severity": "LOW",
+        "note": "Try, Except, Pass detected."
+      },
+      {
+        "file": "desktop_agent.py",
+        "line": 21,
+        "rule": "B404",
+        "severity": "LOW",
+        "note": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "file": "desktop_agent.py",
+        "line": 176,
+        "rule": "B607",
+        "severity": "LOW",
+        "note": "Starting a process with a partial executable path"
+      },
+      {
+        "file": "desktop_agent.py",
+        "line": 176,
+        "rule": "B603",
+        "severity": "LOW",
+        "note": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "file": "tests/test_audit_regressions.py",
+        "line": 123,
+        "rule": "B105",
+        "severity": "LOW",
+        "note": "Possible hardcoded password: ''"
+      },
+      {
+        "file": "tests/test_audit_regressions.py",
+        "line": 124,
+        "rule": "B105",
+        "severity": "LOW",
+        "note": "Possible hardcoded password: 'x.y'"
+      },
+      {
+        "file": "tests/test_audit_regressions.py",
+        "line": 200,
+        "rule": "B102",
+        "severity": "MEDIUM",
+        "note": "Use of exec detected."
+      },
+      {
+        "file": "tests/test_dashboard_api.py",
+        "line": 36,
+        "rule": "B105",
+        "severity": "LOW",
+        "note": "Possible hardcoded password: 'admin-test'"
+      },
+      {
+        "file": "tests/test_dashboard_api.py",
+        "line": 51,
+        "rule": "B105",
+        "severity": "LOW",
+        "note": "Possible hardcoded password: 'admin-test'"
+      },
+      {
+        "file": "tests/test_signaling_contract.py",
+        "line": 144,
+        "rule": "B105",
+        "severity": "LOW",
+        "note": "Possible hardcoded password: ''"
+      },
+      {
+        "file": "tools/check_template_js.py",
+        "line": 6,
+        "rule": "B404",
+        "severity": "LOW",
+        "note": "Consider possible security implications associated with the subprocess module."
+      },
+      {
+        "file": "tools/check_template_js.py",
+        "line": 29,
+        "rule": "B607",
+        "severity": "LOW",
+        "note": "Starting a process with a partial executable path"
+      },
+      {
+        "file": "tools/check_template_js.py",
+        "line": 29,
+        "rule": "B603",
+        "severity": "LOW",
+        "note": "subprocess call - check for execution of untrusted input."
+      },
+      {
+        "file": "tools/load_test_signaling.py",
+        "line": 40,
+        "rule": "B107",
+        "severity": "LOW",
+        "note": "Possible hardcoded password: ''"
+      },
+      {
+        "file": "tools/run_browser_qa_server.py",
+        "line": 7,
+        "rule": "B105",
+        "severity": "LOW",
+        "note": "Possible hardcoded password: 'admin-test'"
+      },
+      {
+        "file": "tools/run_browser_qa_server.py",
+        "line": 8,
+        "rule": "B105",
+        "severity": "LOW",
+        "note": "Possible hardcoded password: 'true'"
+      }
+    ]
+  },
+  "limits": [
+    "Not an exhaustive penetration test",
+    "No production credentials used",
+    "No webcam, microphone, Windows desktop, Redis failure or real LiveKit/TURN test",
+    "No real model accuracy, bias, spoof, clinical pulse or load benchmark",
+    "Full dependency resolution is not a successful native build",
+    "No production deployment or main merge"
+  ],
+  "ci_resolution": {
+    "python_3_11_binary_resolution": "passed; not execution under Python 3.11",
+    "signaling_test_numpy": "2.2.6",
+    "tests_executed_on": "Python 3.13",
+    "signal_dependencies_known_advisories": 0
+  }
+}

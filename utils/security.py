@@ -45,7 +45,8 @@ class MajorityVote:
     def add(self, value: str) -> str:
         self._votes.append(value)
         counts = {item: self._votes.count(item) for item in set(self._votes)}
-        return max(counts, key=counts.get)
+        # Newest vote wins a tie; set iteration must not determine identity.
+        return max(reversed(self._votes), key=counts.get)
 
     def clear(self) -> None:
         self._votes.clear()
@@ -71,6 +72,12 @@ class SlidingWindowRateLimiter:
     def allow(self, key: str) -> bool:
         now = time.monotonic()
         with self._lock:
+            if key not in self._events and len(self._events) >= 4096:
+                cutoff = now - self.window_seconds
+                self._events = defaultdict(deque, {k: v for k, v in self._events.items()
+                                                  if v and v[-1] > cutoff})
+                if len(self._events) >= 4096:
+                    return False
             events = self._events[key]
             cutoff = now - self.window_seconds
             while events and events[0] <= cutoff:
@@ -84,7 +91,7 @@ class SlidingWindowRateLimiter:
                     {
                         item_key: item_events
                         for item_key, item_events in self._events.items()
-                        if item_events
+                        if item_events and item_events[-1] > cutoff
                     },
                 )
             return True

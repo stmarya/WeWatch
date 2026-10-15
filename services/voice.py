@@ -3,7 +3,6 @@ import logging
 import os
 import time
 import asyncio
-import edge_tts
 import tempfile
 from threading import Lock
 
@@ -13,6 +12,7 @@ _speech_lock = Lock()
 VOICE = "id-ID-ArdiNeural"
 
 async def _generate_audio(text, filename):
+    import edge_tts
     communicate = edge_tts.Communicate(text, VOICE)
     await communicate.save(filename)
 
@@ -26,6 +26,8 @@ def speak(text):
         is_speaking = True
         filename = None
         try:
+            if os.getenv('VOICE_CLOUD_ENABLED', 'false').lower() != 'true':
+                raise RuntimeError('Cloud voice disabled; using local TTS')
             from playsound import playsound
 
             with tempfile.NamedTemporaryFile(prefix="wewatch_voice_", suffix=".mp3", delete=False) as tmp:
