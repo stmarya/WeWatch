@@ -2,7 +2,7 @@
 {% block title %}{{ workspace.name }} · WeWatch{% endblock %}
 {% block content %}
 <a class="back-link" href="{{ url_for('dashboard') }}">← Semua workspace</a>
-<section class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1>{{ workspace.name }}</h1><p class="lead">Role Anda: <strong>{{ workspace.role|capitalize }}</strong>. Hak ini hanya berlaku pada workspace ini.</p></div><span class="tag neutral">Fondasi akun & akses</span></section>
+<section class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1>{{ workspace.name }}</h1><p class="lead">Role Anda: <strong>{{ workspace.role|capitalize }}</strong>. Hak ini hanya berlaku pada workspace ini.</p></div><a class="button primary" href="{{ url_for('onboarding.page', workspace_id=workspace.id) }}">Siapkan browser & izin →</a></section>
 {% if can_manage %}
 <div class="dashboard-grid">
 <section>

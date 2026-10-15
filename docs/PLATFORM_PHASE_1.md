@@ -1,5 +1,7 @@
 # WeWatch Platform — Tahap 1
 
+> Catatan versi: dokumen ini mencatat baseline tahap 1. Tahap 2 menambahkan migrasi v2 dan preview browser lokal berizin, tanpa menghubungkan layanan lama. Lihat [PLATFORM_PHASE_2.md](PLATFORM_PHASE_2.md).
+
 Status: fondasi pilot lokal diimplementasikan; review/merge dan production approval belum dilakukan. Berbasis audit PR #3 (commit a6c404987e24037bfabf04d371eca0aa3f84704c).
 
 ## Batas implementasi

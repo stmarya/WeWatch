@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Konfirmasi pairing · WeWatch{% endblock %}
+{% block scripts %}<script defer src="{{ url_for('static', filename='onboarding.js') }}"></script>{% endblock %}
+{% block content %}
+<section id="pairing-approval" class="panel readable pairing-panel" data-csrf="{{ csrf_token }}"><p class="eyebrow">KONFIRMASI TERPISAH</p><h1>Kenali permintaannya.</h1><p>Hanya konfirmasi token yang Anda buat pada browser milik Anda. Akun harus sama dengan akun peminta. Ini mengikat sesi browser ke workspace—bukan izin kamera, mikrofon, AI, atau remote.</p>
+<form id="pair-inspect-form"><label for="approval-token">Token pairing sekali pakai</label><input id="approval-token" type="password" data-fragment-token required maxlength="200" autocomplete="off"><button class="button primary full-width" type="submit">Periksa permintaan</button></form>
+<div id="pair-approval-details" class="pair-result" hidden><h2 id="approval-name"></h2><p id="approval-workspace"></p><p class="field-hint">Menyetujui akan memasangkan sesi browser peminta, bukan otomatis browser yang dipakai meninjau token.</p><button id="pair-approve" type="button" class="button primary">Saya mengenali sesi ini · Setujui pairing</button></div>
+<div id="approval-message" role="status" class="notice" hidden></div><a id="approval-return" class="button secondary" href="{{ url_for('dashboard') }}">Kembali ke workspace</a><noscript><p class="notice">JavaScript diperlukan. Membuka tautan tidak pernah langsung menyetujui pairing.</p></noscript></section>
+{% endblock %}
