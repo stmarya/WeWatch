@@ -1,6 +1,6 @@
 # Roadmap Produk HR — WeWatch
 
-**Status:** Draft untuk validasi pemangku kepentingan  
+**Status:** Discovery awal — profil pilot tercatat; kebijakan dan kebutuhan rinci masih perlu validasi  
 **Terakhir diperbarui:** 2026-10-29  
 **Tujuan:** Mencatat hasil kerja yang sudah dilakukan, visi produk HR, kandidat fitur, dan tahapan berikutnya. Roadmap ini adalah rencana; fitur HR di bawah belum diimplementasikan.
 
@@ -17,7 +17,7 @@ Repo saat ini adalah prototipe dashboard computer-vision, meeting, dan desktop-a
 | Peninjauan dan audit teknis repo | Selesai | Mengidentifikasi risiko pada konfigurasi server, autentikasi, agent desktop, data sensitif, dan dependensi. Temuan serta panduan operasional dicatat di [Audit dan Operasional](AUDIT_AND_OPERATIONS.md). |
 | Hardening keamanan dan privasi | Selesai | Menambahkan gate konfigurasi produksi, secret dan cookie yang lebih aman, perlindungan CSRF, pembatasan remote desktop, retensi/pembersihan data, pengaturan opt-in, pengamanan layanan infrastruktur, dan lock dependensi ber-hash. Commit: [46bb5a7](https://github.com/stmarya/WeWatch/commit/46bb5a7e663e540698a04c8b531a7cc49920d82a). |
 | Review ulang dan tes kode | Selesai | 31 tes lulus; pemeriksaan compile Python, JavaScript template, YAML, whitespace, dan `pip-audit` lulus pada saat diperiksa. Validasi runtime Docker Compose serta uji TLS, TURN/LiveKit, beban media, dan hardware belum dilakukan. |
-| Definisi awal visi dan roadmap HR | Draft | Dokumen ini merangkum visi, ruang lingkup kandidat, guardrail privasi, dan urutan kerja. Belum divalidasi dengan HR, karyawan, atau pemilik kebijakan. |
+| Discovery awal HR | Berjalan | Profil awal dipilih: Indonesia, pilot di bawah 50 karyawan, fokus MVP kehadiran/jadwal-shift, dan evaluasi WeWatch hanya untuk check-in/presence yang transparan serta opt-in. Validasi HR, karyawan, dan kebijakan masih diperlukan. |
 
 Status “Selesai” pada audit/hardening hanya berarti perubahan kode dan pemeriksaan yang disebutkan telah dilakukan; itu bukan persetujuan legal atau bukti kesiapan produksi. Detail privasi dan batas validasi ada di [dokumen privasi](PRIVACY_AND_CONSENT.md) dan [panduan operasional](AUDIT_AND_OPERATIONS.md).
 
@@ -45,10 +45,16 @@ Prinsip wajib:
 
 ### Operasional harian — kandidat MVP
 
-- Jadwal/shift dan pencatatan kehadiran yang transparan, termasuk koreksi dan persetujuan.
-- Cuti/izin: saldo sesuai kebijakan, pengajuan, approval, dan kalender tim.
-- Checklist onboarding/offboarding dan tugas administratif HR.
-- Dashboard HR untuk status proses dan ringkasan agregat; hindari ranking karyawan berdasarkan sinyal pengawasan.
+Prioritas pertama dari discovery awal adalah kehadiran dan jadwal/shift. Metode check-in, aturan shift, koreksi, dan approval masih perlu ditentukan bersama pengguna pilot.
+
+Kandidat acceptance criteria untuk slice pertama (belum disetujui):
+
+- Karyawan dapat melihat jadwalnya, melihat catatan kehadiran, dan meminta koreksi.
+- Manajer dapat melihat jadwal tim yang menjadi tanggung jawabnya dan meninjau permintaan koreksi.
+- HR dapat mengatur kebijakan/jadwal yang disepakati serta melihat laporan sesuai hak akses.
+- Perubahan dan persetujuan tercatat; karyawan mengetahui data yang disimpan dan cara meminta koreksi.
+
+Fitur operasional berikutnya dapat mencakup cuti/izin, onboarding/offboarding, dan dashboard proses HR. Hindari ranking karyawan berdasarkan sinyal pengawasan.
 
 ### Proyek dan pengembangan — kandidat tahap berikutnya
 
@@ -68,12 +74,12 @@ Urutan di bawah adalah tahapan, bukan tanggal rilis. Estimasi dan target baru di
 | Tahap | Status | Hasil yang dituju / gerbang keluar |
 |---|---|---|
 | 0. Audit repo dan hardening dasar | Selesai | Risiko teknis awal ditangani pada kode; tes dan audit dependensi dijalankan. Catatan batas validasi tetap terbuka di dokumen operasional. |
-| 1. Discovery HR dan tata kelola | Berikutnya — direncanakan | Wawancara HR, manajer, dan karyawan; petakan proses, kebijakan, yurisdiksi, jenis data, retensi, akses, serta integrasi. Setujui prinsip anti-surveillance dan tujuan produk sebelum membuat backlog. |
+| 1. Discovery HR dan tata kelola | Berjalan — discovery awal | Profil awal sudah dipilih: Indonesia, pilot di bawah 50 karyawan, prioritas kehadiran/jadwal-shift, dan kajian WeWatch hanya untuk presence yang transparan serta opt-in. Selanjutnya validasi alur nyata, kebijakan, aturan setempat, retensi, akses, dan kebutuhan bersama HR/karyawan sebelum membekukan backlog. |
 | 2. Desain produk dan arsitektur | Direncanakan | Persona, alur pengguna, model data minimum, matriks akses, threat model, keputusan hosting/residensi, prototipe UI, dan acceptance criteria MVP disetujui. |
 | 3. Fondasi HRIS | Direncanakan | Login/SSO sesuai kebutuhan, organisasi, direktori, profil, RBAC, audit log, retensi, dan self-service dasar; uji keamanan dan akses per peran. |
-| 4. MVP operasional HR | Direncanakan | Jadwal/kehadiran, koreksi, cuti, approval, notifikasi, dan onboarding dasar berjalan pada pilot terbatas dengan umpan balik karyawan. |
+| 4. MVP operasional HR | Direncanakan | Mulai dari jadwal/kehadiran, catatan check-in/out, koreksi, dan approval yang disepakati; tambahkan cakupan lain hanya setelah prioritas dan aturan pilot jelas. Uji pada kelompok terbatas dengan umpan balik karyawan. |
 | 5. Proyek dan pengembangan | Direncanakan | Milestone, check-in, tujuan, 1:1, feedback, dan laporan agregat; tinjau fairness dan akses sebelum dipakai untuk keputusan. |
-| 6. Evaluasi modul WeWatch | Opsional / belum disetujui | Lakukan kajian tujuan, legalitas, dampak, consent, keamanan, dan alternatif yang kurang invasif. Pilot hanya jika gerbang ini lulus; nonaktif secara default dan terpisah dari keputusan otomatis HR. |
+| 6. Evaluasi modul WeWatch | Kajian opt-in dipilih; implementasi belum disetujui | Evaluasi check-in/presence yang transparan dan opt-in saja, bandingkan dengan metode yang kurang invasif, dan tinjau tujuan, aturan setempat, dampak, consent, keamanan, serta retensi. Jangan aktifkan kamera/biometrik/inferensi perilaku sebagai default; pilot hanya jika seluruh gerbang disetujui. |
 | 7. Pilot, integrasi, dan rollout | Direncanakan | Uji penerimaan, aksesibilitas, keamanan, backup/pemulihan, beban, dukungan, prosedur insiden, serta metrik manfaat dan kepercayaan sebelum perluasan. |
 
 ## 6. Cara melacak progres
@@ -82,11 +88,20 @@ Untuk setiap perubahan roadmap, catat tanggal, status (`Direncanakan`, `Berjalan
 
 Indikator awal yang perlu ditetapkan baseline-nya saat discovery: waktu penyelesaian proses HR, ketepatan data, waktu penyelesaian koreksi kehadiran, adopsi self-service, kepuasan/kepercayaan pengguna, serta jumlah insiden keamanan/privasi. Tetapkan target setelah baseline tersedia; jangan menjadikan aktivitas kamera atau estimasi produktivitas individu sebagai KPI.
 
-## 7. Keputusan yang masih perlu dibuat
+## 7. Keputusan discovery yang sudah dicatat
 
-1. Yurisdiksi dan ukuran organisasi/kelompok karyawan pertama.
-2. Proses HR mana yang paling bermasalah dan menjadi MVP; termasuk aturan shift, kehadiran, cuti, dan approval.
-3. Siapa yang boleh melihat tiap kategori data, berapa lama data disimpan, dan bagaimana koreksi/penghapusan ditangani.
-4. Integrasi yang benar-benar diperlukan: identitas/SSO, payroll, kalender, atau project tools.
-5. Model deployment dan residensi data, termasuk kebutuhan penggunaan offline.
-6. Apakah modul WeWatch diperlukan sama sekali untuk tujuan HR. Default rekomendasi saat ini: tidak mengintegrasikan biometrik, inferensi perilaku, atau screenshot ke HR.
+Berdasarkan jawaban awal pemilik proyek pada 2026-10-29:
+
+- Yurisdiksi pilot: Indonesia. Detail aturan ketenagakerjaan dan privasi tetap perlu diverifikasi sebelum uji coba.
+- Ukuran organisasi/grup pilot: di bawah 50 karyawan.
+- Prioritas MVP: kehadiran dan jadwal/shift.
+- WeWatch: evaluasi jalur check-in/presence yang transparan dan opt-in saja. Ini bukan persetujuan untuk mengaktifkan kamera, biometrik, screenshot, atau pemantauan terus-menerus.
+
+## 8. Keputusan discovery berikutnya
+
+1. Bagaimana aturan shift bekerja: tetap/bergilir/fleksibel, lokasi kerja, istirahat, toleransi keterlambatan, dan lembur.
+2. Metode check-in yang dibutuhkan: input mandiri, QR/NFC, atau integrasi alat yang sudah ada. Jangan menganggap GPS, kamera, atau biometrik sebagai default.
+3. Siapa yang dapat meminta, meninjau, dan menyetujui koreksi kehadiran; bagaimana keberatan dan perubahan tercatat.
+4. Jenis data, masa simpan, akses, ekspor, dan penghapusan yang sesuai kebijakan serta aturan Indonesia yang telah diverifikasi.
+5. Perwakilan HR, manajer, dan karyawan yang akan memvalidasi alur dan ikut pilot.
+6. Kebutuhan integrasi, hosting/residensi data, dan batas MVP yang benar-benar diperlukan.
