@@ -18,6 +18,7 @@ Repo saat ini adalah prototipe dashboard computer-vision, meeting, dan desktop-a
 | Hardening keamanan dan privasi | Selesai | Menambahkan gate konfigurasi produksi, secret dan cookie yang lebih aman, perlindungan CSRF, pembatasan remote desktop, retensi/pembersihan data, pengaturan opt-in, pengamanan layanan infrastruktur, dan lock dependensi ber-hash. Commit: [46bb5a7](https://github.com/stmarya/WeWatch/commit/46bb5a7e663e540698a04c8b531a7cc49920d82a). |
 | Review ulang dan tes kode | Selesai | 31 tes lulus; pemeriksaan compile Python, JavaScript template, YAML, whitespace, dan `pip-audit` lulus pada saat diperiksa. Validasi runtime Docker Compose serta uji TLS, TURN/LiveKit, beban media, dan hardware belum dilakukan. |
 | Prototipe lokal dan data sintetis | Siap diuji lokal | Demo mandiri di [prototypes/hr-attendance](../prototypes/hr-attendance/README.md) memakai 8 profil fiktif, 3 jadwal, 8 catatan, dan 3 koreksi. GPS satu kali/kamera preview hanya setelah tindakan dan opt-in; tidak ada database, media tersimpan, atau koneksi ke HR produksi. |
+| Validasi prototipe | Lulus untuk smoke-test lokal | 3 tes prototipe lulus; pemeriksaan syntax JavaScript, JSON, HTML, dan render Chromium lokal lulus. GPS/kamera fisik belum diuji. Percobaan suite penuh pada sesi terakhir terhenti karena environment tidak memiliki `flask` dan `socketio`; bukan kegagalan assertion prototipe. |
 | Draft kebutuhan dan kesiapan MVP | Siap untuk review | Draft alur kehadiran, cerita pengguna, peran, guardrail data, dan gerbang sebelum coding ada pada bagian 9. Belum disetujui HR/karyawan dan belum menjadi fitur produksi. |
 | Discovery awal HR | Berjalan | Profil pilot dan guardrail awal sudah dicatat; pencarian tidak menemukan kebijakan HR/absensi internal. Detail jadwal, retensi, akses, dan kajian aturan masih menunggu validasi HR/karyawan. |
 
@@ -157,4 +158,27 @@ Pencarian pada Notion untuk kebijakan kehadiran/jadwal dan peninjauan dokumen re
 - [ ] Setujui arsitektur, autentikasi, audit log, threat model, hosting/residensi, pemulihan, dan kriteria uji sebelum membuat fitur.
 
 **Keputusan readiness saat ini:** prototipe lokal siap dipakai untuk meninjau pengalaman dan sensor dengan data sintetis serta peserta yang secara sadar memilih ikut. Belum siap untuk pilot operasional karyawan, menyimpan data sensor, menetapkan aturan absensi final, atau mengklaim kepatuhan hukum. Backlog implementasi produksi menunggu validasi HR/karyawan dan gerbang di atas.
+
+## 10. Snapshot progres dan tindak lanjut
+
+**Pengecekan terakhir:** 2026-10-29. Status ini merangkum bukti yang tersedia di repo dan pengujian prototipe lokal; belum ada sign-off dari HR atau peserta pilot.
+
+| Area | Status sekarang | Bukti / tindak lanjut |
+|---|---|---|
+| Audit awal dan hardening dasar | Selesai untuk baseline kode | Catatan audit dan commit hardening ada di bagian 2; beberapa validasi deployment masih di luar cakupan. |
+| Definisi awal produk dan discovery | Berjalan | Pilot, tujuan MVP, platform, alur koreksi, dan guardrail sensor sudah dicatat dari jawaban pemilik proyek. Validasi HR/karyawan dan aturan internal belum ada. |
+| Data dan UX prototipe | Siap untuk uji lokal | Seed sintetis dan halaman demo tersedia; 3 tes khusus, syntax/format, dan render lokal lulus. Sensor hardware nyata belum dicoba. |
+| Kebijakan kehadiran dan hak akses | Belum disetujui | Jam, istirahat, hari libur, keterlambatan/lembur, delegasi HR, akses manajer, SLA koreksi, serta masa simpan masih perlu keputusan organisasi. |
+| Build HRIS/MVP produksi | Belum dimulai | Belum ada backend HR, autentikasi HR, database produksi, ekspor payroll, atau integrasi perangkat. Jangan perlakukan demo sebagai sistem operasional. |
+| Pilot dan kesiapan produksi | Belum siap | Menunggu kebijakan dan review privasi/aturan, validasi dengan pengguna, arsitektur, uji keamanan/integrasi, serta persetujuan data dan sensor. |
+
+### Urutan kerja berikutnya
+
+1. Walkthrough alur jadwal dan absensi dengan HR serta perwakilan karyawan; tetapkan aturan yang dipakai pada pilot.
+2. Setujui matriks akses dan alur koreksi/keberatan, termasuk apa yang boleh dilihat HR dan manajer.
+3. Definisikan data minimum, retensi, penghapusan, dan tinjauan GPS/kamera untuk pilot/produksi.
+4. Ubah acceptance criteria yang sudah disepakati menjadi backlog kecil, lalu implementasikan backend HR terpisah dari demo lokal.
+5. Jalankan uji integrasi, akses berbasis peran, keamanan, dan uji sensor dengan peserta yang mengetahui serta memilih ikut sebelum pilot.
+
+**Gerbang selesai:** tahap pilot baru dapat ditandai siap setelah aturan disetujui, alur diuji HR/karyawan, akses/retensi ditetapkan, temuan keamanan ditutup, dan semua skenario pilot lulus. Persentase progres belum ditetapkan karena baseline ruang lingkup dan target organisasi belum disepakati.
 
