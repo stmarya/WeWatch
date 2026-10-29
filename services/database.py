@@ -37,6 +37,36 @@ def init_attendance_db():
     conn.commit()
     conn.close()
 
+
+def purge_expired_records(mood_retention_days=0, attendance_retention_days=0):
+    """Delete only rows beyond explicitly configured retention periods."""
+    mood_removed = 0
+    attendance_removed = 0
+    if mood_retention_days > 0:
+        conn = _connect('mood.db')
+        try:
+            cursor = conn.execute(
+                "DELETE FROM mood WHERE datetime(waktu) < datetime('now', ?)",
+                (f'-{int(mood_retention_days)} days',),
+            )
+            mood_removed = cursor.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+    if attendance_retention_days > 0:
+        conn = _connect('attendance.db')
+        try:
+            cursor = conn.execute(
+                "DELETE FROM attendance WHERE date < date('now', ?)",
+                (f'-{int(attendance_retention_days)} days',),
+            )
+            attendance_removed = cursor.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+    return mood_removed, attendance_removed
+
+
 def insert_mood(emosi):
     try:
         conn = _connect('mood.db')

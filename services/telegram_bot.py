@@ -6,7 +6,9 @@ import threading
 import logging
 from pathlib import Path
 import uuid
+import io
 from utils.security import Cooldown
+from utils.deployment_security import parse_bool
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 GALLERY_FOLDER = str(BASE_DIR / 'static' / 'gallery')
@@ -18,34 +20,49 @@ def send_telegram_alert(frame, caption, save_as="alert"):
     if not _alert_cooldown.ready(save_as):
         return
 
-    os.makedirs(GALLERY_FOLDER, exist_ok=True)
-    filename = os.path.join(GALLERY_FOLDER, f"{save_as}_{uuid.uuid4().hex}.jpg")
-    if not cv2.imwrite(filename, frame):
-        logging.error("Failed to save Telegram alert frame: %s", filename)
-        return
-    
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    
     if not token or not chat_id:
         logging.warning("Telegram credentials not found in .env")
         return
 
+    encoded, buffer = cv2.imencode('.jpg', frame)
+    if not encoded:
+        logging.error("Failed to encode Telegram alert frame")
+        return
+    image_bytes = buffer.tobytes()
+    save_copy = parse_bool(os.getenv('WEBWATCH_SAVE_ALERT_IMAGES'))
+    filename = None
+    if save_copy:
+        os.makedirs(GALLERY_FOLDER, exist_ok=True)
+        filename = os.path.join(GALLERY_FOLDER, f"{save_as}_{uuid.uuid4().hex}.jpg")
+        if not cv2.imwrite(filename, frame):
+            logging.error("Failed to save Telegram alert frame: %s", filename)
+            return
+
     def send():
         try:
             url = f"https://api.telegram.org/bot{token}/sendPhoto"
-            with open(filename, "rb") as f:
+            if filename:
+                with open(filename, "rb") as photo:
+                    response = requests.post(
+                        url,
+                        data={"chat_id": chat_id, "caption": caption},
+                        files={"photo": photo},
+                        timeout=15,
+                    )
+            else:
                 response = requests.post(
                     url,
                     data={"chat_id": chat_id, "caption": caption},
-                    files={"photo": f},
+                    files={"photo": ("alert.jpg", io.BytesIO(image_bytes), "image/jpeg")},
                     timeout=15,
                 )
-                if response.status_code != 200:
-                    logging.error(f"Failed to send Telegram message: {response.text}")
-                else:
-                    logging.info(f"Telegram alert sent: {caption}")
+            if response.status_code != 200:
+                logging.error("Failed to send Telegram message: HTTP %s", response.status_code)
+            else:
+                logging.info("Telegram alert sent")
         except Exception as e:
-            logging.error(f"Telegram API Exception: {e}")
+            logging.error("Telegram API request failed (%s)", type(e).__name__)
             
     threading.Thread(target=send, daemon=True).start()

@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from utils.privacy import purge_old_file, purge_old_files, retention_days
 
 class AIModelManager:
     def __init__(self):
@@ -42,8 +43,13 @@ class AIModelManager:
         # Identitas Face Recognition
         self.known_face_encodings = []
         self.known_face_names = []
+        self.known_face_sources = []
         faces_dir = self.base_dir / 'faces'
         faces_dir.mkdir(exist_ok=True)
+        face_retention_days = retention_days('WEBWATCH_RETENTION_FACE_DAYS')
+        purge_old_files(faces_dir, {'.jpg', '.jpeg', '.png'}, face_retention_days)
+        legacy_face = self.base_dir / 'wajah_saya.jpg'
+        purge_old_file(legacy_face, face_retention_days)
         for filename in os.listdir(faces_dir):
             if filename.endswith('.jpg') or filename.endswith('.png'):
                 try:
@@ -56,6 +62,7 @@ class AIModelManager:
                     if encodings:
                         self.known_face_encodings.append(encodings[0])
                         self.known_face_names.append(name)
+                        self.known_face_sources.append(str((faces_dir / filename).resolve()))
                         logging.info(f"Face Identity '{name}' loaded.")
                     else:
                         logging.warning(f"No face found in {filename}.")
@@ -63,7 +70,6 @@ class AIModelManager:
                     logging.warning(f"Could not load {filename}: {e}")
                     
         # Fallback for old wajah_saya.jpg
-        legacy_face = self.base_dir / 'wajah_saya.jpg'
         if legacy_face.exists() and "wajah_saya" not in self.known_face_names:
             try:
                 img_ref = face_recognition.load_image_file(legacy_face)
@@ -72,6 +78,7 @@ class AIModelManager:
                     raise ValueError("no face found")
                 self.known_face_encodings.append(encodings[0])
                 self.known_face_names.append("Altar (Legacy)")
+                self.known_face_sources.append(str(legacy_face.resolve()))
                 logging.info("Face Identity 'wajah_saya.jpg' loaded.")
             except Exception as e:
                 logging.warning("Could not load legacy face %s: %s", legacy_face, e)

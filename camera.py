@@ -22,9 +22,11 @@ from services.telegram_bot import send_telegram_alert, GALLERY_FOLDER
 from services.database import insert_mood, log_clock_in, update_work_time
 from core.ai_models import AIModelManager
 from utils.security import Cooldown, MajorityVote, safe_face_name
+from utils.privacy import purge_old_file, purge_old_files, retention_days
+from utils.deployment_security import parse_bool
 
 FEATURES = {
-    'kantuk': True,
+    'kantuk': False,
     'kacamata': False,
     'mouse': False,
     'identitas': False,
@@ -67,6 +69,8 @@ try:
     )
 except ValueError:
     PHONE_DETECTION_THRESHOLD = 0.55
+
+LOG_MOOD_HISTORY = parse_bool(os.getenv('WEBWATCH_LOG_MOOD'))
 
 STATUS = {
     'identitas': '-',
@@ -593,7 +597,7 @@ class AICamera:
                         self.status['ekspresi'] = emosi
 
                         # Async mood log agar tidak lock SQLite
-                        if frame_count % 30 == 0:
+                        if LOG_MOOD_HISTORY and frame_count % 30 == 0:
                             threading.Thread(target=insert_mood, args=(emosi,), daemon=True).start()
 
                         if blink > 0.5: mata_tertutup_frames += 1
@@ -878,19 +882,50 @@ class AICamera:
                 # Re-registering a name replaces its old embedding instead of
                 # adding duplicate entries that make matching ambiguous.
                 kept = [
-                    (encoding, existing_name)
-                    for encoding, existing_name in zip(
-                        self.ai.known_face_encodings, self.ai.known_face_names
+                    (encoding, existing_name, source)
+                    for encoding, existing_name, source in zip(
+                        self.ai.known_face_encodings,
+                        self.ai.known_face_names,
+                        self.ai.known_face_sources,
                     )
                     if existing_name != clean_name
                 ]
                 self.ai.known_face_encodings = [item[0] for item in kept] + [encodings[0]]
                 self.ai.known_face_names = [item[1] for item in kept] + [clean_name]
+                self.ai.known_face_sources = [item[2] for item in kept] + [
+                    str(filepath.resolve())
+                ]
                 self._identity_vote.clear()
             return True, f"Wajah '{clean_name}' berhasil didaftarkan."
         except Exception as exc:
             logging.error("Face registration failed: %s", exc)
             return False, "Registrasi wajah gagal. Periksa kamera dan coba lagi."
+
+    def purge_expired_faces(self):
+        """Remove expired source photos and their in-memory face templates."""
+        days = retention_days('WEBWATCH_RETENTION_FACE_DAYS')
+        if days <= 0:
+            return 0
+        faces_dir = self.base_dir / 'faces'
+        removed = purge_old_files(faces_dir, {'.jpg', '.jpeg', '.png'}, days)
+        legacy_face = self.base_dir / 'wajah_saya.jpg'
+        legacy_removed = purge_old_file(legacy_face, days)
+        with self._face_lock:
+            kept = [
+                (encoding, name, source)
+                for encoding, name, source in zip(
+                    self.ai.known_face_encodings,
+                    self.ai.known_face_names,
+                    self.ai.known_face_sources,
+                )
+                if Path(source).is_file()
+            ]
+            if len(kept) != len(self.ai.known_face_names):
+                self.ai.known_face_encodings = [item[0] for item in kept]
+                self.ai.known_face_names = [item[1] for item in kept]
+                self.ai.known_face_sources = [item[2] for item in kept]
+                self._identity_vote.clear()
+        return removed + int(legacy_removed)
 
     def get_frame(self):
         with self._frame_lock:

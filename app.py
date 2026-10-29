@@ -6,6 +6,7 @@ import logging
 import uuid
 import hmac
 import secrets
+from datetime import timedelta
 from pathlib import Path
 from flask import Flask, render_template, Response, request, jsonify, redirect, session, url_for
 from dotenv import load_dotenv
@@ -17,20 +18,60 @@ logging.info("Starting The Ultimate Watcher Server...")
 # Load Env
 load_dotenv()
 
+from utils.deployment_security import (
+    is_loopback_host,
+    parse_bool,
+    validate_dashboard_config,
+)
+from utils.privacy import (
+    RETENTION_ENV_VARS,
+    purge_old_files,
+    retention_days,
+    start_retention_worker,
+    validate_production_privacy,
+)
+
+WEBWATCH_ENV = os.getenv('WEBWATCH_ENV', 'development').strip().lower()
+WEBWATCH_HOST = os.getenv('WEBWATCH_HOST', '127.0.0.1').strip()
+WEBWATCH_SESSION_SECRET = os.getenv('WEBWATCH_SESSION_SECRET', '').strip()
+WEBWATCH_COOKIE_SECURE = parse_bool(
+    os.getenv('WEBWATCH_COOKIE_SECURE'),
+    default=WEBWATCH_ENV == 'production',
+)
+PRIVACY_ACKNOWLEDGED = parse_bool(
+    os.getenv('WEWATCH_PRIVACY_ACKNOWLEDGED'),
+    default=False,
+)
+RETENTION_DAYS = {name: retention_days(name) for name in RETENTION_ENV_VARS}
+validate_dashboard_config(
+    environment=WEBWATCH_ENV,
+    host=WEBWATCH_HOST,
+    cookie_secure=WEBWATCH_COOKIE_SECURE,
+    session_secret=WEBWATCH_SESSION_SECRET,
+    privacy_acknowledged=PRIVACY_ACKNOWLEDGED,
+)
+validate_production_privacy(
+    environment=WEBWATCH_ENV,
+    privacy_acknowledged=PRIVACY_ACKNOWLEDGED,
+    retention=RETENTION_DAYS,
+)
+WEBRTC_SECRET = os.getenv('WEBRTC_SECRET_KEY', '').strip()
+WEBWATCH_ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
+if WEBWATCH_SESSION_SECRET in {WEBRTC_SECRET, WEBWATCH_ADMIN_TOKEN}:
+    raise RuntimeError('Dashboard session secret must be unique to this application')
+
 from camera import AICamera, FEATURES, STATUS
 from services.jarvis import start_jarvis
-from services.database import init_db, init_attendance_db
+from services.database import init_db, init_attendance_db, purge_expired_records
 from services.room_auth import issue_room_token
 from utils.security import SlidingWindowRateLimiter, safe_face_name
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv(
-    'WEBWATCH_SESSION_SECRET',
-    os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex()),
-)
+app.config['SECRET_KEY'] = WEBWATCH_SESSION_SECRET
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = os.getenv('WEBWATCH_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['SESSION_COOKIE_SECURE'] = WEBWATCH_COOKIE_SECURE
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 BASE_DIR = Path(__file__).resolve().parent
 GALLERY_FOLDER = str(BASE_DIR / 'static' / 'gallery')
@@ -40,8 +81,40 @@ os.makedirs(GALLERY_FOLDER, exist_ok=True)
 init_db()
 init_attendance_db()
 
+
+def cleanup_retained_data():
+    gallery_removed = purge_old_files(
+        GALLERY_FOLDER,
+        {'.jpg', '.jpeg', '.png'},
+        RETENTION_DAYS['WEBWATCH_RETENTION_GALLERY_DAYS'],
+    )
+    mood_removed, attendance_removed = purge_expired_records(
+        RETENTION_DAYS['WEBWATCH_RETENTION_MOOD_DAYS'],
+        RETENTION_DAYS['WEBWATCH_RETENTION_ATTENDANCE_DAYS'],
+    )
+    face_removed = camera.purge_expired_faces()
+    if gallery_removed or mood_removed or attendance_removed or face_removed:
+        logging.info(
+            'Privacy retention removed gallery=%s mood=%s attendance=%s face=%s',
+            gallery_removed,
+            mood_removed,
+            attendance_removed,
+            face_removed,
+        )
+
+
 # Initialize Camera with AI processing in background
 camera = AICamera(FEATURES, STATUS)
+purge_old_files(
+    GALLERY_FOLDER,
+    {'.jpg', '.jpeg', '.png'},
+    RETENTION_DAYS['WEBWATCH_RETENTION_GALLERY_DAYS'],
+)
+purge_expired_records(
+    RETENTION_DAYS['WEBWATCH_RETENTION_MOOD_DAYS'],
+    RETENTION_DAYS['WEBWATCH_RETENTION_ATTENDANCE_DAYS'],
+)
+start_retention_worker(cleanup_retained_data)
 login_limiter = SlidingWindowRateLimiter(max_events=8, window_seconds=60)
 face_limiter = SlidingWindowRateLimiter(max_events=6, window_seconds=60)
 snapshot_limiter = SlidingWindowRateLimiter(max_events=20, window_seconds=60)
@@ -55,7 +128,7 @@ def require_admin_session():
     public_static = request.path.startswith('/static/') and not request.path.startswith('/static/gallery/')
     if request.endpoint in allowed or public_static:
         return None
-    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.endpoint not in {'auth_login', 'auth_logout'}:
+    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
         expected = session.get('csrf_token', '')
         supplied = request.headers.get('X-CSRF-Token', '')
         if not expected or not hmac.compare_digest(supplied, expected):
@@ -76,7 +149,7 @@ def add_security_headers(response):
         'Permissions-Policy',
         'camera=(self), microphone=(self), geolocation=(), payment=()',
     )
-    if request.is_secure:
+    if request.is_secure or WEBWATCH_ENV == 'production':
         response.headers.setdefault(
             'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
         )
@@ -226,10 +299,17 @@ def video_feed():
 
 def run_web_server():
     import logging
+    if WEBWATCH_ENV == 'production':
+        raise RuntimeError(
+            'Do not run the Flask development server in production; use a '
+            'production WSGI server behind TLS'
+        )
+    if not is_loopback_host(WEBWATCH_HOST):
+        raise RuntimeError('The built-in development server may bind only to loopback')
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
-    logging.info("Membuka Server di http://localhost:5000")
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
+    logging.info("Membuka Server di http://%s:5000", WEBWATCH_HOST)
+    app.run(host=WEBWATCH_HOST, port=5000, debug=False, use_reloader=False, threaded=True)
 
 if __name__ == '__main__':
     run_web_server()

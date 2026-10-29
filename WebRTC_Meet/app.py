@@ -9,6 +9,18 @@ from datetime import datetime
 from urllib.parse import urlparse
 from flask import Flask, render_template, request, jsonify, redirect
 from flask_socketio import SocketIO, emit, join_room, leave_room
+from dotenv import load_dotenv
+
+load_dotenv()
+
+try:
+    from utils.deployment_security import parse_bool, validate_signaling_config
+    from utils.privacy import RETENTION_ENV_VARS, retention_days, validate_production_privacy
+except ModuleNotFoundError:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+    from utils.deployment_security import parse_bool, validate_signaling_config
+    from utils.privacy import RETENTION_ENV_VARS, retention_days, validate_production_privacy
+
 try:
     from services.room_auth import issue_room_token, verify_room_token
     from services.livekit_tokens import issue_livekit_token
@@ -27,7 +39,17 @@ except ModuleNotFoundError:
 from utils.security import SlidingWindowRateLimiter
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('WEBRTC_SECRET_KEY', os.urandom(32).hex())
+WEBRTC_ENV = os.getenv('WEBWATCH_ENV', 'development').strip().lower()
+WEBRTC_HOST = os.getenv('WEBRTC_HOST', '127.0.0.1').strip()
+WEBRTC_SIGNING_SECRET = os.getenv('WEBRTC_SECRET_KEY', '').strip()
+PRIVACY_ACKNOWLEDGED = parse_bool(os.getenv('WEWATCH_PRIVACY_ACKNOWLEDGED'))
+RETENTION_DAYS = {name: retention_days(name) for name in RETENTION_ENV_VARS}
+validate_production_privacy(
+    environment=WEBRTC_ENV,
+    privacy_acknowledged=PRIVACY_ACKNOWLEDGED,
+    retention=RETENTION_DAYS,
+)
+app.config['SECRET_KEY'] = WEBRTC_SIGNING_SECRET or os.urandom(32).hex()
 _configured_origins = os.getenv(
     'WEBRTC_ALLOWED_ORIGINS',
     'http://localhost:5000,http://localhost:5001,'
@@ -50,13 +72,42 @@ socketio = SocketIO(
 
 ADMIN_TOKEN = os.getenv('WEBRTC_ADMIN_TOKEN', '').strip()
 DESKTOP_AGENT_TOKEN = os.getenv('DESKTOP_AGENT_TOKEN', '').strip()
-REQUIRE_JOIN_TOKEN = os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN', 'false').lower() == 'true'
-REQUIRE_SHARED_STATE = os.getenv('WEBRTC_REQUIRE_SHARED_STATE', 'false').lower() == 'true'
+REQUIRE_JOIN_TOKEN = parse_bool(
+    os.getenv('WEBRTC_REQUIRE_JOIN_TOKEN'),
+    default=True,
+)
+REQUIRE_SHARED_STATE = parse_bool(os.getenv('WEBRTC_REQUIRE_SHARED_STATE'))
 ROOM_NAME = os.getenv('WEBRTC_ROOM_NAME', 'gmeet_room')
 LIVEKIT_URL = os.getenv('LIVEKIT_URL', 'ws://localhost:7880').strip()
-ALLOW_UNSAFE_WERKZEUG = os.getenv(
-    'WEBRTC_ALLOW_UNSAFE_WERKZEUG', 'true'
-).lower() == 'true'
+ALLOW_UNSAFE_WERKZEUG = parse_bool(
+    os.getenv('WEBRTC_ALLOW_UNSAFE_WERKZEUG'),
+    default=False,
+)
+validate_signaling_config(
+    environment=WEBRTC_ENV,
+    host=WEBRTC_HOST,
+    allow_unsafe_werkzeug=ALLOW_UNSAFE_WERKZEUG,
+    require_join_token=REQUIRE_JOIN_TOKEN,
+    admin_token=ADMIN_TOKEN,
+    signing_secret=WEBRTC_SIGNING_SECRET,
+)
+if WEBRTC_ENV == 'production':
+    if '*' in ALLOWED_ORIGINS:
+        raise RuntimeError('Wildcard WEBRTC_ALLOWED_ORIGINS is not allowed in production')
+    if any(urlparse(origin).scheme != 'https' for origin in ALLOWED_ORIGINS):
+        raise RuntimeError('WEBRTC_ALLOWED_ORIGINS must contain HTTPS origins in production')
+    if DESKTOP_AGENT_TOKEN and len(DESKTOP_AGENT_TOKEN) < 32:
+        raise RuntimeError('DESKTOP_AGENT_TOKEN must contain at least 32 characters')
+    if DESKTOP_AGENT_TOKEN and DESKTOP_AGENT_TOKEN in {ADMIN_TOKEN, WEBRTC_SIGNING_SECRET}:
+        raise RuntimeError('DESKTOP_AGENT_TOKEN must be unique')
+if WEBRTC_ENV == 'production' and (
+    os.getenv('LIVEKIT_API_KEY', '').strip()
+    or os.getenv('LIVEKIT_API_SECRET', '').strip()
+):
+    if not os.getenv('LIVEKIT_API_KEY', '').strip() or not os.getenv('LIVEKIT_API_SECRET', '').strip():
+        raise RuntimeError('Both LiveKit API credentials must be configured together')
+    if not LIVEKIT_URL.startswith('wss://'):
+        raise RuntimeError('LIVEKIT_URL must use wss:// in production')
 try:
     MAX_PARTICIPANTS = max(1, int(os.getenv('WEBRTC_MAX_PARTICIPANTS', '600')))
 except ValueError:
@@ -109,7 +160,7 @@ def add_security_headers(response):
         'Permissions-Policy',
         'camera=(self), microphone=(self), geolocation=(), payment=()',
     )
-    if request.is_secure:
+    if request.is_secure or WEBRTC_ENV == 'production':
         response.headers.setdefault(
             'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
         )
@@ -120,6 +171,10 @@ def add_security_headers(response):
 def readyz():
     if REQUIRE_JOIN_TOKEN and len(os.getenv('WEBRTC_SECRET_KEY', '')) < 32:
         return jsonify(status='not_ready', reason='WEBRTC_SECRET_KEY is missing'), 503
+    if WEBRTC_ENV == 'production' and (
+        not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32
+    ):
+        return jsonify(status='not_ready', reason='WEBRTC_ADMIN_TOKEN is missing or too short'), 503
     if REQUIRE_SHARED_STATE and (
         not participants.shared
         or not room_store.shared
@@ -925,7 +980,7 @@ if __name__ == '__main__':
     socketio.run(
         app,
         debug=False,
-        host='0.0.0.0',
+        host=WEBRTC_HOST,
         port=5001,
         allow_unsafe_werkzeug=ALLOW_UNSAFE_WERKZEUG,
     )

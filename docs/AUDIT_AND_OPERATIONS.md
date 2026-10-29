@@ -64,6 +64,17 @@ Hardening lanjutan pada batch berikutnya menambahkan:
     setelah TTL Redis habis.
 11. Invalid base64 room token sekarang selalu ditolak sebagai error autentikasi,
     bukan menjadi HTTP 500.
+12. Dashboard dan signaling development bind ke loopback; production menolak
+    secret pendek, token join non-wajib, cookie non-secure, serta Werkzeug
+    unsafe.
+13. Redis, LiveKit, dan TURN tidak memakai credential placeholder; Compose
+    meminta secret eksplisit dan Redis hanya dipublikasikan ke loopback host.
+14. Desktop agent membatasi hotkey, mewajibkan HTTPS/WSS di host remote, dan
+    mematikan screenshot sampai diaktifkan secara eksplisit.
+15. Mood logging, deteksi kantuk, dan salinan lokal gambar Telegram opt-in.
+    Penyimpanan sensitif memiliki periode retensi yang ditentukan operator.
+16. Dependensi langsung dipatok dan transitif dikunci dengan hash dalam
+    `requirements.lock`.
 
 ## 3. Konfigurasi minimum
 
@@ -73,32 +84,54 @@ Salin konfigurasi awal:
 cp .env.example .env
 ```
 
-Nilai minimum untuk dashboard:
+Nilai lokal minimum untuk dashboard dan signaling:
 
 ```env
-WEBWATCH_SESSION_SECRET=<random-secret-minimal-32-karakter>
-```
-
-Nilai minimum untuk WebRTC:
-
-```env
+WEBWATCH_ENV=development
+WEBWATCH_HOST=127.0.0.1
+WEBWATCH_COOKIE_SECURE=false
+WEBWATCH_SESSION_SECRET=<random-secret-berbeda-minimal-32-karakter>
+WEBRTC_HOST=127.0.0.1
 WEBRTC_ADMIN_TOKEN=<random-admin-token>
-WEBRTC_SECRET_KEY=<random-secret-minimal-32-karakter>
-WEBRTC_ALLOWED_ORIGINS=http://localhost:5000,http://localhost:5001
-WEBRTC_ROOM_NAME=gmeet_room
-WEBRTC_MAX_PARTICIPANTS=600
-WEBRTC_ALLOW_UNSAFE_WERKZEUG=true
-WEBRTC_REQUIRE_JOIN_TOKEN=false
-WEBRTC_REQUIRE_SHARED_STATE=false
+WEBRTC_SECRET_KEY=<random-signing-secret-berbeda-minimal-32-karakter>
+WEBRTC_REQUIRE_JOIN_TOKEN=true
+WEBRTC_ALLOW_UNSAFE_WERKZEUG=false
 ```
 
-Untuk desktop agent:
+Untuk menjalankan signaling lokal langsung dengan Werkzeug, set
+`WEBRTC_ALLOW_UNSAFE_WERKZEUG=true` secara eksplisit dan pertahankan
+`WEBRTC_HOST=127.0.0.1` atau `localhost`. Nilai itu harus `false` di production.
+
+Production harus memakai server produksi yang sesuai di belakang TLS/reverse
+proxy dan menetapkan minimal:
 
 ```env
-DESKTOP_AGENT_TOKEN=<random-agent-token>
+WEBWATCH_ENV=production
+WEBWATCH_COOKIE_SECURE=true
+WEWATCH_PRIVACY_ACKNOWLEDGED=true
+WEBRTC_REQUIRE_JOIN_TOKEN=true
+WEBRTC_ALLOW_UNSAFE_WERKZEUG=false
+WEBRTC_ALLOWED_ORIGINS=<daftar-origin-HTTPS-yang-tepat>
+WEBWATCH_RETENTION_GALLERY_DAYS=<periode-yang-disepakati>
+WEBWATCH_RETENTION_FACE_DAYS=<periode-yang-disepakati>
+WEBWATCH_RETENTION_MOOD_DAYS=<periode-yang-disepakati>
+WEBWATCH_RETENTION_ATTENDANCE_DAYS=<periode-yang-disepakati>
+```
+
+Semua secret harus acak, minimal 32 karakter, dan berbeda satu sama lain.
+`WEWATCH_PRIVACY_ACKNOWLEDGED=true` adalah gate operator, bukan bukti consent
+subjek. Tetapkan `REDIS_PASSWORD` dan `REDIS_URL` dengan password URL-encoded.
+Gunakan secret LiveKit dan TURN yang berbeda dari secret aplikasi.
+
+Untuk desktop agent pada host remote, gunakan HTTPS/WSS:
+
+```env
+WEBRTC_SERVER_URL=https://signaling.example.com
+DESKTOP_AGENT_TOKEN=<random-agent-token-minimal-32-karakter>
 DESKTOP_AGENT_IDENTITY=workstation-01
 DESKTOP_AGENT_TARGET_IDENTITY=<identity-client>
 DESKTOP_AGENT_ALLOW_DANGEROUS=false
+DESKTOP_AGENT_ALLOW_SCREENSHOTS=false
 DESKTOP_AGENT_ALLOWED_PROCESSES=
 ```
 
@@ -106,10 +139,10 @@ Jangan commit file `.env`, token, credential TURN, atau secret LiveKit.
 
 ## 4. Menjalankan development
 
-Install dependency:
+Install dependency dengan hash:
 
 ```bash
-python -m pip install -r requirements.txt
+python -m pip install --require-hashes -r requirements.lock
 ```
 
 Jalankan dashboard:
@@ -125,8 +158,8 @@ python WebRTC_Meet/app.py
 ```
 
 `WEBRTC_ALLOW_UNSAFE_WERKZEUG=true` hanya untuk development dan load test
-lokal. Production harus menjalankan signaling di server WSGI/Socket.IO yang
-sesuai di belakang TLS dan reverse proxy.
+lokal dengan bind loopback. Production harus menjalankan signaling di server
+WSGI/Socket.IO yang sesuai di belakang TLS dan reverse proxy.
 
 Endpoint penting:
 
@@ -176,6 +209,8 @@ Command yang tersedia dibatasi ke kategori berikut:
 - Clipboard, lock workstation, dan process control hanya jika policy
   dangerous actions diaktifkan
 
+Screenshot memerlukan `DESKTOP_AGENT_ALLOW_SCREENSHOTS=true`; koneksi remote
+memerlukan HTTPS/WSS, dan hotkey dibatasi ke allowlist.
 `DESKTOP_AGENT_ALLOW_DANGEROUS=false` harus tetap menjadi default. Agent tidak
 menjalankan arbitrary shell command.
 
@@ -242,12 +277,17 @@ docker compose -f docker-compose.scale.yml up -d
 
 Sebelum production:
 
-- Ganti seluruh placeholder `change-me`.
+- Isi secret Redis, LiveKit, TURN, dashboard, signaling, dan agent sebelum
+  menjalankan Compose; Compose menolak nilai yang kosong.
 - Gunakan TLS untuk dashboard, signaling, LiveKit, dan TURN.
 - Atur firewall serta rate limit.
-- Gunakan Redis yang persistent dan dipantau.
+- Gunakan Redis ber-password yang persistent dan dipantau. Isi
+  `REDIS_URL=redis://:<URL_ENCODED_PASSWORD>@127.0.0.1:6379/0` pada aplikasi
+  yang berjalan di host yang sama; atur URL/TLS/ACL khusus untuk lingkungan
+  terdistribusi.
 - Aktifkan `WEBRTC_REQUIRE_SHARED_STATE=true` pada deployment multi-worker.
 - Gunakan secret LiveKit dan TURN yang berbeda dari token aplikasi.
+- Tetapkan periode retensi positif sesuai notice dan kebijakan yang berlaku.
 - Sediakan observability untuk CPU, memory, connection count, signaling
   latency, packet loss, reconnect, dan TURN relay usage.
 
@@ -260,6 +300,9 @@ Sebelum production:
 - Reconnect success minimal 98%.
 - Tidak ada peningkatan error rate saat Redis failover.
 - Tidak ada kebocoran secret pada URL, log, HTML, atau browser storage.
+- `pip-audit` dan secret-scan lulus.
+- Retensi data terverifikasi untuk seluruh kelas data sensitif.
+- Notice dan consent aktual sudah diverifikasi untuk setiap deployment.
 
 ## 8. Batasan dan blocker yang masih terbuka
 

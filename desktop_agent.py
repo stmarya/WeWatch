@@ -23,25 +23,49 @@ import time
 import uuid
 import webbrowser
 from collections import deque
+from urllib.parse import urlparse
 
 try:
     import socketio
 except ImportError as exc:
     raise SystemExit("Install dependencies first: pip install -r requirements.txt") from exc
 from dotenv import load_dotenv
+from utils.deployment_security import is_loopback_host, parse_bool
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-SERVER_URL = os.getenv("WEBRTC_SERVER_URL", "http://localhost:5001")
+SERVER_URL = os.getenv("WEBRTC_SERVER_URL", "http://localhost:5001").strip()
 AGENT_TOKEN = os.getenv("DESKTOP_AGENT_TOKEN", "").strip()
 AGENT_IDENTITY = os.getenv("DESKTOP_AGENT_IDENTITY", platform.node() or "desktop-agent")
 TARGET_IDENTITY = os.getenv("DESKTOP_AGENT_TARGET_IDENTITY", "").strip()
-ALLOW_DANGEROUS = os.getenv("DESKTOP_AGENT_ALLOW_DANGEROUS", "false").lower() == "true"
+ALLOW_DANGEROUS = parse_bool(os.getenv("DESKTOP_AGENT_ALLOW_DANGEROUS"))
+ALLOW_SCREENSHOTS = parse_bool(os.getenv("DESKTOP_AGENT_ALLOW_SCREENSHOTS"))
 ALLOWED_PROCESSES = {
     item.strip().lower()
     for item in os.getenv("DESKTOP_AGENT_ALLOWED_PROCESSES", "").split(",")
     if item.strip()
+}
+SAFE_KEYS = (
+    set("abcdefghijklmnopqrstuvwxyz0123456789")
+    | {
+        "enter", "esc", "tab", "space", "backspace", "delete",
+        "up", "down", "left", "right", "home", "end", "pageup",
+        "pagedown", "insert",
+    }
+    | {f"f{number}" for number in range(1, 13)}
+)
+SAFE_HOTKEYS = {
+    ("ctrl", "a"),
+    ("ctrl", "c"),
+    ("ctrl", "f"),
+    ("ctrl", "s"),
+    ("ctrl", "v"),
+    ("ctrl", "x"),
+    ("ctrl", "y"),
+    ("ctrl", "z"),
+    ("shift", "tab"),
+    ("alt", "tab"),
 }
 
 try:
@@ -69,9 +93,34 @@ def _ratio(value):
 
 def _safe_url(value):
     value = str(value or "").strip()
-    if not value.startswith(("https://", "http://")):
-        raise ValueError("Only http:// and https:// URLs are allowed")
-    return value[:2048]
+    parsed = urlparse(value)
+    if (
+        parsed.scheme not in {"https", "http"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or len(value) > 2048
+    ):
+        raise ValueError("Only valid HTTP(S) URLs without embedded credentials are allowed")
+    return value
+
+
+def _validate_server_url(value):
+    parsed = urlparse(str(value or "").strip())
+    if (
+        parsed.scheme not in {"https", "http"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("WEBRTC_SERVER_URL must be a valid HTTP(S) origin")
+    if parsed.scheme == "http" and not is_loopback_host(parsed.hostname):
+        raise ValueError("Remote desktop agents require HTTPS/WSS; HTTP is loopback-only")
+    if parsed.path not in {"", "/"}:
+        raise ValueError("WEBRTC_SERVER_URL must not include a path")
+    return value.rstrip("/")
 
 
 def execute_command(command, payload):
@@ -109,15 +158,21 @@ def execute_command(command, payload):
         _require_desktop()
         input_type = payload.get("type")
         value = payload.get("value")
-        if input_type == "text" and isinstance(value, str) and len(value) <= 2000:
+        if (
+            input_type == "text"
+            and isinstance(value, str)
+            and len(value) <= 500
+            and not any(ord(char) < 32 and char not in "\t\n" for char in value)
+        ):
             pyautogui.write(value, interval=0.005)
-        elif input_type == "key" and isinstance(value, str) and len(value) <= 32:
-            pyautogui.press(value)
+        elif input_type == "key" and isinstance(value, str) and value.lower() in SAFE_KEYS:
+            pyautogui.press(value.lower())
         elif input_type == "hotkey":
             keys = value if isinstance(value, list) else str(value or "").split("+")
-            if not keys or len(keys) > 5 or not all(isinstance(k, str) and len(k) <= 32 for k in keys):
-                raise ValueError("Invalid hotkey")
-            pyautogui.hotkey(*keys)
+            normalized = tuple(str(key).strip().lower() for key in keys)
+            if normalized not in SAFE_HOTKEYS:
+                raise ValueError("Hotkey is not in the desktop agent allowlist")
+            pyautogui.hotkey(*normalized)
         else:
             raise ValueError("Unsupported keyboard input")
         return _result(True, "Keyboard input completed")
@@ -143,6 +198,11 @@ def execute_command(command, payload):
         elif action == "open_url":
             webbrowser.open(_safe_url(payload.get("url")))
         elif action == "capture_screen":
+            if not ALLOW_SCREENSHOTS:
+                raise PermissionError(
+                    "Screen capture is disabled; set DESKTOP_AGENT_ALLOW_SCREENSHOTS=true "
+                    "only after informed user consent"
+                )
             _require_desktop()
             image = pyautogui.screenshot()
             image.thumbnail((1280, 720))
@@ -274,11 +334,15 @@ def on_desktop_command(data):
 
 
 def main():
-    if not AGENT_TOKEN:
-        raise SystemExit("DESKTOP_AGENT_TOKEN is required")
+    if len(AGENT_TOKEN) < 32:
+        raise SystemExit("DESKTOP_AGENT_TOKEN must be configured with at least 32 characters")
     if not TARGET_IDENTITY:
         raise SystemExit("DESKTOP_AGENT_TARGET_IDENTITY is required")
-    sio.connect(SERVER_URL, transports=["websocket"], wait_timeout=15)
+    try:
+        server_url = _validate_server_url(SERVER_URL)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    sio.connect(server_url, transports=["websocket"], wait_timeout=15)
     sio.wait()
 
 

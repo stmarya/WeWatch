@@ -1,3 +1,5 @@
+# Reference only. docker-compose.scale.yml passes a secret-bearing LIVEKIT_CONFIG
+# body from environment variables instead of mounting credentials from this file.
 port: 7880
 bind_addresses:
   - 0.0.0.0
@@ -9,7 +11,4 @@ rtc:
 
 redis:
   address: redis:6379
-
-# Replace these values before exposing the service.
-keys:
-  change-me: change-me-to-a-long-random-secret
+  # LIVEKIT_REDIS_PASSWORD is supplied by the deployment environment.

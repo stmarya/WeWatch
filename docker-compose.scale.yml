@@ -1,31 +1,59 @@
 services:
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--save",
+        "60",
+        "1000",
+        "--requirepass",
+        "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}",
+      ]
     restart: unless-stopped
     volumes:
       - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
 
   livekit:
     image: livekit/livekit-server:v1.8
-    command: ["--config", "/etc/livekit.yaml"]
     restart: unless-stopped
     depends_on:
       - redis
     environment:
-      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-change-me}:${LIVEKIT_API_SECRET:-change-me-to-a-long-random-secret}"
+      LIVEKIT_CONFIG: |
+        port: 7880
+        bind_addresses:
+          - 0.0.0.0
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: true
+        redis:
+          address: redis:6379
+          password: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+        keys:
+          ${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY in .env}: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET in .env}
     ports:
       - "7880:7880/tcp"
       - "7881:7881/tcp"
       - "7882:7882/udp"
-    volumes:
-      - ./infra/livekit.yaml:/etc/livekit.yaml:ro
 
   coturn:
     image: coturn/coturn:4.6
     restart: unless-stopped
     network_mode: host
-    command: ["-c", "/etc/coturn/turnserver.conf", "--no-cli"]
+    command:
+      [
+        "-c",
+        "/etc/coturn/turnserver.conf",
+        "--no-cli",
+        "--static-auth-secret=${TURN_STATIC_AUTH_SECRET:?Set TURN_STATIC_AUTH_SECRET in .env}",
+        "--realm=${TURN_REALM:?Set TURN_REALM in .env}",
+      ]
     volumes:
       - ./infra/turnserver.conf:/etc/coturn/turnserver.conf:ro
 

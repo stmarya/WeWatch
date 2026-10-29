@@ -32,7 +32,7 @@ Semua fitur ini dapat dikontrol melalui:
 ---
 
 ## 🛠️ Persyaratan Sistem
-- Python 3.9 - 3.14
+- Python 3.12 atau lebih baru untuk instalasi penuh (`requirements.lock`)
 - Kamera Web (Webcam)
 - Koneksi Internet (Untuk Bot Telegram)
 
@@ -41,7 +41,7 @@ Semua fitur ini dapat dikontrol melalui:
 ### 1. Instalasi
 Jalankan perintah ini di terminal:
 ```bash
-pip install -r requirements.txt
+python -m pip install --require-hashes -r requirements.lock
 ```
 
 ### 2. Konfigurasi
@@ -50,11 +50,18 @@ Buat sebuah file `.env` di direktori utama, lalu isikan Token Bot Telegram Anda:
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
 TELEGRAM_CHAT_ID=987654321
 ```
-Salin `.env.example` sebagai titik awal, lalu isi hanya nilai yang diperlukan.
-Dashboard utama sekarang meminta login admin dan tidak lagi menaruh admin
-secret di HTML. Isi `WEBWATCH_SESSION_SECRET` dengan random secret yang panjang.
+Salin `.env.example` sebagai titik awal. Isi `WEBWATCH_SESSION_SECRET` dengan
+secret acak minimal 32 karakter; gunakan secret yang berbeda dari
+`WEBRTC_SECRET_KEY` dan `WEBRTC_ADMIN_TOKEN`. Mode development hanya mengikat
+dashboard dan signaling ke loopback. Jangan membuka server development ke
+jaringan.
+Dashboard utama meminta login admin dan tidak menaruh admin secret di HTML.
 Dokumentasi audit, operasional, dan release readiness tersedia di
 [`docs/AUDIT_AND_OPERATIONS.md`](docs/AUDIT_AND_OPERATIONS.md).
+Sebelum penggunaan kamera atau pemantauan orang lain, baca
+[`docs/PRIVACY_AND_CONSENT.md`](docs/PRIVACY_AND_CONSENT.md). Mood logging,
+penyimpanan salinan foto Telegram, deteksi kantuk, dan screenshot agent kini
+opt-in; tetapkan persetujuan dan retensi terlebih dahulu.
 Setiap push dan pull request ke `main` juga menjalankan workflow CI untuk unit
 test, compile check, validasi JavaScript template, dan whitespace check.
 
@@ -66,8 +73,13 @@ python main.py
 Akses **http://localhost:5000** di *browser* Anda untuk membuka Web Dashboard, atau gunakan Desktop App yang langsung muncul di layar Anda.
 
 ### 4. WebRTC Meet (opsional)
-Sebelum membuka port WebRTC, isi `WEBRTC_ADMIN_TOKEN` dan
-`WEBRTC_SECRET_KEY` dengan nilai acak yang panjang. Buka dashboard admin di
+WebRTC join-token enforcement aktif secara default. Isi `WEBRTC_ADMIN_TOKEN`
+dan `WEBRTC_SECRET_KEY` dengan secret acak minimal 32 karakter. Untuk
+development lokal, set `WEBRTC_ALLOW_UNSAFE_WERKZEUG=true` secara eksplisit
+hanya saat host tetap loopback. Untuk deployment jaringan, gunakan server
+produksi yang sesuai di belakang TLS/reverse proxy; jangan aktifkan Werkzeug
+unsafe.
+Buka dashboard admin di
 `http://localhost:5000/` dan halaman client/signaling di
 `http://localhost:5001/`. Dashboard akan meminta admin token; tanpa token,
 koneksi admin ditolak dan kontrol desktop tidak aktif. Jika client berada di
@@ -113,9 +125,12 @@ Smoke test ini belum menggantikan media load test LiveKit untuk audio/video.
 
 ### 7. Native Desktop Agent (opsional)
 Untuk remote mouse, keyboard, screenshot, volume, dan workflow desktop,
-jalankan `desktop_agent.py` pada komputer client. Agent hanya menerima command
-terstruktur yang diizinkan dan tidak menjalankan arbitrary shell command.
-Isi `DESKTOP_AGENT_TOKEN`, `DESKTOP_AGENT_IDENTITY`, dan
+jalankan `desktop_agent.py` pada komputer client. Agent membatasi hotkey dan
+tidak menjalankan arbitrary shell command. Koneksi non-loopback wajib memakai
+HTTPS/WSS. Screenshot mati secara default; aktifkan
+`DESKTOP_AGENT_ALLOW_SCREENSHOTS=true` hanya dengan persetujuan pemilik
+workstation. Isi `DESKTOP_AGENT_TOKEN` dengan secret acak minimal 32 karakter,
+`DESKTOP_AGENT_IDENTITY`, dan
 `DESKTOP_AGENT_TARGET_IDENTITY`, lalu jalankan:
 
 ```bash
