@@ -182,3 +182,24 @@ Pencarian pada Notion untuk kebijakan kehadiran/jadwal dan peninjauan dokumen re
 
 **Gerbang selesai:** tahap pilot baru dapat ditandai siap setelah aturan disetujui, alur diuji HR/karyawan, akses/retensi ditetapkan, temuan keamanan ditutup, dan semua skenario pilot lulus. Persentase progres belum ditetapkan karena baseline ruang lingkup dan target organisasi belum disepakati.
 
+## 11. Backlog awal untuk melanjutkan pengembangan
+
+Backlog ini diturunkan dari pilihan discovery yang sudah dicatat. Status `Terblokir` berarti keputusan/policy dari organisasi diperlukan; jangan menggantinya dengan asumsi kode. Tugas produksi tidak dianggap selesai hanya karena demo lokal berfungsi.
+
+| ID | Prioritas | Kegiatan | Status | Kriteria keluar |
+|---|---|---|---|---|
+| DISC-01 | P0 | Validasi jam reguler, shift bergilir, zona waktu, hari kerja/libur, istirahat, keterlambatan, dan lembur. | Terblokir — kebijakan internal belum tersedia | HR/pemilik kebijakan menyetujui aturan pilot tertulis. |
+| DISC-02 | P0 | Walkthrough proses karyawan–HR: jadwal, check-in/out, koreksi, keberatan, notifikasi. | Direncanakan | HR dan perwakilan karyawan meninjau dan menyetujui alur serta acceptance criteria. |
+| PRIV-01 | P0 | Definisikan data minimum, akses, retensi/penghapusan, pemberitahuan, dan penggunaan GPS/kamera untuk pilot/produksi. | Berjalan — guardrail demo ada; keputusan produksi pending | Data map, pilihan nyata tanpa penalti, dasar pemrosesan yang sesuai, akses dan retensi disetujui; kajian aturan Indonesia selesai. |
+| UX-01 | P1 | Uji prototipe lokal pada desktop dan browser ponsel dengan data sintetis; catat hambatan pengguna. | Siap diuji | Umpan balik dicatat; uji sensor hanya dengan peserta yang mengetahui dan memilih ikut. |
+| ARCH-01 | P1 | Tetapkan schema HR minimal, autentikasi, RBAC, audit log, timezone, hosting, backup, dan batas integrasi. | Terblokir oleh DISC-01/02/PRIV-01 | Dokumen arsitektur dan threat model disetujui sebelum backend dibuat. |
+| BUILD-01 | P1 | Bangun direktori karyawan dan konfigurasi jadwal reguler/shift. | Belum dimulai | Hak akses dan kebijakan jadwal disetujui; tes per role lulus. |
+| BUILD-02 | P1 | Bangun check-in/out mandiri serta tampilan catatan karyawan. | Belum dimulai | Timestamp, zona waktu, koreksi, fallback manual, dan audit trail memenuhi acceptance criteria. |
+| BUILD-03 | P1 | Bangun pengajuan koreksi dan antrean review HR. | Belum dimulai | Keputusan HR beralasan, tercatat, dan status terlihat oleh karyawan. |
+| QA-01 | P1 | Tes keamanan, aksesibilitas, integrasi, browser/device, backup/restore, dan sensor pada staging. | Berjalan — tes lokal parsial | Semua skenario uji lulus; uji hardware nyata terdokumentasi; tidak ada severity tinggi terbuka. |
+| PILOT-01 | P2 | Pilot terbatas dengan data nyata setelah persetujuan dan kesiapan operasional. | Belum dimulai | Kebijakan, pemberitahuan, dukungan, akses, retensi, dan prosedur insiden disetujui; pemilik pilot sign-off. |
+
+### Fokus kerja berikutnya
+
+Mulai dari `UX-01` dan `DISC-01/02`: tinjau demo dengan HR/peserta pilot dan kumpulkan aturan absensi yang berlaku. Sambil menunggu, data sensor produksi, perhitungan keterlambatan/lembur, dan keputusan yang berdampak pada karyawan tetap nonaktif. Setelah DISC/PRIV selesai, backlog teknis dapat dipastikan dan implementasi HRIS dimulai.
+
