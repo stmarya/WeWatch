@@ -1,6 +1,6 @@
 # Roadmap Produk HR — WeWatch
 
-**Status:** Draft kebutuhan dan kesiapan MVP tersedia untuk review; kebijakan, dasar pemrosesan, dan persetujuan stakeholder masih perlu validasi  
+**Status:** Prototipe lokal dengan data sintetis siap diuji; persetujuan sensor hanya untuk uji tindakan eksplisit, kebijakan produksi masih menunggu validasi  
 **Terakhir diperbarui:** 2026-10-29  
 **Tujuan:** Mencatat hasil kerja yang sudah dilakukan, visi produk HR, kandidat fitur, dan tahapan berikutnya. Roadmap ini adalah rencana; fitur HR di bawah belum diimplementasikan.
 
@@ -17,7 +17,8 @@ Repo saat ini adalah prototipe dashboard computer-vision, meeting, dan desktop-a
 | Peninjauan dan audit teknis repo | Selesai | Mengidentifikasi risiko pada konfigurasi server, autentikasi, agent desktop, data sensitif, dan dependensi. Temuan serta panduan operasional dicatat di [Audit dan Operasional](AUDIT_AND_OPERATIONS.md). |
 | Hardening keamanan dan privasi | Selesai | Menambahkan gate konfigurasi produksi, secret dan cookie yang lebih aman, perlindungan CSRF, pembatasan remote desktop, retensi/pembersihan data, pengaturan opt-in, pengamanan layanan infrastruktur, dan lock dependensi ber-hash. Commit: [46bb5a7](https://github.com/stmarya/WeWatch/commit/46bb5a7e663e540698a04c8b531a7cc49920d82a). |
 | Review ulang dan tes kode | Selesai | 31 tes lulus; pemeriksaan compile Python, JavaScript template, YAML, whitespace, dan `pip-audit` lulus pada saat diperiksa. Validasi runtime Docker Compose serta uji TLS, TURN/LiveKit, beban media, dan hardware belum dilakukan. |
-| Draft kebutuhan dan kesiapan MVP | Siap untuk review | Draft alur kehadiran, cerita pengguna, peran, guardrail data, dan gerbang sebelum coding ditambahkan pada bagian 9. Belum disetujui HR/karyawan dan belum diimplementasikan. |
+| Prototipe lokal dan data sintetis | Siap diuji lokal | Demo mandiri di [prototypes/hr-attendance](../prototypes/hr-attendance/README.md) memakai 8 profil fiktif, 3 jadwal, 8 catatan, dan 3 koreksi. GPS satu kali/kamera preview hanya setelah tindakan dan opt-in; tidak ada database, media tersimpan, atau koneksi ke HR produksi. |
+| Draft kebutuhan dan kesiapan MVP | Siap untuk review | Draft alur kehadiran, cerita pengguna, peran, guardrail data, dan gerbang sebelum coding ada pada bagian 9. Belum disetujui HR/karyawan dan belum menjadi fitur produksi. |
 | Discovery awal HR | Berjalan | Profil pilot dan guardrail awal sudah dicatat; pencarian tidak menemukan kebijakan HR/absensi internal. Detail jadwal, retensi, akses, dan kajian aturan masih menunggu validasi HR/karyawan. |
 
 Status “Selesai” pada audit/hardening hanya berarti perubahan kode dan pemeriksaan yang disebutkan telah dilakukan; itu bukan persetujuan legal atau bukti kesiapan produksi. Detail privasi dan batas validasi ada di [dokumen privasi](PRIVACY_AND_CONSENT.md) dan [panduan operasional](AUDIT_AND_OPERATIONS.md).
@@ -77,8 +78,8 @@ Urutan di bawah adalah tahapan, bukan tanggal rilis. Estimasi dan target baru di
 | Tahap | Status | Hasil yang dituju / gerbang keluar |
 |---|---|---|
 | 0. Audit repo dan hardening dasar | Selesai | Risiko teknis awal ditangani pada kode; tes dan audit dependensi dijalankan. Catatan batas validasi tetap terbuka di dokumen operasional. |
-| 1. Discovery HR dan tata kelola | Berjalan — discovery awal | Profil awal: Indonesia, pilot kurang dari 50 karyawan, hybrid, jam reguler plus beberapa shift bergilir, web responsif, check-in/out mandiri, koreksi ditinjau HR, serta kajian presence opt-in. GPS/kamera masih opsi yang perlu dibatasi dan dikaji. Validasi alur, aturan, retensi, akses, dan kebutuhan bersama HR/karyawan sebelum backlog disetujui. |
-| 2. Desain produk dan arsitektur | Berjalan — draft kesiapan | Draf user stories, alur absensi, peran awal, guardrail privasi, dan readiness gate tersedia pada bagian 9. Finalisasi menunggu kebijakan HR, validasi pengguna pilot, kajian aturan dan keputusan akses/retensi/hosting. |
+| 1. Discovery HR dan tata kelola | Berjalan — discovery awal | Profil awal: Indonesia, pilot kurang dari 50 karyawan, hybrid, jam reguler plus beberapa shift bergilir, web responsif, check-in/out mandiri, dan koreksi ditinjau HR. Guardrail GPS/kamera untuk prototipe telah dipilih; validasi aturan, kebijakan, retensi, akses, dan kebutuhan HR/karyawan tetap pending untuk pilot/produksi. |
+| 2. Desain produk dan arsitektur | Berjalan — prototipe lokal | Draf user stories dan checklist kesiapan ada pada bagian 9; demo lokal serta [seed data sintetis](../prototypes/hr-attendance/sample_data.json) sudah tersedia untuk uji alur. Finalisasi produksi menunggu kebijakan HR, validasi pilot, kajian aturan dan keputusan akses/retensi/hosting. |
 | 3. Fondasi HRIS | Direncanakan | Login/SSO sesuai kebutuhan, organisasi, direktori, profil, RBAC, audit log, retensi, dan self-service dasar; uji keamanan dan akses per peran. |
 | 4. MVP operasional HR | Direncanakan | Kandidat slice pertama: jam reguler plus beberapa shift bergilir; web responsif; check-in/out mandiri; catatan kehadiran; koreksi yang ditinjau HR. Jika kajian menyetujui, GPS/kamera hanya pada check-in/out yang dimulai karyawan, opt-in terpisah, dengan alternatif manual; tanpa pengenalan wajah/biometrik atau pelacakan terus-menerus. |
 | 5. Proyek dan pengembangan | Direncanakan | Milestone, check-in, tujuan, 1:1, feedback, dan laporan agregat; tinjau fairness dan akses sebelum dipakai untuk keputusan. |
@@ -101,7 +102,7 @@ Berdasarkan jawaban awal pemilik proyek pada 2026-10-29:
 - Prioritas MVP: kehadiran dan jadwal/shift.
 - Platform: web responsif untuk desktop dan browser ponsel.
 - Metode: check-in/out mandiri via web/ponsel.
-- Batas GPS/kamera yang dipilih: hanya pada check-in/out yang dimulai karyawan, opt-in terpisah, alternatif manual tanpa penalti, tanpa pengenalan wajah/biometrik atau pelacakan terus-menerus. Tujuan, data yang diambil, dasar/persetujuan, akses, dan retensi tetap harus ditetapkan; jangan aktifkan sebelum kajian selesai.
+- Batas GPS/kamera yang dipilih: hanya pada check-in/out yang dimulai karyawan, opt-in terpisah, alternatif manual tanpa penalti, tanpa pengenalan wajah/biometrik atau pelacakan terus-menerus. Prototipe lokal boleh menguji alur browser ini tanpa menyimpan/mengirim data; penggunaan pada pilot/produksi menunggu kajian tujuan, data, dasar/persetujuan, akses, dan retensi.
 - Koreksi catatan kehadiran: ditinjau HR.
 - WeWatch: evaluasi jalur check-in/presence yang transparan dan opt-in saja. Ini bukan persetujuan untuk mengaktifkan kamera, biometrik, screenshot, atau pemantauan terus-menerus.
 
@@ -114,9 +115,9 @@ Berdasarkan jawaban awal pemilik proyek pada 2026-10-29:
 5. Perwakilan HR, manajer, dan karyawan yang akan memvalidasi alur dan ikut pilot.
 6. Kebutuhan integrasi, hosting/residensi data, dan batas MVP yang benar-benar diperlukan.
 
-## 9. Kesiapan MVP: siap untuk review, belum siap coding
+## 9. Kesiapan MVP: prototipe lokal siap; build produksi menunggu validasi
 
-Pencarian pada Notion untuk kebijakan kehadiran/jadwal dan peninjauan dokumen repo tidak menemukan kebijakan HR internal yang dapat dijadikan sumber aturan. Karena itu bagian ini adalah **draf produk untuk divalidasi**, bukan kebijakan perusahaan atau nasihat hukum. Jawaban pemilik proyek menentukan arah awal, tetapi belum menggantikan persetujuan HR dan umpan balik karyawan.
+Pencarian pada Notion untuk kebijakan kehadiran/jadwal dan peninjauan dokumen repo tidak menemukan kebijakan HR internal yang dapat dijadikan sumber aturan. Karena itu bagian ini adalah **draf produk untuk divalidasi**, bukan kebijakan perusahaan atau nasihat hukum. Jawaban pemilik proyek menentukan arah awal, tetapi belum menggantikan persetujuan HR dan umpan balik karyawan. Prototipe terisolasi dan instruksi uji lokal tersedia di [prototipe kehadiran](../prototypes/hr-attendance/README.md); seed data ada di [sample_data.json](../prototypes/hr-attendance/sample_data.json).
 
 ### Bagian yang sudah siap untuk walkthrough
 
@@ -124,7 +125,7 @@ Pencarian pada Notion untuk kebijakan kehadiran/jadwal dan peninjauan dokumen re
 - **Slice MVP:** jadwal jam reguler ditambah beberapa shift bergilir; check-in/out mandiri; HR meninjau koreksi.
 - **Platform awal:** web responsif untuk desktop dan browser ponsel.
 - **Guardrail verifikasi:** GPS/kamera hanya pada check-in/out yang dimulai karyawan; opt-in terpisah; alternatif manual tanpa penalti; tanpa pengenalan wajah/biometrik dan pelacakan/perekaman terus-menerus.
-- **Batas status:** ini siap dibahas dengan HR/pilot, tetapi belum siap untuk implementasi atau aktivasi GPS/kamera.
+- **Batas status:** siap untuk walkthrough dan uji lokal dengan data fiktif. GPS diminta satu kali dan kamera dipakai untuk preview/smoke-test hanya setelah tindakan/opt-in; tidak ada penyimpanan atau transfer. Ini belum integrasi HR, bukan pengganti persetujuan setiap peserta, belum pilot operasional karyawan, dan belum siap produksi.
 
 ### Draf alur dan acceptance criteria
 
@@ -152,8 +153,8 @@ Pencarian pada Notion untuk kebijakan kehadiran/jadwal dan peninjauan dokumen re
 - [ ] HR menyetujui alur koreksi: alasan yang diperlukan, siapa yang memutuskan, tenggat, eskalasi, dan cara karyawan mengajukan keberatan.
 - [ ] Perwakilan karyawan/pilot meninjau alur, pemberitahuan, self-service, dan alternatif manual.
 - [ ] Tetapkan data minimum, akses per peran, retensi, penghapusan, backup, dan batas ekspor.
-- [ ] Untuk GPS/kamera, dokumentasikan tujuan, data yang tepat, dasar pemrosesan/persetujuan yang sesuai, pilihan nyata tanpa penalti, akses, retensi, dan alternatif lebih minim data; minta review pihak yang memahami aturan Indonesia sebelum mengaktifkan.
+- [ ] Untuk pemakaian GPS/kamera dalam pilot HR atau produksi, dokumentasikan tujuan, data yang tepat, dasar pemrosesan/persetujuan yang sesuai, pilihan nyata tanpa penalti, akses, retensi, dan alternatif lebih minim data; minta review pihak yang memahami aturan Indonesia sebelum mengaktifkan. Uji lokal saat ini hanya memakai browser API setelah tindakan/opt-in dan tidak menyimpan atau mengirim datanya.
 - [ ] Setujui arsitektur, autentikasi, audit log, threat model, hosting/residensi, pemulihan, dan kriteria uji sebelum membuat fitur.
 
-**Keputusan readiness saat ini:** siap melakukan walkthrough kebutuhan dan membuat backlog setelah validasi HR/karyawan. Belum siap untuk memakai data GPS/kamera, menetapkan aturan absensi final, atau mengklaim kepatuhan hukum.
+**Keputusan readiness saat ini:** prototipe lokal siap dipakai untuk meninjau pengalaman dan sensor dengan data sintetis serta peserta yang secara sadar memilih ikut. Belum siap untuk pilot operasional karyawan, menyimpan data sensor, menetapkan aturan absensi final, atau mengklaim kepatuhan hukum. Backlog implementasi produksi menunggu validasi HR/karyawan dan gerbang di atas.
 

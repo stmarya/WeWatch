@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>WeWatch HR — Attendance Prototype</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">PROTOTIPE LOKAL · DATA SINTETIS</p>
+      <h1>Kehadiran &amp; Jadwal</h1>
+      <p class="lede">Uji alur web responsif untuk jadwal reguler, shift bergilir, check-in mandiri, dan koreksi HR.</p>
+    </div>
+    <span class="status-pill">Belum untuk produksi</span>
+  </header>
+
+  <main>
+    <section class="notice" aria-label="Pemberitahuan privasi">
+      <strong>Mode prototipe.</strong> Data karyawan di bawah ini fiktif. Lokasi perangkat dan kamera hanya diminta setelah tindakan yang jelas, jika Anda memilih opsi tersebut. Sensor tidak berjalan di latar belakang; data sesi tidak dikirim ke server atau disimpan setelah halaman ditutup. Uji sensor hanya dengan perangkat dan peserta yang menyadarinya.
+    </section>
+
+    <section class="summary-grid" aria-label="Ringkasan data demo">
+      <article class="summary-card"><span>Karyawan demo</span><strong id="employeeCount">—</strong></article>
+      <article class="summary-card"><span>Catatan seed</span><strong id="recordCount">—</strong></article>
+      <article class="summary-card"><span>Koreksi menunggu</span><strong id="pendingCount">—</strong></article>
+    </section>
+
+    <div class="content-grid">
+      <section class="panel" aria-labelledby="checkinHeading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">UJI ALUR</p>
+            <h2 id="checkinHeading">Check-in / check-out demo</h2>
+          </div>
+          <span class="tag">Sesi sementara</span>
+        </div>
+
+        <label for="employeeSelect">Profil contoh</label>
+        <select id="employeeSelect" disabled></select>
+        <p id="scheduleInfo" class="subtle">Memuat jadwal contoh…</p>
+
+        <fieldset class="sensor-options">
+          <legend>Opsi sensor — tidak wajib</legend>
+          <label class="option-row">
+            <input id="gpsOptIn" type="checkbox">
+            <span><strong>GPS satu kali</strong><small>Meminta lokasi hanya saat Anda menekan tombol check-in/out. Tidak memakai pelacakan terus-menerus.</small></span>
+          </label>
+          <label class="option-row">
+            <input id="cameraOptIn" type="checkbox">
+            <span><strong>Kamera untuk uji alur</strong><small>Hanya preview/smoke test pada tindakan ini; tanpa pengenalan wajah, foto tersimpan, atau audio.</small></span>
+          </label>
+          <p class="subtle">Tanpa memilih sensor, check-in manual tetap tersedia.</p>
+        </fieldset>
+
+        <div class="camera-control-row button-row">
+          <button id="startCamera" class="button button-secondary" type="button" disabled>Aktifkan preview kamera</button>
+          <button id="stopCamera" class="button button-secondary" type="button" disabled>Matikan kamera</button>
+          <span id="cameraStatus" class="subtle">Kamera belum diaktifkan.</span>
+        </div>
+        <div class="camera-box" id="cameraBox" hidden>
+          <video id="cameraPreview" autoplay muted playsinline aria-label="Pratinjau kamera lokal"></video>
+        </div>
+
+        <div class="button-row">
+          <button id="checkInButton" class="button button-primary" type="button" disabled>Check-in</button>
+          <button id="checkOutButton" class="button button-secondary" type="button" disabled>Check-out</button>
+        </div>
+        <p id="sensorMessage" class="message" role="status" aria-live="polite">Memuat data sintetis…</p>
+        <div id="locationOutput" class="location-output" hidden></div>
+        <p class="footnote">GPS yang diizinkan hanya tampil di halaman ini dan dihapus saat sesi berakhir. Frame kamera tidak disimpan. Tidak ada koneksi ke API/HR database.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="policyHeading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ASUMSI DEMO</p>
+            <h2 id="policyHeading">Jadwal contoh</h2>
+          </div>
+        </div>
+        <ul id="scheduleList" class="schedule-list"></ul>
+        <div class="divider"></div>
+        <h3>Gerbang sebelum penggunaan nyata</h3>
+        <ul class="guardrail-list">
+          <li>Validasi kebijakan kerja dan koreksi dengan HR serta peserta pilot.</li>
+          <li>Persetujuan sensor terpisah; opsi manual selalu tersedia.</li>
+          <li>Tetapkan data, akses, retensi, dan penghapusan sebelum menyimpan bukti.</li>
+          <li>Tidak ada pengenalan wajah atau pemantauan berkelanjutan.</li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="panel table-panel" aria-labelledby="recordsHeading">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">SEED SINTETIS</p>
+          <h2 id="recordsHeading">Contoh catatan kehadiran</h2>
+        </div>
+        <span id="recordsNotice" class="subtle">Memuat…</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tanggal</th><th>Demo ID</th><th>Jadwal</th><th>Masuk</th><th>Pulang</th><th>Status</th><th>Verifikasi</th></tr></thead>
+          <tbody id="recordsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel table-panel" aria-labelledby="sessionHeading">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">TIDAK DISIMPAN</p>
+          <h2 id="sessionHeading">Aksi pada sesi ini</h2>
+        </div>
+        <button id="clearSession" class="button button-secondary" type="button">Hapus sesi</button>
+      </div>
+      <div id="sessionEvents" class="session-events"><p class="subtle">Belum ada aksi.</p></div>
+    </section>
+  </main>
+
+  <footer>WeWatch HR prototype · Semua identitas/jadwal seed adalah fiktif; jadwal contoh bukan kebijakan kerja.</footer>
+</body>
+</html>
