@@ -1,6 +1,6 @@
 # Roadmap Produk HR — WeWatch
 
-**Status:** Discovery awal — profil pilot dan guardrail GPS/kamera tercatat; kebijakan, dasar pemrosesan, dan detail implementasi masih perlu validasi  
+**Status:** Draft kebutuhan dan kesiapan MVP tersedia untuk review; kebijakan, dasar pemrosesan, dan persetujuan stakeholder masih perlu validasi  
 **Terakhir diperbarui:** 2026-10-29  
 **Tujuan:** Mencatat hasil kerja yang sudah dilakukan, visi produk HR, kandidat fitur, dan tahapan berikutnya. Roadmap ini adalah rencana; fitur HR di bawah belum diimplementasikan.
 
@@ -17,7 +17,8 @@ Repo saat ini adalah prototipe dashboard computer-vision, meeting, dan desktop-a
 | Peninjauan dan audit teknis repo | Selesai | Mengidentifikasi risiko pada konfigurasi server, autentikasi, agent desktop, data sensitif, dan dependensi. Temuan serta panduan operasional dicatat di [Audit dan Operasional](AUDIT_AND_OPERATIONS.md). |
 | Hardening keamanan dan privasi | Selesai | Menambahkan gate konfigurasi produksi, secret dan cookie yang lebih aman, perlindungan CSRF, pembatasan remote desktop, retensi/pembersihan data, pengaturan opt-in, pengamanan layanan infrastruktur, dan lock dependensi ber-hash. Commit: [46bb5a7](https://github.com/stmarya/WeWatch/commit/46bb5a7e663e540698a04c8b531a7cc49920d82a). |
 | Review ulang dan tes kode | Selesai | 31 tes lulus; pemeriksaan compile Python, JavaScript template, YAML, whitespace, dan `pip-audit` lulus pada saat diperiksa. Validasi runtime Docker Compose serta uji TLS, TURN/LiveKit, beban media, dan hardware belum dilakukan. |
-| Discovery awal HR | Berjalan | Profil awal: Indonesia, pilot kurang dari 50 karyawan, hybrid, jam reguler plus beberapa shift bergilir, web responsif, koreksi ditinjau HR, dan WeWatch hanya dikaji sebagai presence opt-in. GPS/kamera dibatasi pada check-in/out yang dimulai karyawan, opt-in terpisah, dengan alternatif manual; tanpa pengenalan wajah atau pelacakan terus-menerus. Kajian kebijakan dan aturan tetap diperlukan. |
+| Draft kebutuhan dan kesiapan MVP | Siap untuk review | Draft alur kehadiran, cerita pengguna, peran, guardrail data, dan gerbang sebelum coding ditambahkan pada bagian 9. Belum disetujui HR/karyawan dan belum diimplementasikan. |
+| Discovery awal HR | Berjalan | Profil pilot dan guardrail awal sudah dicatat; pencarian tidak menemukan kebijakan HR/absensi internal. Detail jadwal, retensi, akses, dan kajian aturan masih menunggu validasi HR/karyawan. |
 
 Status “Selesai” pada audit/hardening hanya berarti perubahan kode dan pemeriksaan yang disebutkan telah dilakukan; itu bukan persetujuan legal atau bukti kesiapan produksi. Detail privasi dan batas validasi ada di [dokumen privasi](PRIVACY_AND_CONSENT.md) dan [panduan operasional](AUDIT_AND_OPERATIONS.md).
 
@@ -77,7 +78,7 @@ Urutan di bawah adalah tahapan, bukan tanggal rilis. Estimasi dan target baru di
 |---|---|---|
 | 0. Audit repo dan hardening dasar | Selesai | Risiko teknis awal ditangani pada kode; tes dan audit dependensi dijalankan. Catatan batas validasi tetap terbuka di dokumen operasional. |
 | 1. Discovery HR dan tata kelola | Berjalan — discovery awal | Profil awal: Indonesia, pilot kurang dari 50 karyawan, hybrid, jam reguler plus beberapa shift bergilir, web responsif, check-in/out mandiri, koreksi ditinjau HR, serta kajian presence opt-in. GPS/kamera masih opsi yang perlu dibatasi dan dikaji. Validasi alur, aturan, retensi, akses, dan kebutuhan bersama HR/karyawan sebelum backlog disetujui. |
-| 2. Desain produk dan arsitektur | Direncanakan | Persona, alur pengguna, model data minimum, matriks akses, threat model, keputusan hosting/residensi, prototipe UI, dan acceptance criteria MVP disetujui. |
+| 2. Desain produk dan arsitektur | Berjalan — draft kesiapan | Draf user stories, alur absensi, peran awal, guardrail privasi, dan readiness gate tersedia pada bagian 9. Finalisasi menunggu kebijakan HR, validasi pengguna pilot, kajian aturan dan keputusan akses/retensi/hosting. |
 | 3. Fondasi HRIS | Direncanakan | Login/SSO sesuai kebutuhan, organisasi, direktori, profil, RBAC, audit log, retensi, dan self-service dasar; uji keamanan dan akses per peran. |
 | 4. MVP operasional HR | Direncanakan | Kandidat slice pertama: jam reguler plus beberapa shift bergilir; web responsif; check-in/out mandiri; catatan kehadiran; koreksi yang ditinjau HR. Jika kajian menyetujui, GPS/kamera hanya pada check-in/out yang dimulai karyawan, opt-in terpisah, dengan alternatif manual; tanpa pengenalan wajah/biometrik atau pelacakan terus-menerus. |
 | 5. Proyek dan pengembangan | Direncanakan | Milestone, check-in, tujuan, 1:1, feedback, dan laporan agregat; tinjau fairness dan akses sebelum dipakai untuk keputusan. |
@@ -112,3 +113,47 @@ Berdasarkan jawaban awal pemilik proyek pada 2026-10-29:
 4. Jenis data, masa simpan, akses, ekspor, dan penghapusan yang sesuai kebijakan serta aturan Indonesia yang telah diverifikasi.
 5. Perwakilan HR, manajer, dan karyawan yang akan memvalidasi alur dan ikut pilot.
 6. Kebutuhan integrasi, hosting/residensi data, dan batas MVP yang benar-benar diperlukan.
+
+## 9. Kesiapan MVP: siap untuk review, belum siap coding
+
+Pencarian pada Notion untuk kebijakan kehadiran/jadwal dan peninjauan dokumen repo tidak menemukan kebijakan HR internal yang dapat dijadikan sumber aturan. Karena itu bagian ini adalah **draf produk untuk divalidasi**, bukan kebijakan perusahaan atau nasihat hukum. Jawaban pemilik proyek menentukan arah awal, tetapi belum menggantikan persetujuan HR dan umpan balik karyawan.
+
+### Bagian yang sudah siap untuk walkthrough
+
+- **Target pilot:** Indonesia, kelompok di bawah 50 karyawan, pola kerja hybrid.
+- **Slice MVP:** jadwal jam reguler ditambah beberapa shift bergilir; check-in/out mandiri; HR meninjau koreksi.
+- **Platform awal:** web responsif untuk desktop dan browser ponsel.
+- **Guardrail verifikasi:** GPS/kamera hanya pada check-in/out yang dimulai karyawan; opt-in terpisah; alternatif manual tanpa penalti; tanpa pengenalan wajah/biometrik dan pelacakan/perekaman terus-menerus.
+- **Batas status:** ini siap dibahas dengan HR/pilot, tetapi belum siap untuk implementasi atau aktivasi GPS/kamera.
+
+### Draf alur dan acceptance criteria
+
+| Alur | Kriteria awal untuk divalidasi |
+|---|---|
+| Jadwal | HR dapat membuat jadwal reguler dan beberapa template shift bergilir, lalu menugaskannya ke karyawan/tim. Karyawan dapat melihat jadwalnya sendiri. Aturan jam, zona waktu, hari libur, istirahat, dan lembur belum ditetapkan. |
+| Check-in/out | Karyawan memulai check-in dan check-out sendiri melalui web responsif. Karyawan dapat melihat catatan miliknya. Check-in manual tetap tersedia meskipun opsi GPS/kamera ditolak atau tidak tersedia. |
+| Koreksi | Karyawan mengajukan koreksi dengan waktu yang diminta dan alasan. HR yang berwenang menyetujui/menolak, menambahkan alasan keputusan, dan sistem menyimpan riwayat perubahan serta menampilkan status kepada karyawan. Tenggat dan eskalasi masih perlu disepakati. |
+| Laporan | HR melihat catatan sesuai cakupan tugasnya. Akses manajer, batas data tim, unduhan, dan agregasi harus diputuskan sebelum desain final. Hindari ranking produktivitas individu. |
+| GPS/kamera opsional | Hanya pada tindakan check-in/out yang dimulai karyawan, opt-in per fitur, dengan jalur manual tanpa penalti. Tidak ada pengenalan wajah, pelacakan berkelanjutan, atau penyimpanan bukti mentah sebelum tujuan, akses, retensi, dan kajian aturan disetujui. |
+| Audit dan kontrol | Catat siapa mengubah jadwal, mengoreksi catatan, atau menyetujui permintaan dan kapan. Batasi akses berdasarkan peran; karyawan dapat melihat data dan status koreksinya sendiri. |
+
+### Matriks akses awal — perlu persetujuan
+
+| Peran | Akses yang diusulkan | Yang masih perlu diputuskan |
+|---|---|---|
+| Karyawan | Lihat jadwal/catatan sendiri; check-in/out; minta koreksi; lihat keputusan. | Akses atas data verifikasi opsional dan cara mengunduh/meminta penghapusan. |
+| HR | Atur jadwal dalam cakupan kerja; lihat catatan yang diperlukan; tinjau koreksi dan jalankan laporan terbatas. | Cakupan HR per unit, delegasi, pemisahan tugas, ekspor, dan akses ke data GPS/kamera. |
+| Manajer | Belum ditetapkan; usulan awal hanya ringkasan/jadwal tim yang dibutuhkan. | Apakah perlu akses, data apa, dan apakah tidak boleh melihat bukti GPS/kamera. |
+| Admin sistem | Kelola akun, konfigurasi, dan peran. | Prosedur akses darurat, persetujuan, pencatatan, dan pembatasan akses ke data HR. |
+
+### Gerbang sebelum implementasi
+
+- [ ] HR menyetujui aturan jadwal reguler/shift, zona waktu, istirahat, keterlambatan, absensi, hari libur, dan lembur.
+- [ ] HR menyetujui alur koreksi: alasan yang diperlukan, siapa yang memutuskan, tenggat, eskalasi, dan cara karyawan mengajukan keberatan.
+- [ ] Perwakilan karyawan/pilot meninjau alur, pemberitahuan, self-service, dan alternatif manual.
+- [ ] Tetapkan data minimum, akses per peran, retensi, penghapusan, backup, dan batas ekspor.
+- [ ] Untuk GPS/kamera, dokumentasikan tujuan, data yang tepat, dasar pemrosesan/persetujuan yang sesuai, pilihan nyata tanpa penalti, akses, retensi, dan alternatif lebih minim data; minta review pihak yang memahami aturan Indonesia sebelum mengaktifkan.
+- [ ] Setujui arsitektur, autentikasi, audit log, threat model, hosting/residensi, pemulihan, dan kriteria uji sebelum membuat fitur.
+
+**Keputusan readiness saat ini:** siap melakukan walkthrough kebutuhan dan membuat backlog setelah validasi HR/karyawan. Belum siap untuk memakai data GPS/kamera, menetapkan aturan absensi final, atau mengklaim kepatuhan hukum.
+
