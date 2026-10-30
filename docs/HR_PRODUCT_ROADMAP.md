@@ -17,7 +17,7 @@ Repo saat ini adalah prototipe dashboard computer-vision, meeting, dan desktop-a
 | Peninjauan dan audit teknis repo | Selesai | Mengidentifikasi risiko pada konfigurasi server, autentikasi, agent desktop, data sensitif, dan dependensi. Temuan serta panduan operasional dicatat di [Audit dan Operasional](AUDIT_AND_OPERATIONS.md). |
 | Hardening keamanan dan privasi | Selesai | Menambahkan gate konfigurasi produksi, secret dan cookie yang lebih aman, perlindungan CSRF, pembatasan remote desktop, retensi/pembersihan data, pengaturan opt-in, pengamanan layanan infrastruktur, dan lock dependensi ber-hash. Commit: [46bb5a7](https://github.com/stmarya/WeWatch/commit/46bb5a7e663e540698a04c8b531a7cc49920d82a). |
 | Review ulang dan tes kode | Selesai | 31 tes lulus; pemeriksaan compile Python, JavaScript template, YAML, whitespace, dan `pip-audit` lulus pada saat diperiksa. Validasi runtime Docker Compose serta uji TLS, TURN/LiveKit, beban media, dan hardware belum dilakukan. |
-| Prototipe lokal dan data sintetis | Siap diuji lokal | Demo mandiri di [prototypes/hr-attendance](../prototypes/hr-attendance/README.md) memakai 8 profil fiktif, 3 jadwal, 8 catatan, dan 3 koreksi. GPS satu kali/kamera preview hanya setelah tindakan dan opt-in; tidak ada database, media tersimpan, atau koneksi ke HR produksi. |
+| Prototipe lokal dan data sintetis | Siap diuji lokal | Demo mandiri di [prototypes/hr-attendance](../prototypes/hr-attendance/README.md) memakai 8 profil fiktif, 4 template jadwal, 8 catatan, dan 3 koreksi. GPS satu kali/kamera preview hanya setelah tindakan dan opt-in; tidak ada database, media tersimpan, atau koneksi ke HR produksi. |
 | Validasi prototipe | Lulus untuk smoke-test lokal | 3 tes prototipe lulus; pemeriksaan syntax JavaScript, JSON, HTML, dan render Chromium lokal lulus. GPS/kamera fisik belum diuji. Percobaan suite penuh pada sesi terakhir terhenti karena environment tidak memiliki `flask` dan `socketio`; bukan kegagalan assertion prototipe. |
 | Draft kebutuhan dan kesiapan MVP | Siap untuk review | Draft alur kehadiran, cerita pengguna, peran, guardrail data, dan gerbang sebelum coding ada pada bagian 9. Belum disetujui HR/karyawan dan belum menjadi fitur produksi. |
 | Discovery awal HR | Berjalan | Profil pilot dan guardrail awal sudah dicatat; pencarian tidak menemukan kebijakan HR/absensi internal. Detail jadwal, retensi, akses, dan kajian aturan masih menunggu validasi HR/karyawan. |
@@ -188,8 +188,8 @@ Backlog ini diturunkan dari pilihan discovery yang sudah dicatat. Status `Terblo
 
 | ID | Prioritas | Kegiatan | Status | Kriteria keluar |
 |---|---|---|---|---|
-| DISC-01 | P0 | Validasi jam reguler, shift bergilir, zona waktu, hari kerja/libur, istirahat, keterlambatan, dan lembur. | Terblokir — kebijakan internal belum tersedia | HR/pemilik kebijakan menyetujui aturan pilot tertulis. |
-| DISC-02 | P0 | Walkthrough proses karyawan–HR: jadwal, check-in/out, koreksi, keberatan, notifikasi. | Direncanakan | HR dan perwakilan karyawan meninjau dan menyetujui alur serta acceptance criteria. |
+| DISC-01 | P0 | Validasi jam reguler, shift 24/7 tiga kali sehari, zona waktu, hari kerja/libur, istirahat, keterlambatan, dan lembur. | Berjalan — skenario awal di Bagian 12 menunggu review | HR/pemilik kebijakan meninjau dan menyetujui aturan pilot tertulis; batas asumsi dan isu terbuka dicatat. |
+| DISC-02 | P0 | Walkthrough proses karyawan–HR: jadwal office hours dan 3 shift, check-in/out, koreksi, keberatan, notifikasi. | Siap untuk walkthrough skenario | HR dan perwakilan karyawan meninjau skenario Bagian 12, alur, serta acceptance criteria. |
 | PRIV-01 | P0 | Definisikan data minimum, akses, retensi/penghapusan, pemberitahuan, dan penggunaan GPS/kamera untuk pilot/produksi. | Berjalan — guardrail demo ada; keputusan produksi pending | Data map, pilihan nyata tanpa penalti, dasar pemrosesan yang sesuai, akses dan retensi disetujui; kajian aturan Indonesia selesai. |
 | UX-01 | P1 | Uji prototipe lokal pada desktop dan browser ponsel dengan data sintetis; catat hambatan pengguna. | Siap diuji | Umpan balik dicatat; uji sensor hanya dengan peserta yang mengetahui dan memilih ikut. |
 | ARCH-01 | P1 | Tetapkan schema HR minimal, autentikasi, RBAC, audit log, timezone, hosting, backup, dan batas integrasi. | Terblokir oleh DISC-01/02/PRIV-01 | Dokumen arsitektur dan threat model disetujui sebelum backend dibuat. |
@@ -201,5 +201,45 @@ Backlog ini diturunkan dari pilihan discovery yang sudah dicatat. Status `Terblo
 
 ### Fokus kerja berikutnya
 
-Mulai dari `UX-01` dan `DISC-01/02`: tinjau demo dengan HR/peserta pilot dan kumpulkan aturan absensi yang berlaku. Sambil menunggu, data sensor produksi, perhitungan keterlambatan/lembur, dan keputusan yang berdampak pada karyawan tetap nonaktif. Setelah DISC/PRIV selesai, backlog teknis dapat dipastikan dan implementasi HRIS dimulai.
+Mulai dari `UX-01` dan `DISC-01/02`: gunakan skenario usulan Bagian 12 sebagai bahan walkthrough dengan HR/peserta pilot; tandai tiap asumsi yang disetujui, diubah, atau ditolak. Sambil menunggu, data sensor produksi, perhitungan keterlambatan/lembur, dan keputusan yang berdampak pada karyawan tetap nonaktif. Setelah DISC/PRIV selesai, backlog teknis dapat dipastikan dan implementasi HRIS dimulai.
 
+## 12. Skenario jadwal awal untuk prototyping (usulan, belum menjadi kebijakan)
+
+Pemilik proyek mengarahkan bahwa sebagian tim bekerja office hours dan tim lainnya perlu cakupan 24/7 dalam tiga shift sehari. Karena belum ada aturan internal, angka di bawah adalah **asumsi awal untuk diuji dan disesuaikan**, bukan kebijakan perusahaan, perhitungan kepatuhan, atau dasar payroll. Zona waktu contoh: `Asia/Jakarta`.
+
+### A. Tim office hours
+
+- Hari contoh: Senin–Jumat.
+- Jadwal contoh: 09:00–18:00 WIB dengan asumsi jeda 60 menit.
+- Jadwal ini dapat dipakai tim kantor maupun hari kerja anggota tim hybrid; lokasi kerja tidak mengubah jadwal.
+- Jeda, hari kerja, hari libur, fleksibilitas jam, dan perlakuan terhadap keterlambatan tetap perlu diputuskan HR.
+
+### B. Tim layanan 24/7 — tiga shift harian
+
+| Kode contoh | Jam lokal | Durasi rentang | Catatan |
+|---|---|---:|---|
+| Pagi | 06:00–14:00 | 8 jam | Berlaku setiap hari dalam skenario cakupan. |
+| Sore | 14:00–22:00 | 8 jam | Berlaku setiap hari dalam skenario cakupan. |
+| Malam | 22:00–06:00 hari berikutnya | 8 jam | Check-out jatuh pada tanggal kalender berikutnya; tanggal kerja mengikuti tanggal mulai shift untuk kebutuhan demo. |
+
+- Tiga rentang itu membentuk contoh cakupan 24 jam; **bukan** berarti satu karyawan bekerja setiap hari atau jumlah kru cukup hanya tiga orang.
+- Prototipe memakai template shift dan penugasan statis. Hari libur, kebutuhan orang per shift, pergantian/rotasi, waktu serah-terima, jeda dan petugas pengganti belum dimodelkan.
+- Untuk demo rotasi di masa berikutnya, kandidat yang bisa dibahas adalah rotasi maju pagi → sore → malam. Frekuensi rotasi, hari istirahat dan jeda minimum antar-shift wajib ditinjau HR terlebih dahulu; jangan aktifkan perhitungan otomatis sebelum disetujui.
+
+### C. Perilaku absensi sementara untuk uji UX
+
+- Karyawan melihat jadwalnya sendiri dan memulai check-in/out; timestamp ditampilkan dalam WIB.
+- Catatan yang hilang, checkout yang terlewat, dan permintaan koreksi masuk ke tinjauan manusia; jangan otomatis menyimpulkan mangkir atau memberi sanksi.
+- Status “terlambat”, toleransi, lembur, pemotongan istirahat, dan dampak ke payroll belum dihitung karena aturannya belum disepakati.
+- Koreksi diajukan karyawan dan ditinjau HR dengan alasan keputusan tercatat. Opsi manual tetap tersedia tanpa GPS/kamera.
+- GPS/kamera tetap mengikuti guardrail sebelumnya: tindakan eksplisit, opt-in terpisah, tanpa pelacakan terus-menerus, tanpa pengenalan wajah, serta bukan syarat untuk mencatat kehadiran.
+
+### D. Hal yang perlu dikonfirmasi sebelum skenario menjadi aturan pilot
+
+1. Apakah jam office hours, hari kerja, serta asumsi jeda 60 menit cocok untuk tim pilot?
+2. Apakah batas tiga shift 06–14, 14–22, 22–06 dan zona waktu WIB cocok; bagaimana aturan shift lintas tengah malam dicatat?
+3. Berapa kebutuhan staf per shift, pola hari kerja/libur, mekanisme pengganti saat jeda, serah-terima, dan rotasi yang aman?
+4. Bagaimana toleransi keterlambatan, absensi, koreksi, lembur, istirahat, dan eskalasi akan diperlakukan?
+5. Siapa dari HR/manajer/karyawan yang menyetujui aturan tertulis sebelum pilot?
+
+**Gerbang:** skenario ini boleh dipakai untuk walkthrough dan data sintetis. Sebelum menjadi kebijakan pilot atau memengaruhi penggajian/keputusan karyawan, semua asumsi perlu disetujui organisasi dan diverifikasi terhadap aturan yang berlaku.

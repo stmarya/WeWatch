@@ -2,6 +2,13 @@
 
 Prototipe lokal untuk meninjau alur jadwal, check-in/out, opsi sensor, dan koreksi HR. Ini bukan fitur produksi atau kebijakan absensi. Semua karyawan/jadwal pada `sample_data.json` bersifat fiktif.
 
+## Skenario jadwal demo (usulan, bukan kebijakan)
+
+- **Office hours:** Senin–Jumat, 09:00–18:00 WIB, dengan asumsi jeda 60 menit.
+- **Cakupan 24/7:** tiga template 8 jam setiap hari: 06:00–14:00, 14:00–22:00, dan 22:00–06:00 hari berikutnya. Shift malam berakhir pada tanggal kalender berikutnya.
+- Penugasan karyawan bersifat statis dan sintetis. Rotasi, hari libur, jumlah staf, jeda/relief, toleransi keterlambatan, lembur, dan payroll tidak dimodelkan atau ditetapkan.
+- Semua jam adalah bahan walkthrough yang perlu disesuaikan dan disetujui HR sebelum dipakai sebagai aturan pilot.
+
 ## Menjalankan
 
 Dari root repo:

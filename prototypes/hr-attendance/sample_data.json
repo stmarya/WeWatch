@@ -3,7 +3,7 @@
     "datasetName": "WeWatch HR Attendance Demo",
     "syntheticOnly": true,
     "generatedFor": "local prototype",
-    "schedulePolicy": "Illustrative values only; not an employer policy",
+    "schedulePolicy": "Draft scenario for prototype only; not an employer policy or payroll/legal rule. Review and adjust before any pilot.",
     "timezone": "Asia/Jakarta",
     "gpsTestPoint": {
       "latitude": 0.0,
@@ -11,36 +11,346 @@
       "label": "Synthetic test coordinate; not an office or employee location"
     },
     "cameraMediaIncluded": false,
-    "notice": "All names, IDs, teams, schedules, attendance and correction records are fictitious."
+    "notice": "All names, IDs, teams, schedules, attendance and correction records are fictitious.",
+    "scheduleScenario": {
+      "timezone": "Asia/Jakarta",
+      "officeHours": {
+        "days": [
+          "Senin",
+          "Selasa",
+          "Rabu",
+          "Kamis",
+          "Jumat"
+        ],
+        "start": "09:00",
+        "end": "18:00",
+        "breakMinutes": 60,
+        "note": "Illustrative only; break and workday assumptions require HR review."
+      },
+      "coverage24x7": [
+        {
+          "scheduleId": "SCH-EARLY",
+          "label": "Pagi",
+          "start": "06:00",
+          "end": "14:00",
+          "crossesMidnight": false
+        },
+        {
+          "scheduleId": "SCH-LATE",
+          "label": "Sore",
+          "start": "14:00",
+          "end": "22:00",
+          "crossesMidnight": false
+        },
+        {
+          "scheduleId": "SCH-NIGHT",
+          "label": "Malam",
+          "start": "22:00",
+          "end": "06:00",
+          "crossesMidnight": true
+        }
+      ],
+      "rotation": "Not modeled; static synthetic assignments only. Days off, staffing, breaks and rotation need review."
+    }
   },
   "employees": [
-    {"employeeId":"DEMO-001","displayName":"Demo Employee 001","team":"Operations","workMode":"hybrid","scheduleId":"SCH-REG"},
-    {"employeeId":"DEMO-002","displayName":"Demo Employee 002","team":"Operations","workMode":"office","scheduleId":"SCH-REG"},
-    {"employeeId":"DEMO-003","displayName":"Demo Employee 003","team":"Support","workMode":"hybrid","scheduleId":"SCH-EARLY"},
-    {"employeeId":"DEMO-004","displayName":"Demo Employee 004","team":"Support","workMode":"office","scheduleId":"SCH-LATE"},
-    {"employeeId":"DEMO-005","displayName":"Demo Employee 005","team":"Product","workMode":"hybrid","scheduleId":"SCH-REG"},
-    {"employeeId":"DEMO-006","displayName":"Demo Employee 006","team":"Operations","workMode":"hybrid","scheduleId":"SCH-LATE"},
-    {"employeeId":"DEMO-007","displayName":"Demo Employee 007","team":"People Ops","workMode":"office","scheduleId":"SCH-REG"},
-    {"employeeId":"DEMO-008","displayName":"Demo Employee 008","team":"Support","workMode":"hybrid","scheduleId":"SCH-EARLY"}
+    {
+      "employeeId": "DEMO-001",
+      "displayName": "Demo Employee 001",
+      "team": "Operations",
+      "workMode": "hybrid",
+      "scheduleId": "SCH-REG"
+    },
+    {
+      "employeeId": "DEMO-002",
+      "displayName": "Demo Employee 002",
+      "team": "Operations",
+      "workMode": "office",
+      "scheduleId": "SCH-REG"
+    },
+    {
+      "employeeId": "DEMO-003",
+      "displayName": "Demo Employee 003",
+      "team": "Support",
+      "workMode": "hybrid",
+      "scheduleId": "SCH-EARLY"
+    },
+    {
+      "employeeId": "DEMO-004",
+      "displayName": "Demo Employee 004",
+      "team": "Support",
+      "workMode": "hybrid",
+      "scheduleId": "SCH-LATE"
+    },
+    {
+      "employeeId": "DEMO-005",
+      "displayName": "Demo Employee 005",
+      "team": "Product",
+      "workMode": "hybrid",
+      "scheduleId": "SCH-REG"
+    },
+    {
+      "employeeId": "DEMO-006",
+      "displayName": "Demo Employee 006",
+      "team": "Support",
+      "workMode": "hybrid",
+      "scheduleId": "SCH-NIGHT"
+    },
+    {
+      "employeeId": "DEMO-007",
+      "displayName": "Demo Employee 007",
+      "team": "People Ops",
+      "workMode": "office",
+      "scheduleId": "SCH-REG"
+    },
+    {
+      "employeeId": "DEMO-008",
+      "displayName": "Demo Employee 008",
+      "team": "Support",
+      "workMode": "hybrid",
+      "scheduleId": "SCH-EARLY"
+    }
   ],
   "schedules": [
-    {"scheduleId":"SCH-REG","label":"Jam reguler (contoh)","kind":"regular","days":["Senin","Selasa","Rabu","Kamis","Jumat"],"start":"09:00","end":"17:00","breakMinutes":60,"timezone":"Asia/Jakarta"},
-    {"scheduleId":"SCH-EARLY","label":"Shift pagi (contoh)","kind":"rotating_shift","days":["Senin","Selasa","Rabu","Kamis","Jumat"],"start":"07:00","end":"15:00","breakMinutes":60,"timezone":"Asia/Jakarta"},
-    {"scheduleId":"SCH-LATE","label":"Shift sore (contoh)","kind":"rotating_shift","days":["Senin","Selasa","Rabu","Kamis","Jumat"],"start":"15:00","end":"23:00","breakMinutes":60,"timezone":"Asia/Jakarta"}
+    {
+      "scheduleId": "SCH-REG",
+      "label": "Office hours (contoh)",
+      "kind": "regular",
+      "days": [
+        "Senin",
+        "Selasa",
+        "Rabu",
+        "Kamis",
+        "Jumat"
+      ],
+      "start": "09:00",
+      "end": "18:00",
+      "breakMinutes": 60,
+      "timezone": "Asia/Jakarta"
+    },
+    {
+      "scheduleId": "SCH-EARLY",
+      "label": "Shift pagi 24/7 (contoh)",
+      "kind": "rotating_shift",
+      "days": [
+        "Senin",
+        "Selasa",
+        "Rabu",
+        "Kamis",
+        "Jumat",
+        "Sabtu",
+        "Minggu"
+      ],
+      "start": "06:00",
+      "end": "14:00",
+      "breakMinutes": null,
+      "crossesMidnight": false,
+      "timezone": "Asia/Jakarta"
+    },
+    {
+      "scheduleId": "SCH-LATE",
+      "label": "Shift sore 24/7 (contoh)",
+      "kind": "rotating_shift",
+      "days": [
+        "Senin",
+        "Selasa",
+        "Rabu",
+        "Kamis",
+        "Jumat",
+        "Sabtu",
+        "Minggu"
+      ],
+      "start": "14:00",
+      "end": "22:00",
+      "breakMinutes": null,
+      "crossesMidnight": false,
+      "timezone": "Asia/Jakarta"
+    },
+    {
+      "scheduleId": "SCH-NIGHT",
+      "label": "Shift malam 24/7 (contoh)",
+      "kind": "rotating_shift",
+      "days": [
+        "Senin",
+        "Selasa",
+        "Rabu",
+        "Kamis",
+        "Jumat",
+        "Sabtu",
+        "Minggu"
+      ],
+      "start": "22:00",
+      "end": "06:00",
+      "breakMinutes": null,
+      "crossesMidnight": true,
+      "timezone": "Asia/Jakarta"
+    }
   ],
   "attendanceRecords": [
-    {"recordId":"ATT-DEMO-001","employeeId":"DEMO-001","date":"2026-10-26","scheduleId":"SCH-REG","checkIn":"2026-10-26T09:03:00+07:00","checkOut":"2026-10-26T17:02:00+07:00","status":"present","source":"manual","gpsVerification":{"status":"not_used"},"cameraVerification":{"status":"not_used"}},
-    {"recordId":"ATT-DEMO-002","employeeId":"DEMO-002","date":"2026-10-26","scheduleId":"SCH-REG","checkIn":"2026-10-26T09:18:00+07:00","checkOut":"2026-10-26T17:04:00+07:00","status":"late_example","source":"manual","gpsVerification":{"status":"synthetic_fixture","latitude":0.0,"longitude":0.0,"accuracyMeters":20,"storedInDemoUi":false},"cameraVerification":{"status":"not_used"}},
-    {"recordId":"ATT-DEMO-003","employeeId":"DEMO-003","date":"2026-10-26","scheduleId":"SCH-EARLY","checkIn":"2026-10-26T06:58:00+07:00","checkOut":"2026-10-26T15:01:00+07:00","status":"present","source":"manual","gpsVerification":{"status":"not_used"},"cameraVerification":{"status":"not_used"}},
-    {"recordId":"ATT-DEMO-004","employeeId":"DEMO-004","date":"2026-10-26","scheduleId":"SCH-LATE","checkIn":"2026-10-26T15:06:00+07:00","checkOut":null,"status":"missing_checkout_example","source":"manual","gpsVerification":{"status":"not_used"},"cameraVerification":{"status":"not_used"}},
-    {"recordId":"ATT-DEMO-005","employeeId":"DEMO-005","date":"2026-10-27","scheduleId":"SCH-REG","checkIn":"2026-10-27T08:55:00+07:00","checkOut":"2026-10-27T17:11:00+07:00","status":"correction_pending_example","source":"manual","gpsVerification":{"status":"not_used"},"cameraVerification":{"status":"not_used"}},
-    {"recordId":"ATT-DEMO-006","employeeId":"DEMO-006","date":"2026-10-27","scheduleId":"SCH-LATE","checkIn":"2026-10-27T15:00:00+07:00","checkOut":"2026-10-27T23:02:00+07:00","status":"present","source":"manual","gpsVerification":{"status":"not_used"},"cameraVerification":{"status":"simulated_only","imageStored":false,"faceRecognition":false}},
-    {"recordId":"ATT-DEMO-007","employeeId":"DEMO-007","date":"2026-10-28","scheduleId":"SCH-REG","checkIn":"2026-10-28T09:01:00+07:00","checkOut":"2026-10-28T17:00:00+07:00","status":"present","source":"manual","gpsVerification":{"status":"not_used"},"cameraVerification":{"status":"not_used"}},
-    {"recordId":"ATT-DEMO-008","employeeId":"DEMO-008","date":"2026-10-28","scheduleId":"SCH-EARLY","checkIn":"2026-10-28T07:05:00+07:00","checkOut":"2026-10-28T15:00:00+07:00","status":"present","source":"manual","gpsVerification":{"status":"not_used"},"cameraVerification":{"status":"not_used"}}
+    {
+      "recordId": "ATT-DEMO-001",
+      "employeeId": "DEMO-001",
+      "date": "2026-10-26",
+      "scheduleId": "SCH-REG",
+      "checkIn": "2026-10-26T09:03:00+07:00",
+      "checkOut": "2026-10-26T17:02:00+07:00",
+      "status": "present",
+      "source": "manual",
+      "gpsVerification": {
+        "status": "not_used"
+      },
+      "cameraVerification": {
+        "status": "not_used"
+      }
+    },
+    {
+      "recordId": "ATT-DEMO-002",
+      "employeeId": "DEMO-002",
+      "date": "2026-10-26",
+      "scheduleId": "SCH-REG",
+      "checkIn": "2026-10-26T09:18:00+07:00",
+      "checkOut": "2026-10-26T17:04:00+07:00",
+      "status": "late_example",
+      "source": "manual",
+      "gpsVerification": {
+        "status": "synthetic_fixture",
+        "latitude": 0.0,
+        "longitude": 0.0,
+        "accuracyMeters": 20,
+        "storedInDemoUi": false
+      },
+      "cameraVerification": {
+        "status": "not_used"
+      }
+    },
+    {
+      "recordId": "ATT-DEMO-003",
+      "employeeId": "DEMO-003",
+      "date": "2026-10-26",
+      "scheduleId": "SCH-EARLY",
+      "checkIn": "2026-10-26T06:00:00+07:00",
+      "checkOut": "2026-10-26T14:01:00+07:00",
+      "status": "present",
+      "source": "manual",
+      "gpsVerification": {
+        "status": "not_used"
+      },
+      "cameraVerification": {
+        "status": "not_used"
+      }
+    },
+    {
+      "recordId": "ATT-DEMO-004",
+      "employeeId": "DEMO-004",
+      "date": "2026-10-26",
+      "scheduleId": "SCH-LATE",
+      "checkIn": "2026-10-26T15:06:00+07:00",
+      "checkOut": null,
+      "status": "missing_checkout_example",
+      "source": "manual",
+      "gpsVerification": {
+        "status": "not_used"
+      },
+      "cameraVerification": {
+        "status": "not_used"
+      }
+    },
+    {
+      "recordId": "ATT-DEMO-005",
+      "employeeId": "DEMO-005",
+      "date": "2026-10-27",
+      "scheduleId": "SCH-REG",
+      "checkIn": "2026-10-27T08:55:00+07:00",
+      "checkOut": "2026-10-27T17:11:00+07:00",
+      "status": "correction_pending_example",
+      "source": "manual",
+      "gpsVerification": {
+        "status": "not_used"
+      },
+      "cameraVerification": {
+        "status": "not_used"
+      }
+    },
+    {
+      "recordId": "ATT-DEMO-006",
+      "employeeId": "DEMO-006",
+      "date": "2026-10-27",
+      "scheduleId": "SCH-NIGHT",
+      "checkIn": "2026-10-27T22:00:00+07:00",
+      "checkOut": "2026-10-28T06:02:00+07:00",
+      "status": "present",
+      "source": "manual",
+      "gpsVerification": {
+        "status": "not_used"
+      },
+      "cameraVerification": {
+        "status": "simulated_only",
+        "imageStored": false,
+        "faceRecognition": false
+      }
+    },
+    {
+      "recordId": "ATT-DEMO-007",
+      "employeeId": "DEMO-007",
+      "date": "2026-10-28",
+      "scheduleId": "SCH-REG",
+      "checkIn": "2026-10-28T09:01:00+07:00",
+      "checkOut": "2026-10-28T17:00:00+07:00",
+      "status": "present",
+      "source": "manual",
+      "gpsVerification": {
+        "status": "not_used"
+      },
+      "cameraVerification": {
+        "status": "not_used"
+      }
+    },
+    {
+      "recordId": "ATT-DEMO-008",
+      "employeeId": "DEMO-008",
+      "date": "2026-10-28",
+      "scheduleId": "SCH-EARLY",
+      "checkIn": "2026-10-28T06:05:00+07:00",
+      "checkOut": "2026-10-28T14:00:00+07:00",
+      "status": "present",
+      "source": "manual",
+      "gpsVerification": {
+        "status": "not_used"
+      },
+      "cameraVerification": {
+        "status": "not_used"
+      }
+    }
   ],
   "correctionRequests": [
-    {"requestId":"COR-DEMO-001","recordId":"ATT-DEMO-005","employeeId":"DEMO-005","requestedCheckIn":"2026-10-27T09:00:00+07:00","reason":"Demo: contoh lupa menekan check-in tepat waktu","status":"pending","reviewerRole":"HR"},
-    {"requestId":"COR-DEMO-002","recordId":"ATT-DEMO-004","employeeId":"DEMO-004","requestedCheckOut":"2026-10-26T23:00:00+07:00","reason":"Demo: contoh perangkat terputus sebelum check-out","status":"approved_example","reviewerRole":"HR","decisionReason":"Data demo; persetujuan bukan kebijakan aktual."},
-    {"requestId":"COR-DEMO-003","recordId":"ATT-DEMO-001","employeeId":"DEMO-001","requestedCheckOut":"2026-10-26T18:00:00+07:00","reason":"Demo: contoh permintaan dengan detail belum cukup","status":"rejected_example","reviewerRole":"HR","decisionReason":"Data demo; alasan penolakan hanya contoh."}
+    {
+      "requestId": "COR-DEMO-001",
+      "recordId": "ATT-DEMO-005",
+      "employeeId": "DEMO-005",
+      "requestedCheckIn": "2026-10-27T09:00:00+07:00",
+      "reason": "Demo: contoh lupa menekan check-in tepat waktu",
+      "status": "pending",
+      "reviewerRole": "HR"
+    },
+    {
+      "requestId": "COR-DEMO-002",
+      "recordId": "ATT-DEMO-004",
+      "employeeId": "DEMO-004",
+      "requestedCheckOut": "2026-10-26T23:00:00+07:00",
+      "reason": "Demo: contoh perangkat terputus sebelum check-out",
+      "status": "approved_example",
+      "reviewerRole": "HR",
+      "decisionReason": "Data demo; persetujuan bukan kebijakan aktual."
+    },
+    {
+      "requestId": "COR-DEMO-003",
+      "recordId": "ATT-DEMO-001",
+      "employeeId": "DEMO-001",
+      "requestedCheckOut": "2026-10-26T18:00:00+07:00",
+      "reason": "Demo: contoh permintaan dengan detail belum cukup",
+      "status": "rejected_example",
+      "reviewerRole": "HR",
+      "decisionReason": "Data demo; alasan penolakan hanya contoh."
+    }
   ]
 }
